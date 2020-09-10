@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/css/materialize.min.css"> <!-- https://materializecss.com/ -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <title>Wordclock</title>
+
+    <style>body {overflow:hidden;background:black;}</style>
+
+</head>
+<main>
+<body>
+    <nav>
+        <div class="nav-wrapper purple darken-3">
+            <a href="#" class="brand-logo center">Couleur face avant</a>
+            <ul id="nav-mobile" class="right hide-on-med-and-down">
+                <i class="material-icons right" a href="#">settings</i>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <canvas id="wheelCanvas" onclick="getColor(event)"></canvas>
+        <!-- Javascript code used to display the color wheel in the canvas and manage the clicks -->
+        <script type="text/javascript">
+            var canvas = document.getElementById('wheelCanvas'); // Display the color wheel in the canvas
+            var context = canvas.getContext('2d');  // 2D drawing canvas management  
+            var imageObj = new Image();
+            // Needed to prevent "Uncaught SecurityError: Failed to execute 'getImageData'"
+            // http://stackoverflow.com/questions/21642277/security-error-the-operation-is-insecure-in-firefox-document-stylesheets
+            imageObj.crossOrigin = 'anonymous';    
+            // Crude attempt to get the color wheel to fit in the browser window regardless of the 
+            // portrait/landscape orientation
+            var dimension;
+            if(window.innerHeight<window.innerWidth){
+                dimension=window.innerHeight;
+            } else {
+                dimension=window.innerWidth;
+                }    
+            imageObj.onload = function() {// Load the image   
+                                    context.drawImage(imageObj,0,0,600,600,0,0,0.98*dimension,0.98*dimension);
+                                };
+            imageObj.src = "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/RGB_color_wheel_360.svg/600px-RGB_color_wheel_360.svg.png";
+            canvas.height=window.innerHeight;
+            canvas.width=window.innerWidth;
+                    
+            function getColor(event) { // Function called each time the canvas is clicked
+                var canvas = document.getElementById('wheelCanvas'); // Get canvas handle
+                var pixelData = canvas.getContext('2d').getImageData(event.offsetX, event.offsetY, 1, 1).data; // Get pixel data where the click happened
+                var form = document.createElement("form");// Create a form to post the RGB components
+                form.action="out";    
+                // Create the RGB input field, set them the their respective value and add them to the form
+                var nr = document.createElement("input");
+                nr.name="R";
+                nr.value=pixelData[0].toString();
+                form.appendChild(nr);    
+                var ng = document.createElement("input");
+                ng.name="G";
+                ng.value=pixelData[1].toString();
+                form.appendChild(ng);  
+                var nb = document.createElement("input");
+                nb.name="B";
+                nb.value=pixelData[2].toString(); 
+                form.appendChild(nb);
+                var nr = document.createElement("input");
+                nr.name="F";
+                nr.value=1;
+                form.appendChild(nr);
+                form.style.display="none"; // The form is hidden
+                document.body.appendChild(form); // Append the hidden form to the body of the page. out?R=rrr&G=ggg&B=bbb&F=1 and submit it
+                form.submit();   
+            }
+        </script>
+        <div class="container">      
+            <div class="row">
+                <div class="col s12"><button class="waves-effect waves-light btn-large purple lighten-2 flow-text" style="width:100%; margin:5px">Retour</button></div>
+            </div>
+        </div>
+    </div>           
+</body>
+</main>
+<footer class="page-footer purple lighten-2">
+    <div class="container">
+        <div class="row">
+            <div class="col l6 s12">
+            </div>
+        </div>
+    </div>
+    <div class="footer-copyright purple darken-3">
+      <div class="container">
+        <a class="grey-text text-lighten-4 right" href="#!">Christophe Cachin Concepts ©2020</a>
+      </div>
+    </div>
+</footer>
+</html>

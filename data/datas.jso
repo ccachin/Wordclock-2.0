@@ -1,0 +1,38 @@
+[
+    {
+        "color": {
+            "frontRedVal": "128",
+            "frontGreenVal": "128",
+            "frontBlueVal": "128",
+            "backLeftRedVal": "128",
+            "backLeftGreenVal": "128",
+            "backLeftBlueVal": "128",
+            "backRightRedVal": "128",
+            "backRightGreenVal": "128",
+            "backRightBlueVal": "128",
+            "backBottomRedVal": "128",
+            "backBottomGreenVal": "128",
+            "backBottomBlueVal": "128",
+            "backTopRedVal": "128",
+            "backTopGreenVal": "128",
+            "backTopBlueVal": "128"
+        }
+    },
+    {
+        "luminosity": {
+            "frontBrightnessVal": "128",
+            "backBrightnessVal": "128"
+        }
+    },
+    {
+        "standby": {
+            "standByState": "0",
+            "startStandByHours": "20",
+            "startStandByMinutes": "00",
+            "endStandByHours": "07",
+            "endStandByMinutes": "00",
+            "frontStandByBrightness": "30",
+            "backStandByBrightness": "30"
+        }
+    }
+]
