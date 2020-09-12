@@ -1,14 +1,10 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
-const size_t capacity = JSON_ARRAY_SIZE(3) + 3*JSON_OBJECT_SIZE(1) + JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(7) + JSON_OBJECT_SIZE(15) + 580;
-DynamicJsonDocument doc(capacity);
-const char* json = "[{\"color\":{\"frontRedVal\":\"128\",\"frontGreenVal\":\"128\",\"frontBlueVal\":\"128\",\"backLeftRedVal\":\"128\",\"backLeftGreenVal\":\"128\",\"backLeftBlueVal\":\"128\",\"backRightRedVal\":\"128\",\"backRightGreenVal\":\"128\",\"backRightBlueVal\":\"128\",\"backBottomRedVal\":\"128\",\"backBottomGreenVal\":\"128\",\"backBottomBlueVal\":\"128\",\"backTopRedVal\":\"128\",\"backTopGreenVal\":\"128\",\"backTopBlueVal\":\"128\"}},{\"luminosity\":{\"frontBrightnessVal\":\"128\",\"backBrightnessVal\":\"128\"}},{\"standby\":{\"standByState\":\"0\",\"startStandByHours\":\"20\",\"startStandByMinutes\":\"00\",\"endStandByHours\":\"07\",\"endStandByMinutes\":\"00\",\"frontStandByBrightness\":\"30\",\"backStandByBrightness\":\"30\"}}]";
-deserializeJson(doc, json);
 
 //Manage Server
 #include <ESPAsyncWebServer.h>
 #include <FS.h>
-//#include <LittleFS.h>
+
 
 //Manage LEDS
 #include <FastLED.h>
@@ -19,77 +15,50 @@ CRGBArray<NUM_LEDS> leds;
 #define LED_TYPE WS2812
 #define COLOR_ORDER BRG
 
+//Network parameters
 const char *ssid = "Sunrise_2.4GHz_2BC018";
 const char *password = "Wk1znMwhM935";
+AsyncWebServer server(80);
+
 
 unsigned long previousMillis = 0;
 
-AsyncWebServer server(80);
 
-//Colors from json file
-JsonObject root_0_color = doc[0]["color"];
-const char* root_0_color_frontRedVal = root_0_color["frontRedVal"]; 
-const char* root_0_color_frontGreenVal = root_0_color["frontGreenVal"];
-const char* root_0_color_frontBlueVal = root_0_color["frontBlueVal"];
-const char* root_0_color_backLeftRedVal = root_0_color["backLeftRedVal"];
-const char* root_0_color_backLeftGreenVal = root_0_color["backLeftGreenVal"];
-const char* root_0_color_backLeftBlueVal = root_0_color["backLeftBlueVal"];
-const char* root_0_color_backRightRedVal = root_0_color["backRightRedVal"];
-const char* root_0_color_backRightGreenVal = root_0_color["backRightGreenVal"];
-const char* root_0_color_backRightBlueVal = root_0_color["backRightBlueVal"];
-const char* root_0_color_backBottomRedVal = root_0_color["backBottomRedVal"];
-const char* root_0_color_backBottomGreenVal = root_0_color["backBottomGreenVal"];
-const char* root_0_color_backBottomBlueVal = root_0_color["backBottomBlueVal"];
-const char* root_0_color_backTopRedVal = root_0_color["backTopRedVal"];
-const char* root_0_color_backTopGreenVal = root_0_color["backTopGreenVal"];
-const char* root_0_color_backTopBlueVal = root_0_color["backTopBlueVal"];
+//Colors default values
+int frontRedVal = 0;
+int frontGreenVal = 0;
+int frontBlueVal = 0;
+int backLeftRedVal = 0;
+int backLeftGreenVal =0;
+int backLeftBlueVal = 0;
 
-int frontRedVal = (int)root_0_color_frontRedVal;
-int frontGreenVal = (int)root_0_color_frontGreenVal;
-int frontBlueVal = (int)root_0_color_frontBlueVal;
-int backLeftRedVal = (int)root_0_color_backLeftRedVal;
-int backLeftGreenVal = (int)root_0_color_backLeftGreenVal;
-int backLeftBlueVal = (int)root_0_color_backLeftBlueVal;
+int backRightRedVal = 0;
+int backRightGreenVal = 0;
+int backRightBlueVal = 0;
 
-int backRightRedVal = (int)root_0_color_backRightRedVal;
-int backRightGreenVal = (int)root_0_color_backRightGreenVal;
-int backRightBlueVal = (int)root_0_color_backRightBlueVal;
+int backBottomRedVal = 0;
+int backBottomGreenVal = 0;
+int backBottomBlueVal = 0;
 
-int backBottomRedVal = (int)root_0_color_backBottomRedVal;
-int backBottomGreenVal = (int)root_0_color_backBottomGreenVal;
-int backBottomBlueVal = (int)root_0_color_backBottomBlueVal;
-
-int backTopRedVal = (int)root_0_color_backTopRedVal;
-int backTopGreenVal = (int)root_0_color_backTopGreenVal;
-int backTopBlueVal = (int)root_0_color_backTopBlueVal;
+int backTopRedVal = 0;
+int backTopGreenVal = 0;
+int backTopBlueVal = 0;
 
 
-//Stand By parameters from Json file
-JsonObject root_2_standby = doc[2]["standby"];
-const char* root_2_standby_standByState = root_2_standby["standByState"];
-const char* root_2_standby_startStandByHours = root_2_standby["startStandByHours"];
-const char* root_2_standby_startStandByMinutes = root_2_standby["startStandByMinutes"];
-const char* root_2_standby_endStandByHours = root_2_standby["endStandByHours"];
-const char* root_2_standby_endStandByMinutes = root_2_standby["endStandByMinutes"];
-const char* root_2_standby_frontStandByBrightness = root_2_standby["frontStandByBrightness"];
-const char* root_2_standby_backStandByBrightness = root_2_standby["backStandByBrightness"];
-
-int standByState =(int)root_2_standby_standByState;
-int startStandByHours = (int)root_2_standby_startStandByHours;
-int startStandByMinutes = (int)root_2_standby_startStandByMinutes;
-int endStandByHours = (int)root_2_standby_endStandByHours;
-int endStandByMinutes =(int)root_2_standby_endStandByMinutes;
-int frontStandByBrightness =(int)root_2_standby_frontStandByBrightness;
-int backStandByBrightness =(int)root_2_standby_backStandByBrightness;
+//Stand By default parameters
+int standByState =0;
+int startStandByHours = 20;
+int startStandByMinutes = 0;
+int endStandByHours = 8;
+int endStandByMinutes =0;
+int frontStandByBrightness =20;
+int backStandByBrightness =20;
 bool standByTime;
 bool serverFlag = false;
 bool standByFlag = false;
 
-const char* root_1_brightness_frontBrightnessVal = doc[1]["brightness"]["frontBrightnessVal"];
-const char* root_1_brightness_backBrightnessVal = doc[1]["brightness"]["backBrightnessVal"];
-
-int frontBrightnessVal = (int)root_1_brightness_frontBrightnessVal;
-int backBrightnessVal = (int)root_1_brightness_backBrightnessVal;
+int frontBrightnessVal = 80;
+int backBrightnessVal = 80;
 int previousBackBrightnessVal = 0;
 int previousFrontBrightnessVal = 0;
 
@@ -105,6 +74,10 @@ void waitAnimation();
 void manageStandBy();
 #include "timeManager.h"
 #include "displayPixels.h"
+#include "readJSON.h"
+
+
+
 
 void setup()
 {
@@ -114,14 +87,14 @@ void setup()
 
   //-------------------------------------------------------------------------------GPIO
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
-  FastLED.setBrightness(150);
   //-------------------------------------------------------------------------------SPIFFS
   if (!SPIFFS.begin())
   {
     Serial.println("Erreur SPIFFS...");
     return;
   }
-
+  //-------------------------------------------------------------------------------JSON FILE
+  readJsonFile();
   //-------------------------------------------------------------------------------WIFI
   WiFi.begin(ssid, password);
   Serial.print("Tentative de connexion...");
@@ -312,7 +285,6 @@ void loop()
     getTime();
     previousMillis = millis();
   }
-
   standByBrightness();
 
   if (previousMinutes != minutes || serverFlag)
