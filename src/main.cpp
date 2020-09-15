@@ -74,7 +74,7 @@ void waitAnimation();
 void manageStandBy();
 #include "timeManager.h"
 #include "displayPixels.h"
-#include "readJSON.h"
+#include "handleJSON.h"
 
 
 
@@ -187,6 +187,7 @@ void setup()
     }
 
     serverFlag = true;
+    editJsonFile();
     request->send(204);
   });
 
@@ -200,6 +201,7 @@ void setup()
       backBrightnessVal = map(brightness.toInt(), 0, 100, 0, 255);
     }
     serverFlag = true;
+    editJsonFile();
     request->send(204);
   });
   server.on("/setFrontBrightness", HTTP_POST, [](AsyncWebServerRequest *request) {
@@ -210,6 +212,7 @@ void setup()
       frontBrightnessVal = map(frontBrightness.toInt(), 0, 100, 0, 255);
     }
     serverFlag = true;
+    editJsonFile();
     request->send(204);
   });
   server.on("/setBackBrightness", HTTP_POST, [](AsyncWebServerRequest *request) {
@@ -220,6 +223,7 @@ void setup()
       backBrightnessVal = map(backBrightness.toInt(), 0, 100, 0, 255);
     }
     serverFlag = true;
+    editJsonFile();
     request->send(204);
   });
   // Manage standBy
@@ -232,6 +236,7 @@ void setup()
       Serial.print("standByState: ");
       Serial.println(standByState);
     }
+    editJsonFile();
     request->send(204);
   });
   server.on("/setStandBy", HTTP_POST, [](AsyncWebServerRequest *request) {
@@ -265,6 +270,7 @@ void setup()
       Serial.print(":");
       Serial.println(endStandByMinutes);
     }
+    editJsonFile();
     request->send(204);
   });
   server.begin();

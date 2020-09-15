@@ -19,7 +19,7 @@
         }
     },
     {
-        "luminosity": {
+        "brightness": {
             "frontBrightnessVal": "128",
             "backBrightnessVal": "128"
         }

@@ -121,7 +121,7 @@ function colorPreset(preset) {
 
 /*----------------------------------------------------------------------------------- Manage color pickers  */
 function update(jscolor) {
-    document.getElementById('ValeurColTexte').value = jscolor;
+    document.getElementById("ValeurColTexte").value = jscolor;
     document.getElementById('ValeurColFondGauche').value = jscolor;
     document.getElementById('ValeurColFondDroit').value = jscolor;
     document.getElementById('ValeurColFondHaut').value = jscolor;
@@ -132,7 +132,7 @@ function mouseUpFront() {
     if (document.getElementById('boutonTexte').value == "Valider") {
         document.getElementById('boutonTexte').value = "Texte";
         document.getElementById('boutonTexte').jscolor.hide();
-        submitVal('front', document.getElementById('ValeurColTexte').value);
+        submitVal('front', document.getElementById("ValeurColTexte").value);
     }
     else {
         document.getElementById('boutonTexte').value = "Valider";
