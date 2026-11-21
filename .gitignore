@@ -4,3 +4,4 @@
 .vscode/launch.json
 .vscode/ipch
 include/web_update_config.h
+include/ota_config.h

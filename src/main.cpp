@@ -1,4 +1,3 @@
-
 #include <Arduino.h>
 
 #include "leds.h"
@@ -11,14 +10,11 @@
 #include "render_manager.h"
 #include "settings_manager.h"
 #include "color_manager.h"
+#include "ota_manager.h"
 
 using StatusManager::State;
 
 static bool wasConnected = false;
-
-// ======================================================
-// Setup
-// ======================================================
 
 void setup()
 {
@@ -26,7 +22,9 @@ void setup()
     Serial.begin(115200);
 
     Serial.println();
+
     Serial.println("Wordclock 3.0");
+
     Serial.println("Starting...");
 
     Leds::begin();
@@ -41,7 +39,6 @@ void setup()
 
     SettingsManager::begin();
 
-    // Color engine diagnostics.
     ColorManager::runDiagnostics();
 
     RenderManager::begin();
@@ -50,25 +47,35 @@ void setup()
 
     WebServer::begin();
 
+    OTAManager::begin();
+
     StatusManager::setState(
         State::WifiConnecting);
 }
-
-// ======================================================
-// Main loop
-// ======================================================
 
 void loop()
 {
 
     WifiManager::update();
 
+    OTAManager::update();
+
+    if (OTAManager::isUpdating())
+    {
+
+        delay(5);
+
+        return;
+    }
+
     WebServer::update();
 
     bool connected =
+
         WifiManager::isConnected();
 
     bool timeValid =
+
         TimeManager::isValid();
 
     if (connected && !wasConnected)
