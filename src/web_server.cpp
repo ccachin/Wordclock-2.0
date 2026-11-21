@@ -13,6 +13,7 @@
 #include "storage.h"
 #include "theme_manager.h"
 #include "theme_library.h"
+#include "web_update_config.h"
 
 namespace WebServer
 {
@@ -21,6 +22,25 @@ namespace WebServer
 
     static bool running = false;
     static bool mdnsRunning = false;
+
+    // ==================================================
+    // JSON responses
+    // ==================================================
+
+    static void sendJson(
+        int code,
+        const String &json)
+    {
+
+        server.sendHeader(
+            "Cache-Control",
+            "no-store");
+
+        server.send(
+            code,
+            "application/json",
+            json);
+    }
 
     // ==================================================
     // Static files
@@ -124,14 +144,7 @@ namespace WebServer
             static_cast<unsigned long>(
                 ESP.getFreeHeap()));
 
-        server.sendHeader(
-            "Cache-Control",
-            "no-store");
-
-        server.send(
-            200,
-            "application/json",
-            json);
+        sendJson(200, json);
     }
 
     // ==================================================
@@ -202,14 +215,7 @@ namespace WebServer
             theme.rearColor.b,
             theme.brightness);
 
-        server.sendHeader(
-            "Cache-Control",
-            "no-store");
-
-        server.send(
-            200,
-            "application/json",
-            json);
+        sendJson(200, json);
     }
 
     // ==================================================
@@ -230,9 +236,8 @@ namespace WebServer
                     theme.frontColor))
             {
 
-                server.send(
+                sendJson(
                     400,
-                    "application/json",
                     "{\"error\":\"Invalid front color\"}");
 
                 return;
@@ -247,9 +252,8 @@ namespace WebServer
                     theme.rearColor))
             {
 
-                server.send(
+                sendJson(
                     400,
-                    "application/json",
                     "{\"error\":\"Invalid rear color\"}");
 
                 return;
@@ -276,9 +280,8 @@ namespace WebServer
                 brightness > 255)
             {
 
-                server.send(
+                sendJson(
                     400,
-                    "application/json",
                     "{\"error\":\"Invalid brightness\"}");
 
                 return;
@@ -300,13 +303,8 @@ namespace WebServer
     static void handleGetThemes()
     {
 
-        server.sendHeader(
-            "Cache-Control",
-            "no-store");
-
-        server.send(
+        sendJson(
             200,
-            "application/json",
             ThemeLibrary::getCatalog());
     }
 
@@ -320,9 +318,8 @@ namespace WebServer
         if (!server.hasArg("id"))
         {
 
-            server.send(
+            sendJson(
                 400,
-                "application/json",
                 "{\"error\":\"Missing theme id\"}");
 
             return;
@@ -334,9 +331,8 @@ namespace WebServer
             id.length() > 64)
         {
 
-            server.send(
+            sendJson(
                 400,
-                "application/json",
                 "{\"error\":\"Invalid theme id\"}");
 
             return;
@@ -345,9 +341,8 @@ namespace WebServer
         if (!ThemeLibrary::applyTheme(id))
         {
 
-            server.send(
+            sendJson(
                 404,
-                "application/json",
                 "{\"error\":\"Theme not found or invalid\"}");
 
             return;
@@ -357,15 +352,308 @@ namespace WebServer
     }
 
     // ==================================================
+    // Web update - Authentication
+    // ==================================================
+
+    static bool authorizeWebUpdate()
+    {
+
+        if (!WebUpdateConfig::ENABLED ||
+            strcmp(
+                WebUpdateConfig::PASSWORD,
+                "CHANGE_ME") == 0)
+        {
+
+            sendJson(
+                403,
+                "{\"error\":\"Web update disabled\"}");
+
+            return false;
+        }
+
+        if (!server.authenticate(
+                WebUpdateConfig::USERNAME,
+                WebUpdateConfig::PASSWORD))
+        {
+
+            server.requestAuthentication();
+
+            return false;
+        }
+
+        return true;
+    }
+
+    // ==================================================
+    // Web update - Allowed files
+    // ==================================================
+
+    static bool isAllowedWebFile(
+        const String &name)
+    {
+
+        return name == "index.html" ||
+               name == "style.css" ||
+               name == "app.js";
+    }
+
+    // ==================================================
+    // Web update - PUT
+    // ==================================================
+
+    static void handleWebUpdate()
+    {
+
+        if (!authorizeWebUpdate())
+        {
+
+            return;
+        }
+
+        if (!Storage::isReady())
+        {
+
+            sendJson(
+                503,
+                "{\"error\":\"Storage unavailable\"}");
+
+            return;
+        }
+
+        String name = server.arg("name");
+
+        if (!isAllowedWebFile(name))
+        {
+
+            sendJson(
+                400,
+                "{\"error\":\"File not allowed\"}");
+
+            return;
+        }
+
+        if (!server.hasArg("plain"))
+        {
+
+            sendJson(
+                400,
+                "{\"error\":\"Missing file content\"}");
+
+            return;
+        }
+
+        const String &content =
+            server.arg("plain");
+
+        size_t length = content.length();
+
+        if (length == 0 ||
+            length > WebUpdateConfig::MAX_FILE_SIZE)
+        {
+
+            sendJson(
+                413,
+                "{\"error\":\"Invalid file size\"}");
+
+            return;
+        }
+
+        if (!LittleFS.exists("/www"))
+        {
+
+            if (!LittleFS.mkdir("/www"))
+            {
+
+                sendJson(
+                    500,
+                    "{\"error\":\"Cannot create web directory\"}");
+
+                return;
+            }
+        }
+
+        String path = "/www/" + name;
+
+        String temporaryPath =
+            path + ".tmp";
+
+        // Remove an incomplete previous upload.
+
+        if (LittleFS.exists(temporaryPath))
+        {
+
+            LittleFS.remove(temporaryPath);
+        }
+
+        // Write temporary file.
+
+        File file = LittleFS.open(
+            temporaryPath,
+            "w");
+
+        if (!file)
+        {
+
+            sendJson(
+                500,
+                "{\"error\":\"Cannot open temporary file\"}");
+
+            return;
+        }
+
+        size_t written = file.write(
+            reinterpret_cast<const uint8_t *>(
+                content.c_str()),
+            length);
+
+        file.flush();
+        file.close();
+
+        if (written != length)
+        {
+
+            LittleFS.remove(temporaryPath);
+
+            sendJson(
+                500,
+                "{\"error\":\"Incomplete write\"}");
+
+            return;
+        }
+
+        // Verify saved content.
+
+        File verification = LittleFS.open(
+            temporaryPath,
+            "r");
+
+        if (!verification)
+        {
+
+            LittleFS.remove(temporaryPath);
+
+            sendJson(
+                500,
+                "{\"error\":\"Verification failed\"}");
+
+            return;
+        }
+
+        bool verified =
+            verification.size() == length;
+
+        for (size_t i = 0;
+             verified && i < length;
+             i++)
+        {
+
+            int value = verification.read();
+
+            if (value != static_cast<uint8_t>(
+                             content[i]))
+            {
+
+                verified = false;
+            }
+
+            if (i % 512 == 0)
+            {
+
+                yield();
+            }
+        }
+
+        verification.close();
+
+        if (!verified)
+        {
+
+            LittleFS.remove(temporaryPath);
+
+            sendJson(
+                500,
+                "{\"error\":\"File content mismatch\"}");
+
+            return;
+        }
+
+        // Replace destination using LittleFS rename.
+        // Do not delete the original first.
+
+        if (!LittleFS.rename(
+                temporaryPath,
+                path))
+        {
+
+            LittleFS.remove(temporaryPath);
+
+            sendJson(
+                500,
+                "{\"error\":\"Cannot replace file\"}");
+
+            return;
+        }
+
+        Serial.print("Web file updated: ");
+        Serial.print(path);
+        Serial.print(" (");
+        Serial.print(length);
+        Serial.println(" bytes)");
+
+        String json =
+            "{\"ok\":true,\"file\":\"";
+
+        json += name;
+        json += "\",\"size\":";
+        json += String(length);
+        json += "}";
+
+        sendJson(200, json);
+    }
+
+    // ==================================================
+    // Web update - Status
+    // ==================================================
+
+    static void handleWebUpdateStatus()
+    {
+
+        if (!authorizeWebUpdate())
+        {
+
+            return;
+        }
+
+        if (!Storage::isReady())
+        {
+
+            sendJson(
+                503,
+                "{\"error\":\"Storage unavailable\"}");
+
+            return;
+        }
+
+        String json =
+            "{\"enabled\":true,\"maxFileSize\":";
+
+        json += String(
+            WebUpdateConfig::MAX_FILE_SIZE);
+
+        json += "}";
+
+        sendJson(200, json);
+    }
+
+    // ==================================================
     // Error handling
     // ==================================================
 
     static void handleNotFound()
     {
 
-        server.send(
+        sendJson(
             404,
-            "application/json",
             "{\"error\":\"Not found\"}");
     }
 
@@ -388,7 +676,7 @@ namespace WebServer
             {
                 serveFile(
                     "/www/style.css",
-                    "text/css");
+                    "text/css; charset=utf-8");
             });
 
         server.on(
@@ -398,13 +686,17 @@ namespace WebServer
             {
                 serveFile(
                     "/www/app.js",
-                    "application/javascript");
+                    "application/javascript; charset=utf-8");
             });
+
+        // System status
 
         server.on(
             "/api/status",
             HTTP_GET,
             handleStatus);
+
+        // Current theme
 
         server.on(
             "/api/theme",
@@ -416,6 +708,8 @@ namespace WebServer
             HTTP_POST,
             handleSetTheme);
 
+        // Theme library
+
         server.on(
             "/api/themes",
             HTTP_GET,
@@ -425,6 +719,22 @@ namespace WebServer
             "/api/themes/apply",
             HTTP_POST,
             handleApplyTheme);
+
+        // Web development update
+
+        if (WebUpdateConfig::ENABLED)
+        {
+
+            server.on(
+                "/api/dev/web",
+                HTTP_GET,
+                handleWebUpdateStatus);
+
+            server.on(
+                "/api/dev/web",
+                HTTP_PUT,
+                handleWebUpdate);
+        }
 
         server.onNotFound(handleNotFound);
     }
