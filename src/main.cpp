@@ -1,69 +1,63 @@
 #include <Arduino.h>
-#include "config.h"
 #include "leds.h"
 #include "wordclock.h"
-#include "time_manager.h"
+#include "status_manager.h"
 
-int lastMinute = -1;
-int lastSecond = -1;
+using StatusManager::State;
+
+uint32_t startTime = 0;
 
 void setup()
 {
 
   Serial.begin(115200);
 
-  Serial.println();
-  Serial.println("Wordclock 3.0");
-  Serial.println("Time manager test");
-
   Leds::begin();
-  TimeManager::begin();
+  StatusManager::begin();
 
-  // Temporary test time
-  if (!TimeManager::setTime(
-          2026, 11, 21, 10, 58, 50))
-  {
-    Serial.println("Time initialization failed");
-  }
+  Wordclock::displayTime(10, 28, CRGB::Green);
+  Leds::show();
+
+  startTime = millis();
 }
 
 void loop()
 {
 
-  TimeManager::ClockTime now;
+  uint32_t elapsed = (millis() - startTime) % 30000UL;
 
-  if (!TimeManager::getTime(now))
-  {
-    delay(10);
-    return;
-  }
-
-  // Serial output every second
-  if (now.second != lastSecond)
+  if (elapsed < 3000)
   {
 
-    lastSecond = now.second;
-
-    Serial.printf(
-        "%02u:%02u:%02u\n",
-        now.hour,
-        now.minute,
-        now.second);
+    StatusManager::setState(State::Starting);
   }
-
-  // Update the display when the minute changes
-  if (now.minute != lastMinute)
+  else if (elapsed < 9000)
   {
 
-    lastMinute = now.minute;
+    StatusManager::setState(State::WifiConnecting);
+  }
+  else if (elapsed < 15000)
+  {
 
-    Wordclock::displayTime(
-        now.hour,
-        now.minute,
-        CRGB::Green);
+    StatusManager::setState(State::WifiSetupRequired);
+  }
+  else if (elapsed < 21000)
+  {
 
-    Leds::show();
+    StatusManager::setState(State::TimeSyncPending);
+  }
+  else if (elapsed < 23000)
+  {
+
+    StatusManager::setState(State::Connected);
+  }
+  else
+  {
+
+    StatusManager::setState(State::Ready);
   }
 
-  delay(10);
+  StatusManager::update();
+
+  delay(5);
 }
