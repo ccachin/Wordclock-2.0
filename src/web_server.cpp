@@ -13,6 +13,7 @@
 #include "storage.h"
 #include "theme_manager.h"
 #include "theme_library.h"
+#include "color_manager.h"
 #include "web_update_config.h"
 
 namespace WebServer
@@ -93,7 +94,7 @@ namespace WebServer
     }
 
     // ==================================================
-    // System status API
+    // System status
     // ==================================================
 
     static void handleStatus()
@@ -156,10 +157,10 @@ namespace WebServer
         CRGB &color)
     {
 
-        if (value.length() != 7 ||
+        if (
+            value.length() != 7 ||
             value[0] != '#')
         {
-
             return false;
         }
 
@@ -169,7 +170,6 @@ namespace WebServer
             if (!isxdigit(
                     static_cast<unsigned char>(value[i])))
             {
-
                 return false;
             }
         }
@@ -197,7 +197,10 @@ namespace WebServer
         const auto &theme =
             ThemeManager::getTheme();
 
-        char json[128];
+        CRGB effective =
+            ThemeManager::getEffectiveRearColor();
+
+        char json[256];
 
         snprintf(
             json,
@@ -205,7 +208,9 @@ namespace WebServer
             "{"
             "\"front\":\"#%02X%02X%02X\","
             "\"rear\":\"#%02X%02X%02X\","
-            "\"brightness\":%u"
+            "\"effectiveRear\":\"#%02X%02X%02X\","
+            "\"brightness\":%u,"
+            "\"harmony\":\"%s\""
             "}",
             theme.frontColor.r,
             theme.frontColor.g,
@@ -213,7 +218,12 @@ namespace WebServer
             theme.rearColor.r,
             theme.rearColor.g,
             theme.rearColor.b,
-            theme.brightness);
+            effective.r,
+            effective.g,
+            effective.b,
+            theme.brightness,
+            ColorManager::harmonyToString(
+                theme.harmony));
 
         sendJson(200, json);
     }
@@ -273,7 +283,8 @@ namespace WebServer
                 &end,
                 10);
 
-            if (value.length() == 0 ||
+            if (
+                value.length() == 0 ||
                 end == value.c_str() ||
                 *end != '\0' ||
                 brightness < 0 ||
@@ -291,13 +302,29 @@ namespace WebServer
                 static_cast<uint8_t>(brightness);
         }
 
+        if (server.hasArg("harmony"))
+        {
+
+            if (!ColorManager::harmonyFromString(
+                    server.arg("harmony"),
+                    theme.harmony))
+            {
+
+                sendJson(
+                    400,
+                    "{\"error\":\"Invalid harmony\"}");
+
+                return;
+            }
+        }
+
         ThemeManager::setTheme(theme);
 
         handleGetTheme();
     }
 
     // ==================================================
-    // Theme library - GET
+    // Theme library
     // ==================================================
 
     static void handleGetThemes()
@@ -307,10 +334,6 @@ namespace WebServer
             200,
             ThemeLibrary::getCatalog());
     }
-
-    // ==================================================
-    // Apply theme - POST
-    // ==================================================
 
     static void handleApplyTheme()
     {
@@ -327,8 +350,7 @@ namespace WebServer
 
         String id = server.arg("id");
 
-        if (id.length() == 0 ||
-            id.length() > 64)
+        if (id.length() == 0 || id.length() > 64)
         {
 
             sendJson(
@@ -358,7 +380,8 @@ namespace WebServer
     static bool authorizeWebUpdate()
     {
 
-        if (!WebUpdateConfig::ENABLED ||
+        if (
+            !WebUpdateConfig::ENABLED ||
             strcmp(
                 WebUpdateConfig::PASSWORD,
                 "CHANGE_ME") == 0)
@@ -406,7 +429,6 @@ namespace WebServer
 
         if (!authorizeWebUpdate())
         {
-
             return;
         }
 
@@ -447,7 +469,8 @@ namespace WebServer
 
         size_t length = content.length();
 
-        if (length == 0 ||
+        if (
+            length == 0 ||
             length > WebUpdateConfig::MAX_FILE_SIZE)
         {
 
@@ -474,18 +497,12 @@ namespace WebServer
 
         String path = "/www/" + name;
 
-        String temporaryPath =
-            path + ".tmp";
-
-        // Remove an incomplete previous upload.
+        String temporaryPath = path + ".tmp";
 
         if (LittleFS.exists(temporaryPath))
         {
-
             LittleFS.remove(temporaryPath);
         }
-
-        // Write temporary file.
 
         File file = LittleFS.open(
             temporaryPath,
@@ -521,8 +538,6 @@ namespace WebServer
             return;
         }
 
-        // Verify saved content.
-
         File verification = LittleFS.open(
             temporaryPath,
             "r");
@@ -542,23 +557,23 @@ namespace WebServer
         bool verified =
             verification.size() == length;
 
-        for (size_t i = 0;
-             verified && i < length;
-             i++)
+        for (
+            size_t i = 0;
+            verified && i < length;
+            i++)
         {
 
             int value = verification.read();
 
-            if (value != static_cast<uint8_t>(
-                             content[i]))
+            if (
+                value !=
+                static_cast<uint8_t>(content[i]))
             {
-
                 verified = false;
             }
 
             if (i % 512 == 0)
             {
-
                 yield();
             }
         }
@@ -576,9 +591,6 @@ namespace WebServer
 
             return;
         }
-
-        // Replace destination using LittleFS rename.
-        // Do not delete the original first.
 
         if (!LittleFS.rename(
                 temporaryPath,
@@ -620,7 +632,6 @@ namespace WebServer
 
         if (!authorizeWebUpdate())
         {
-
             return;
         }
 
@@ -644,10 +655,6 @@ namespace WebServer
 
         sendJson(200, json);
     }
-
-    // ==================================================
-    // Error handling
-    // ==================================================
 
     static void handleNotFound()
     {
@@ -689,14 +696,10 @@ namespace WebServer
                     "application/javascript; charset=utf-8");
             });
 
-        // System status
-
         server.on(
             "/api/status",
             HTTP_GET,
             handleStatus);
-
-        // Current theme
 
         server.on(
             "/api/theme",
@@ -708,8 +711,6 @@ namespace WebServer
             HTTP_POST,
             handleSetTheme);
 
-        // Theme library
-
         server.on(
             "/api/themes",
             HTTP_GET,
@@ -719,8 +720,6 @@ namespace WebServer
             "/api/themes/apply",
             HTTP_POST,
             handleApplyTheme);
-
-        // Web development update
 
         if (WebUpdateConfig::ENABLED)
         {
@@ -755,14 +754,12 @@ namespace WebServer
 
             if (running)
             {
-
                 server.stop();
                 running = false;
             }
 
             if (mdnsRunning)
             {
-
                 MDNS.close();
                 mdnsRunning = false;
             }
@@ -777,8 +774,7 @@ namespace WebServer
 
             running = true;
 
-            Serial.println(
-                "Web server started");
+            Serial.println("Web server started");
 
             if (MDNS.begin("wordclock"))
             {
@@ -796,8 +792,7 @@ namespace WebServer
             else
             {
 
-                Serial.println(
-                    "mDNS failed");
+                Serial.println("mDNS failed");
             }
 
             Serial.println(
@@ -808,7 +803,6 @@ namespace WebServer
 
         if (mdnsRunning)
         {
-
             MDNS.update();
         }
     }

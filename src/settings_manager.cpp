@@ -9,6 +9,7 @@
 
 #include "storage.h"
 #include "theme_manager.h"
+#include "color_manager.h"
 
 namespace SettingsManager
 {
@@ -25,16 +26,18 @@ namespace SettingsManager
     constexpr char BACKUP_PATH[] =
         "/config/settings.bak";
 
+    constexpr int SETTINGS_VERSION = 2;
+
     constexpr uint32_t SAVE_DELAY = 3000;
     constexpr uint32_t RETRY_DELAY = 10000;
 
     static bool dirty = false;
     static bool initialized = false;
+    static bool retryPending = false;
+    static bool migrationNeeded = false;
 
     static uint32_t lastChangeAt = 0;
     static uint32_t lastAttemptAt = 0;
-
-    static bool retryPending = false;
 
     // ==================================================
     // Color conversion
@@ -45,11 +48,11 @@ namespace SettingsManager
         CRGB &color)
     {
 
-        if (value == nullptr ||
+        if (
+            value == nullptr ||
             strlen(value) != 7 ||
             value[0] != '#')
         {
-
             return false;
         }
 
@@ -59,15 +62,12 @@ namespace SettingsManager
             if (!isxdigit(
                     static_cast<unsigned char>(value[i])))
             {
-
                 return false;
             }
         }
 
-        uint32_t rgb = strtoul(
-            value + 1,
-            nullptr,
-            16);
+        uint32_t rgb =
+            strtoul(value + 1, nullptr, 16);
 
         color = CRGB(
             (rgb >> 16) & 0xFF,
@@ -93,25 +93,24 @@ namespace SettingsManager
     }
 
     // ==================================================
-    // Read and validate settings file
+    // Read settings
     // ==================================================
 
     static bool readSettingsFile(
         const char *path,
-        ThemeManager::Theme &theme)
+        ThemeManager::Theme &theme,
+        int *loadedVersion = nullptr)
     {
 
         File file = LittleFS.open(path, "r");
 
         if (!file)
         {
-
             return false;
         }
 
         if (file.size() > 1024)
         {
-
             file.close();
             return false;
         }
@@ -132,59 +131,89 @@ namespace SettingsManager
             return false;
         }
 
-        if (!doc["version"].is<int>() ||
-            doc["version"].as<int>() != 1)
+        if (!doc["version"].is<int>())
         {
+            return false;
+        }
+
+        int version = doc["version"].as<int>();
+
+        if (version != 1 && version != 2)
+        {
+
+            Serial.println(
+                "Unsupported settings version");
 
             return false;
         }
 
-        CRGB frontColor;
-        CRGB rearColor;
+        CRGB front;
+        CRGB rear;
 
         if (!parseColor(
                 doc["front"].as<const char *>(),
-                frontColor))
+                front))
         {
-
             return false;
         }
 
         if (!parseColor(
                 doc["rear"].as<const char *>(),
-                rearColor))
+                rear))
         {
-
             return false;
         }
 
         if (!doc["brightness"].is<int>())
         {
-
             return false;
         }
 
         int brightness =
             doc["brightness"].as<int>();
 
-        if (brightness < 0 ||
-            brightness > 255)
+        if (brightness < 0 || brightness > 255)
         {
-
             return false;
         }
 
-        theme.frontColor = frontColor;
-        theme.rearColor = rearColor;
+        ColorManager::Harmony harmony =
+            ColorManager::Harmony::Manual;
+
+        if (version == 2)
+        {
+
+            const char *name =
+                doc["harmony"].as<const char *>();
+
+            if (
+                name == nullptr ||
+                !ColorManager::harmonyFromString(
+                    String(name),
+                    harmony))
+            {
+                return false;
+            }
+        }
+
+        theme.frontColor = front;
+        theme.rearColor = rear;
 
         theme.brightness =
             static_cast<uint8_t>(brightness);
+
+        theme.harmony = harmony;
+
+        if (loadedVersion != nullptr)
+        {
+            *loadedVersion = version;
+        }
 
         return true;
     }
 
     // ==================================================
-    // Load settings
+    // Load and recovery
     // ==================================================
 
     bool load()
@@ -192,42 +221,47 @@ namespace SettingsManager
 
         if (!Storage::isReady())
         {
-
             return false;
         }
 
         ThemeManager::Theme theme =
             ThemeManager::getTheme();
 
-        // Try primary settings file
+        int version = 0;
 
         if (readSettingsFile(
                 SETTINGS_PATH,
-                theme))
+                theme,
+                &version))
         {
 
             ThemeManager::setTheme(theme);
 
-            Serial.println("Settings loaded");
+            migrationNeeded =
+                version < SETTINGS_VERSION;
+
+            Serial.printf(
+                "Settings loaded (version %d)\n",
+                version);
 
             return true;
         }
 
-        // Recover interrupted save
-
         if (readSettingsFile(
                 TEMP_PATH,
-                theme))
+                theme,
+                &version))
         {
 
             ThemeManager::setTheme(theme);
+
+            migrationNeeded = true;
 
             Serial.println(
                 "Settings recovered from temporary file");
 
             if (LittleFS.exists(SETTINGS_PATH))
             {
-
                 LittleFS.remove(SETTINGS_PATH);
             }
 
@@ -243,14 +277,15 @@ namespace SettingsManager
             return true;
         }
 
-        // Try backup settings file
-
         if (readSettingsFile(
                 BACKUP_PATH,
-                theme))
+                theme,
+                &version))
         {
 
             ThemeManager::setTheme(theme);
+
+            migrationNeeded = true;
 
             Serial.println(
                 "Settings restored from backup");
@@ -258,8 +293,7 @@ namespace SettingsManager
             return true;
         }
 
-        Serial.println(
-            "No valid settings found");
+        Serial.println("No valid settings found");
 
         return false;
     }
@@ -273,7 +307,6 @@ namespace SettingsManager
 
         if (!Storage::isReady())
         {
-
             return false;
         }
 
@@ -308,16 +341,17 @@ namespace SettingsManager
 
         StaticJsonDocument<512> doc;
 
-        doc["version"] = 1;
+        doc["version"] = SETTINGS_VERSION;
         doc["front"] = front;
         doc["rear"] = rear;
         doc["brightness"] = theme.brightness;
 
-        // Write temporary file
+        doc["harmony"] =
+            ColorManager::harmonyToString(
+                theme.harmony);
 
-        File file = LittleFS.open(
-            TEMP_PATH,
-            "w");
+        File file =
+            LittleFS.open(TEMP_PATH, "w");
 
         if (!file)
         {
@@ -328,11 +362,11 @@ namespace SettingsManager
             return false;
         }
 
-        size_t expected = measureJsonPretty(doc);
+        size_t expected =
+            measureJsonPretty(doc);
 
-        size_t written = serializeJsonPretty(
-            doc,
-            file);
+        size_t written =
+            serializeJsonPretty(doc, file);
 
         file.flush();
         file.close();
@@ -347,8 +381,6 @@ namespace SettingsManager
 
             return false;
         }
-
-        // Verify temporary file
 
         ThemeManager::Theme verified;
 
@@ -365,7 +397,22 @@ namespace SettingsManager
             return false;
         }
 
-        // Preserve previous valid settings
+        if (
+            verified.frontColor != theme.frontColor ||
+            verified.rearColor != theme.rearColor ||
+            verified.brightness != theme.brightness ||
+            verified.harmony != theme.harmony)
+        {
+
+            Serial.println(
+                "Settings content mismatch");
+
+            LittleFS.remove(TEMP_PATH);
+
+            return false;
+        }
+
+        // Preserve previous valid settings.
 
         if (LittleFS.exists(SETTINGS_PATH))
         {
@@ -382,7 +429,6 @@ namespace SettingsManager
 
                     if (!LittleFS.remove(BACKUP_PATH))
                     {
-
                         return false;
                     }
                 }
@@ -401,18 +447,12 @@ namespace SettingsManager
             else
             {
 
-                // Invalid primary file:
-                // preserve existing backup.
-
                 if (!LittleFS.remove(SETTINGS_PATH))
                 {
-
                     return false;
                 }
             }
         }
-
-        // Promote temporary file
 
         if (!LittleFS.rename(
                 TEMP_PATH,
@@ -427,8 +467,11 @@ namespace SettingsManager
 
         dirty = false;
         retryPending = false;
+        migrationNeeded = false;
 
-        Serial.println("Settings saved");
+        Serial.printf(
+            "Settings saved (version %d)\n",
+            SETTINGS_VERSION);
 
         return true;
     }
@@ -443,6 +486,7 @@ namespace SettingsManager
         initialized = false;
         dirty = false;
         retryPending = false;
+        migrationNeeded = false;
 
         if (!Storage::isReady())
         {
@@ -459,27 +503,24 @@ namespace SettingsManager
 
         if (!loaded)
         {
-
-            Serial.println(
-                "Using default settings");
+            Serial.println("Using default settings");
         }
 
-        // Save defaults or repair primary file
-        // when necessary.
-
-        ThemeManager::Theme verified;
-
-        if (!readSettingsFile(
-                SETTINGS_PATH,
-                verified))
+        if (migrationNeeded)
         {
 
+            Serial.println(
+                "Settings migration scheduled");
+        }
+
+        if (!loaded || migrationNeeded)
+        {
             markChanged();
         }
     }
 
     // ==================================================
-    // Change notification
+    // Deferred saving
     // ==================================================
 
     void markChanged()
@@ -487,7 +528,6 @@ namespace SettingsManager
 
         if (!initialized)
         {
-
             return;
         }
 
@@ -495,18 +535,14 @@ namespace SettingsManager
         lastChangeAt = millis();
     }
 
-    // ==================================================
-    // Deferred saving
-    // ==================================================
-
     void update()
     {
 
-        if (!initialized ||
+        if (
+            !initialized ||
             !dirty ||
             !Storage::isReady())
         {
-
             return;
         }
 
@@ -514,14 +550,13 @@ namespace SettingsManager
 
         if (now - lastChangeAt < SAVE_DELAY)
         {
-
             return;
         }
 
-        if (retryPending &&
+        if (
+            retryPending &&
             now - lastAttemptAt < RETRY_DELAY)
         {
-
             return;
         }
 

@@ -1,3 +1,4 @@
+
 #include "render_manager.h"
 
 #include "theme_manager.h"
@@ -21,33 +22,28 @@ namespace RenderManager
     static StatusManager::State lastStatus =
         StatusManager::State::Starting;
 
-    // ==================================================
-    // Initialization
-    // ==================================================
-
     void begin()
     {
 
         lastHour = -1;
+
         lastMinute = -1;
 
         lastTimeValid = false;
 
         lastFrameAt = millis();
 
-        lastStatus = StatusManager::getState();
+        lastStatus =
+            StatusManager::getState();
     }
-
-    // ==================================================
-    // Render update
-    // ==================================================
 
     void update()
     {
 
         uint32_t currentMillis = millis();
 
-        if (currentMillis - lastFrameAt <
+        if (
+            currentMillis - lastFrameAt <
             FRAME_INTERVAL)
         {
 
@@ -56,21 +52,18 @@ namespace RenderManager
 
         lastFrameAt = currentMillis;
 
-        // Read current time
-
         TimeManager::ClockTime now;
 
         bool timeValid =
             TimeManager::getTime(now);
 
-        bool timeChanged = timeValid &&
-                           (now.hour != lastHour ||
-                            now.minute != lastMinute);
+        bool timeChanged =
+            timeValid &&
+            (now.hour != lastHour ||
+             now.minute != lastMinute);
 
         bool timeValidityChanged =
             timeValid != lastTimeValid;
-
-        // Read current status
 
         StatusManager::State status =
             StatusManager::getState();
@@ -81,13 +74,16 @@ namespace RenderManager
         bool statusActive =
             StatusManager::isActive();
 
-        // Check whether rendering is necessary
-
         bool needsRender =
+
             timeChanged ||
+
             timeValidityChanged ||
+
             statusChanged ||
+
             statusActive ||
+
             ThemeManager::hasChanged();
 
         if (!needsRender)
@@ -96,14 +92,10 @@ namespace RenderManager
             return;
         }
 
-        // Read current theme
-
         const auto &theme =
             ThemeManager::getTheme();
 
-        // ==============================================
-        // Layer 1 - Front display
-        // ==============================================
+        // Front
 
         if (timeValid)
         {
@@ -114,6 +106,7 @@ namespace RenderManager
                 theme.frontColor);
 
             lastHour = now.hour;
+
             lastMinute = now.minute;
         }
         else
@@ -122,15 +115,12 @@ namespace RenderManager
             Leds::clearFront();
         }
 
-        // ==============================================
-        // Layer 2 - Rear display
-        // ==============================================
+        // Rear
 
-        Leds::fillRear(theme.rearColor);
+        Leds::fillRear(
+            ThemeManager::getEffectiveRearColor());
 
-        // ==============================================
-        // Layer 3 - Status overlay
-        // ==============================================
+        // Status overlay
 
         if (statusActive)
         {
@@ -140,21 +130,15 @@ namespace RenderManager
                 StatusManager::getColor());
         }
 
-        // ==============================================
         // Global brightness
-        // ==============================================
 
-        Leds::setBrightness(theme.brightness);
-
-        // ==============================================
-        // Send complete frame
-        // ==============================================
+        Leds::setBrightness(
+            theme.brightness);
 
         Leds::show();
 
-        // Save rendering state
-
         lastStatus = status;
+
         lastTimeValid = timeValid;
 
         ThemeManager::markRendered();

@@ -74,7 +74,46 @@
 
             </div>
 
-            <div class="setting">
+            <div class="harmony-setting">
+
+                <label for="harmony">
+                    Harmonie des couleurs
+                </label>
+
+                <select id="harmony" disabled>
+
+                    <option value="manual">
+                        Indépendante
+                    </option>
+
+                    <option value="identical">
+                        Identique
+                    </option>
+
+                    <option value="complementary">
+                        Complémentaire
+                    </option>
+
+                    <option value="analogous-plus">
+                        Analogique +30°
+                    </option>
+
+                    <option value="analogous-minus">
+                        Analogique -30°
+                    </option>
+
+                    <option value="triadic">
+                        Triadique
+                    </option>
+
+                </select>
+
+                <p id="harmonyDescription" class="muted">
+                </p>
+
+            </div>
+
+            <div class="setting" id="manualRearRow">
 
                 <label for="rearColor">
                     Couleur arrière
@@ -83,6 +122,37 @@
                 <input type="color" id="rearColor" value="#3c64b4" disabled>
 
             </div>
+
+            <div class="setting" id="automaticRearRow" hidden>
+
+                <div>
+
+                    <span>Couleur arrière</span>
+
+                    <p class="muted">
+                        Calculée automatiquement
+                    </p>
+
+                </div>
+
+                <div class="color-preview" id="effectiveRearColor">
+                </div>
+
+            </div>
+
+            <div class="palette-preview">
+
+                <div id="frontPreview">
+                    Avant
+                </div>
+
+                <div id="rearPreview">
+                    Arrière
+                </div>
+
+            </div>
+
+            <div class="separator"></div>
 
             <div class="setting">
 

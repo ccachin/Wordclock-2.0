@@ -3,15 +3,14 @@
 
 #include <ArduinoJson.h>
 #include <FastLED.h>
+#include <ctype.h>
+#include <stdlib.h>
 
 #include "theme_manager.h"
+#include "color_manager.h"
 
 namespace ThemeLibrary
 {
-
-    // ==================================================
-    // Factory themes
-    // ==================================================
 
     static const char FACTORY_THEMES[] = R"json(
     [
@@ -58,16 +57,13 @@ namespace ThemeLibrary
     ]
     )json";
 
-    // ==================================================
-    // Color conversion
-    // ==================================================
-
     static bool parseColor(
         const char *value,
         CRGB &color)
     {
 
-        if (value == nullptr ||
+        if (
+            value == nullptr ||
             strlen(value) != 7 ||
             value[0] != '#')
         {
@@ -79,17 +75,16 @@ namespace ThemeLibrary
         {
 
             if (!isxdigit(
-                    static_cast<unsigned char>(value[i])))
+                    static_cast<unsigned char>(
+                        value[i])))
             {
 
                 return false;
             }
         }
 
-        uint32_t rgb = strtoul(
-            value + 1,
-            nullptr,
-            16);
+        uint32_t rgb =
+            strtoul(value + 1, nullptr, 16);
 
         color = CRGB(
             (rgb >> 16) & 0xFF,
@@ -99,19 +94,11 @@ namespace ThemeLibrary
         return true;
     }
 
-    // ==================================================
-    // Get theme catalog
-    // ==================================================
-
     String getCatalog()
     {
 
         return String(FACTORY_THEMES);
     }
-
-    // ==================================================
-    // Apply theme
-    // ==================================================
 
     bool applyTheme(const String &id)
     {
@@ -126,13 +113,16 @@ namespace ThemeLibrary
         if (error)
         {
 
-            Serial.print("Theme catalog error: ");
+            Serial.print(
+                "Theme catalog error: ");
+
             Serial.println(error.c_str());
 
             return false;
         }
 
-        JsonArray themes = doc.as<JsonArray>();
+        JsonArray themes =
+            doc.as<JsonArray>();
 
         for (JsonObject entry : themes)
         {
@@ -140,7 +130,8 @@ namespace ThemeLibrary
             const char *themeId =
                 entry["id"].as<const char *>();
 
-            if (themeId == nullptr ||
+            if (
+                themeId == nullptr ||
                 id != themeId)
             {
 
@@ -170,13 +161,18 @@ namespace ThemeLibrary
             }
 
             theme.frontColor = front;
+
             theme.rearColor = rear;
 
-            // Preserve current brightness.
+            theme.harmony =
+                ColorManager::Harmony::Manual;
+
+            // Preserve global brightness.
 
             ThemeManager::setTheme(theme);
 
             Serial.print("Theme applied: ");
+
             Serial.println(id);
 
             return true;

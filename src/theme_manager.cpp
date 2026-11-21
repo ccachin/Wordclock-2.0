@@ -9,14 +9,28 @@ namespace ThemeManager
 
     static Theme currentTheme;
 
+    static CRGB effectiveRearColor;
+
     static bool changed = true;
 
     // ==================================================
-    // Change notification
+    // Internal helpers
     // ==================================================
+
+    static void updateEffectiveColors()
+    {
+
+        effectiveRearColor =
+            ColorManager::resolveRearColor(
+                currentTheme.frontColor,
+                currentTheme.rearColor,
+                currentTheme.harmony);
+    }
 
     static void notifyChange()
     {
+
+        updateEffectiveColors();
 
         changed = true;
 
@@ -39,11 +53,16 @@ namespace ThemeManager
         currentTheme.brightness =
             Config::DEFAULT_BRIGHTNESS;
 
+        currentTheme.harmony =
+            ColorManager::Harmony::Manual;
+
+        updateEffectiveColors();
+
         changed = true;
     }
 
     // ==================================================
-    // Read current theme
+    // Getters
     // ==================================================
 
     const Theme &getTheme()
@@ -52,8 +71,14 @@ namespace ThemeManager
         return currentTheme;
     }
 
+    CRGB getEffectiveRearColor()
+    {
+
+        return effectiveRearColor;
+    }
+
     // ==================================================
-    // Front color
+    // Setters
     // ==================================================
 
     void setFrontColor(CRGB color)
@@ -61,7 +86,6 @@ namespace ThemeManager
 
         if (currentTheme.frontColor == color)
         {
-
             return;
         }
 
@@ -70,16 +94,11 @@ namespace ThemeManager
         notifyChange();
     }
 
-    // ==================================================
-    // Rear color
-    // ==================================================
-
     void setRearColor(CRGB color)
     {
 
         if (currentTheme.rearColor == color)
         {
-
             return;
         }
 
@@ -88,22 +107,19 @@ namespace ThemeManager
         notifyChange();
     }
 
-    // ==================================================
-    // Brightness
-    // ==================================================
-
     void setBrightness(uint8_t brightness)
     {
 
         if (brightness > Config::MAX_BRIGHTNESS)
         {
 
-            brightness = Config::MAX_BRIGHTNESS;
+            brightness =
+                Config::MAX_BRIGHTNESS;
         }
 
-        if (currentTheme.brightness == brightness)
+        if (
+            currentTheme.brightness == brightness)
         {
-
             return;
         }
 
@@ -112,8 +128,22 @@ namespace ThemeManager
         notifyChange();
     }
 
+    void setHarmony(
+        ColorManager::Harmony harmony)
+    {
+
+        if (currentTheme.harmony == harmony)
+        {
+            return;
+        }
+
+        currentTheme.harmony = harmony;
+
+        notifyChange();
+    }
+
     // ==================================================
-    // Complete theme
+    // Apply complete theme
     // ==================================================
 
     void setTheme(const Theme &theme)
@@ -121,7 +151,8 @@ namespace ThemeManager
 
         Theme nextTheme = theme;
 
-        if (nextTheme.brightness >
+        if (
+            nextTheme.brightness >
             Config::MAX_BRIGHTNESS)
         {
 
@@ -137,7 +168,10 @@ namespace ThemeManager
                 nextTheme.rearColor &&
 
             currentTheme.brightness ==
-                nextTheme.brightness)
+                nextTheme.brightness &&
+
+            currentTheme.harmony ==
+                nextTheme.harmony)
         {
 
             return;
@@ -149,7 +183,7 @@ namespace ThemeManager
     }
 
     // ==================================================
-    // Rendering state
+    // Render state
     // ==================================================
 
     bool hasChanged()

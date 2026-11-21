@@ -17,6 +17,27 @@ const brightness =
 const brightnessValue =
     document.getElementById("brightnessValue");
 
+const harmony =
+    document.getElementById("harmony");
+
+const harmonyDescription =
+    document.getElementById("harmonyDescription");
+
+const manualRearRow =
+    document.getElementById("manualRearRow");
+
+const automaticRearRow =
+    document.getElementById("automaticRearRow");
+
+const effectiveRearColor =
+    document.getElementById("effectiveRearColor");
+
+const frontPreview =
+    document.getElementById("frontPreview");
+
+const rearPreview =
+    document.getElementById("rearPreview");
+
 const themeList =
     document.getElementById("themeList");
 
@@ -25,6 +46,7 @@ const activeTheme =
 
 const message =
     document.getElementById("message");
+
 
 let themes = [];
 
@@ -38,6 +60,33 @@ let applyingTheme = false;
 
 let initialized = false;
 
+let revision = 0;
+
+let effectiveRear = "#3c64b4";
+
+
+const harmonyDescriptions = {
+
+    "manual":
+        "Deux couleurs entièrement indépendantes.",
+
+    "identical":
+        "La même couleur à l'avant et à l'arrière.",
+
+    "complementary":
+        "Une couleur opposée sur le cercle chromatique.",
+
+    "analogous-plus":
+        "Une couleur voisine, décalée de +30°.",
+
+    "analogous-minus":
+        "Une couleur voisine, décalée de -30°.",
+
+    "triadic":
+        "Une couleur décalée de 120°."
+
+};
+
 
 // ======================================================
 // HTTP API
@@ -46,8 +95,11 @@ let initialized = false;
 async function request(url, options = {}) {
 
     const response = await fetch(url, {
+
         cache: "no-store",
+
         ...options
+
     });
 
     if (!response.ok) {
@@ -123,8 +175,12 @@ async function updateStatus() {
 function setControlsEnabled(enabled) {
 
     frontColor.disabled = !enabled;
+
     rearColor.disabled = !enabled;
+
     brightness.disabled = !enabled;
+
+    harmony.disabled = !enabled;
 
     themeList
         .querySelectorAll(".theme-card")
@@ -137,10 +193,98 @@ function setControlsEnabled(enabled) {
 function updateBrightnessLabel() {
 
     brightnessValue.textContent =
+
         Math.round(
             Number(brightness.value) / 255 * 100
         ) + " %";
 }
+
+
+// ======================================================
+// Palette preview
+// ======================================================
+
+function readableTextColor(hex) {
+
+    const rgb = parseInt(
+        hex.replace("#", ""),
+        16
+    );
+
+    const r = (rgb >> 16) & 255;
+
+    const g = (rgb >> 8) & 255;
+
+    const b = rgb & 255;
+
+    const luminance =
+
+        (r * 299 + g * 587 + b * 114) / 1000;
+
+    return luminance > 155
+
+        ? "#000000"
+
+        : "#ffffff";
+}
+
+function setPreviewColor(element, color) {
+
+    element.style.backgroundColor = color;
+
+    element.style.color =
+        readableTextColor(color);
+}
+
+function updatePalettePreview() {
+
+    const rear = harmony.value === "manual"
+
+        ? rearColor.value
+
+        : effectiveRear;
+
+    setPreviewColor(
+        frontPreview,
+        frontColor.value
+    );
+
+    setPreviewColor(
+        rearPreview,
+        rear
+    );
+
+    effectiveRearColor.style.backgroundColor =
+        rear;
+
+    effectiveRearColor.title =
+        rear.toUpperCase();
+}
+
+
+// ======================================================
+// Harmony controls
+// ======================================================
+
+function updateHarmonyControls() {
+
+    const manual =
+        harmony.value === "manual";
+
+    manualRearRow.hidden = !manual;
+
+    automaticRearRow.hidden = manual;
+
+    harmonyDescription.textContent =
+        harmonyDescriptions[harmony.value] || "";
+
+    updatePalettePreview();
+}
+
+
+// ======================================================
+// Synchronize controls
+// ======================================================
 
 function updateControls(data) {
 
@@ -153,7 +297,19 @@ function updateControls(data) {
     brightness.value =
         data.brightness;
 
+    harmony.value =
+        data.harmony || "manual";
+
+    effectiveRear =
+
+        (
+            data.effectiveRear ||
+            data.rear
+        ).toLowerCase();
+
     updateBrightnessLabel();
+
+    updateHarmonyControls();
 
     updateActiveTheme();
 }
@@ -165,18 +321,26 @@ function updateControls(data) {
 
 function updateActiveTheme() {
 
-    const selected = themes.find(theme =>
+    let selected = null;
 
-        theme.front.toLowerCase() ===
-        frontColor.value.toLowerCase() &&
+    if (harmony.value === "manual") {
 
-        theme.rear.toLowerCase() ===
-        rearColor.value.toLowerCase()
-    );
+        selected = themes.find(theme =>
+
+            theme.front.toLowerCase() ===
+            frontColor.value.toLowerCase() &&
+
+            theme.rear.toLowerCase() ===
+            rearColor.value.toLowerCase()
+        );
+    }
 
     activeTheme.textContent =
+
         selected
+
             ? selected.name
+
             : "Personnalisé";
 
     themeList
@@ -184,7 +348,9 @@ function updateActiveTheme() {
         .forEach(button => {
 
             const isActive =
+
                 !!selected &&
+
                 button.dataset.id === selected.id;
 
             button.classList.toggle(
@@ -222,8 +388,7 @@ function renderThemeLibrary() {
         const preview =
             document.createElement("div");
 
-        preview.className =
-            "theme-preview";
+        preview.className = "theme-preview";
 
         preview.style.setProperty(
             "--front",
@@ -293,7 +458,7 @@ function renderThemeLibrary() {
 
 
 // ======================================================
-// Load initial settings
+// Initialization
 // ======================================================
 
 async function initialize() {
@@ -304,6 +469,13 @@ async function initialize() {
 
         const data =
             await request("/api/theme");
+
+        if (!data.harmony) {
+
+            throw new Error(
+                "Firmware update required"
+            );
+        }
 
         updateControls(data);
 
@@ -321,7 +493,10 @@ async function initialize() {
     } catch (error) {
 
         showMessage(
-            "Impossible de charger les paramètres.",
+
+            "Impossible de charger les paramètres : " +
+            error.message,
+
             true
         );
 
@@ -350,36 +525,62 @@ function sendTheme() {
 
     pending = false;
 
+    const requestRevision = revision;
+
     const params = new URLSearchParams({
 
         front: frontColor.value,
 
         rear: rearColor.value,
 
-        brightness: brightness.value
+        brightness: brightness.value,
+
+        harmony: harmony.value
+
     });
 
     currentRequest = request(
+
         "/api/theme",
+
         {
+
             method: "POST",
+
             body: params
+
         }
+
     )
 
-        .then(() => {
+        .then(data => {
 
-            showMessage(
-                "Réglages appliqués"
-            );
+            // Ignore stale responses.
+
+            if (
+                requestRevision === revision &&
+                !applyingTheme
+            ) {
+
+                updateControls(data);
+
+                showMessage(
+                    "Réglages appliqués"
+                );
+            }
         })
 
         .catch(error => {
 
-            showMessage(
-                "Impossible d'appliquer les réglages.",
-                true
-            );
+            if (requestRevision === revision) {
+
+                showMessage(
+
+                    "Impossible d'appliquer les réglages.",
+
+                    true
+                );
+            }
         })
 
         .finally(() => {
@@ -395,7 +596,11 @@ function sendTheme() {
 
 function scheduleThemeUpdate() {
 
+    revision++;
+
     updateBrightnessLabel();
+
+    updateHarmonyControls();
 
     updateActiveTheme();
 
@@ -421,13 +626,13 @@ async function applyTheme(id) {
 
     applyingTheme = true;
 
+    revision++;
+
     clearTimeout(themeTimer);
 
     pending = false;
 
     setControlsEnabled(false);
-
-    // Wait for an existing manual update.
 
     if (currentRequest) {
 
@@ -436,27 +641,37 @@ async function applyTheme(id) {
 
     try {
 
-        const params =
-            new URLSearchParams({ id });
-
-        // Preserve the latest brightness selected
-        // in the interface, including pending changes.
+        // Preserve the latest brightness.
 
         await request(
+
             "/api/theme",
+
             {
+
                 method: "POST",
+
                 body: new URLSearchParams({
+
                     brightness: brightness.value
+
                 })
+
             }
         );
 
         const data = await request(
+
             "/api/themes/apply",
+
             {
+
                 method: "POST",
-                body: params
+
+                body: new URLSearchParams({
+                    id
+                })
+
             }
         );
 
@@ -467,7 +682,9 @@ async function applyTheme(id) {
     } catch (error) {
 
         showMessage(
+
             "Impossible d'appliquer le thème.",
+
             true
         );
 
@@ -497,18 +714,35 @@ async function applyTheme(id) {
 // ======================================================
 
 frontColor.addEventListener(
+
     "input",
+
     scheduleThemeUpdate
+
 );
 
 rearColor.addEventListener(
+
     "input",
+
     scheduleThemeUpdate
+
 );
 
 brightness.addEventListener(
+
     "input",
+
     scheduleThemeUpdate
+
+);
+
+harmony.addEventListener(
+
+    "change",
+
+    scheduleThemeUpdate
+
 );
 
 
