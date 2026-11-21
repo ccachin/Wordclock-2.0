@@ -7,5 +7,6 @@ bool create(ThemeCodec::Entry& entry);
 bool update(const ThemeCodec::Entry& entry);
 bool remove(const String& id);
 size_t count();
+bool listIds(String& json);
 void runDiagnostics();
 }

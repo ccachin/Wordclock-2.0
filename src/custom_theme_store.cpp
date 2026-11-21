@@ -8,6 +8,30 @@ static String path(const String& id){return String(DIR)+"/"+id+".json";}
 static bool read(const String& p,ThemeCodec::Entry& out){File f=LittleFS.open(p,"r");if(!f||f.size()>ThemeCodec::MAX_BYTES||!f.size())return false;size_t n=f.size();String s=f.readString();f.close();return s.length()==n&&ThemeCodec::decode(s,out);}
 bool load(const String& id,ThemeCodec::Entry& out){if(!Storage::isReady()||!valid(id))return false;return read(path(id),out)&&out.id==id;}
 size_t count(){if(!Storage::isReady())return 0;Dir d=LittleFS.openDir(DIR);size_t n=0;while(d.next())if(d.fileName().endsWith(".json"))++n;return n;}
+bool listIds(String& json) {
+    if (!Storage::isReady()) return false;
+    json = "";
+    if (!json.reserve(MAX_THEMES * 51 + 2)) return false;
+    if (!json.concat('[')) return false;
+    Dir d = LittleFS.openDir(DIR);
+    size_t n = 0;
+    while (d.next()) {
+        String name = d.fileName();
+        int slash = name.lastIndexOf('/');
+        if (slash >= 0) name = name.substring(slash + 1);
+        if (name.endsWith(".json")) {
+            String id = name.substring(0, name.length() - 5);
+            if (valid(id)) {
+                if (n >= MAX_THEMES) return false;
+                if ((n && !json.concat(',')) || !json.concat('"') ||
+                    !json.concat(id) || !json.concat('"')) return false;
+                ++n;
+            }
+        }
+        yield();
+    }
+    return json.concat(']');
+}
 static bool write(const ThemeCodec::Entry& e){String s;if(!Storage::isReady()||!valid(e.id)||!ThemeCodec::encode(e,s))return false;String p=path(e.id),tmp=p+".tmp";File f=LittleFS.open(tmp,"w");if(!f)return false;size_t n=f.print(s);f.close();ThemeCodec::Entry check;if(n!=s.length()||!read(tmp,check)||check.id!=e.id){LittleFS.remove(tmp);return false;}if(!LittleFS.rename(tmp,p)){LittleFS.remove(tmp);return false;}return true;}
 bool create(ThemeCodec::Entry& e){if(!Storage::isReady()||count()>=MAX_THEMES)return false;ThemeCodec::Entry candidate=e;for(unsigned i=0;i<32;++i){char id[32];snprintf(id,sizeof(id),"custom-%08lx-%08lx",(unsigned long)ESP.getChipId(),(unsigned long)random(0x7fffffff));candidate.id=id;if(!LittleFS.exists(path(candidate.id))){if(!write(candidate))return false;e=candidate;return true;}}return false;}
 bool update(const ThemeCodec::Entry& e){return Storage::isReady()&&valid(e.id)&&LittleFS.exists(path(e.id))&&write(e);}

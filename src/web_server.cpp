@@ -17,6 +17,7 @@
 #include "web_update_config.h"
 #include "transition_manager.h"
 #include "night_manager.h"
+#include "custom_theme_store.h"
 
 namespace WebServer
 {
@@ -813,6 +814,23 @@ namespace WebServer
             "/api/themes/apply",
             HTTP_POST,
             handleApplyTheme);
+
+        server.on("/api/themes/custom", HTTP_GET, []() {
+            if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
+            String json;
+            if (!server.hasArg("id")) {
+                if (!CustomThemeStore::listIds(json)) { sendJson(500, "{\"error\":\"List failed\"}"); return; }
+            } else {
+                String id = server.arg("id");
+                if (!id.startsWith("custom-") || id.length() <= 7 || !ThemeCodec::validId(id)) {
+                    sendJson(400, "{\"error\":\"Invalid custom theme ID\"}"); return;
+                }
+                ThemeCodec::Entry entry;
+                if (!CustomThemeStore::load(id, entry)) { sendJson(404, "{\"error\":\"Theme not found or unreadable\"}"); return; }
+                if (!ThemeCodec::encode(entry, json)) { sendJson(500, "{\"error\":\"Encoding failed\"}"); return; }
+            }
+            sendJson(200, json);
+        });
 
         server.on("/api/night", HTTP_GET, handleGetNight);
         server.on("/api/night", HTTP_POST, handleSetNight);
