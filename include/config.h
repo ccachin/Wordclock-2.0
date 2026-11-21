@@ -29,7 +29,7 @@ namespace Config
 
     // Brightness (0 - 255)
     constexpr uint8_t DEFAULT_BRIGHTNESS = 8;
-    constexpr uint8_t MAX_BRIGHTNESS = 8;
+    constexpr uint8_t MAX_BRIGHTNESS = 255;
 
     // Convert matrix coordinates to LED index
     constexpr uint16_t ledIndex(uint8_t x, uint8_t y)

@@ -26,6 +26,38 @@
             <div id="time">--:--:--</div>
         </section>
 
+        <section class="controls">
+
+            <h2>Ambiance</h2>
+
+            <div class="setting">
+                <label for="frontColor">
+                    Couleur avant
+                </label>
+
+                <input type="color" id="frontColor" value="#ffe1b4">
+            </div>
+
+            <div class="setting">
+                <label for="rearColor">
+                    Couleur arrière
+                </label>
+
+                <input type="color" id="rearColor" value="#3c64b4">
+            </div>
+
+            <div class="setting">
+                <label for="brightness">
+                    Luminosité
+                </label>
+
+                <span id="brightnessValue">3 %</span>
+            </div>
+
+            <input type="range" id="brightness" min="0" max="255" value="8">
+
+        </section>
+
         <footer>
             Wordclock 3.0
         </footer>

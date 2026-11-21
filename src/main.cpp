@@ -1,18 +1,17 @@
 #include <Arduino.h>
+
 #include "leds.h"
-#include "wordclock.h"
 #include "time_manager.h"
 #include "status_manager.h"
 #include "wifi_manager.h"
 #include "web_server.h"
 #include "storage.h"
+#include "theme_manager.h"
+#include "render_manager.h"
 
 using StatusManager::State;
 
 bool wasConnected = false;
-
-int lastHour = -1;
-int lastMinute = -1;
 
 void setup()
 {
@@ -24,13 +23,19 @@ void setup()
   Serial.println("Starting...");
 
   Leds::begin();
+
   TimeManager::begin();
   StatusManager::begin();
-  WifiManager::begin();
-  WebServer::begin();
-  Storage::begin();
 
-  StatusManager::setState(State::WifiConnecting);
+  ThemeManager::begin();
+  RenderManager::begin();
+
+  WifiManager::begin();
+  Storage::begin();
+  WebServer::begin();
+
+  StatusManager::setState(
+      State::WifiConnecting);
 }
 
 void loop()
@@ -42,35 +47,37 @@ void loop()
   bool connected = WifiManager::isConnected();
   bool timeValid = TimeManager::isValid();
 
-  // Start NTP after connection
   if (connected && !wasConnected)
   {
 
-    Serial.println("Starting NTP synchronization");
+    Serial.println(
+        "Starting NTP synchronization");
 
     TimeManager::startNtp();
 
-    StatusManager::setState(State::Connected);
+    StatusManager::setState(
+        State::Connected);
   }
 
   wasConnected = connected;
 
-  // Update status indicators
   if (WifiManager::isPortalActive())
   {
 
     StatusManager::setState(
         State::WifiSetupRequired);
   }
-  else if (!connected && !timeValid)
+  else if (!connected)
   {
 
     StatusManager::setState(
-        State::WifiConnecting);
+        timeValid
+            ? State::Ready
+            : State::WifiConnecting);
   }
   else if (
-      connected &&
-      StatusManager::getState() != State::Connected)
+      StatusManager::getState() !=
+      State::Connected)
   {
 
     StatusManager::setState(
@@ -79,33 +86,7 @@ void loop()
             : State::TimeSyncPending);
   }
 
-  // Update time display
-  TimeManager::ClockTime now;
-
-  if (TimeManager::getTime(now))
-  {
-
-    if (now.hour != lastHour ||
-        now.minute != lastMinute)
-    {
-
-      lastHour = now.hour;
-      lastMinute = now.minute;
-
-      Wordclock::displayTime(
-          now.hour,
-          now.minute,
-          CRGB::Green);
-
-      Leds::show();
-
-      Serial.printf(
-          "Time: %02u:%02u\n",
-          now.hour,
-          now.minute);
-    }
-  }
-
+  RenderManager::update();
   StatusManager::update();
 
   delay(5);

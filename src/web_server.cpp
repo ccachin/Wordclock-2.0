@@ -1,13 +1,17 @@
+
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <LittleFS.h>
+#include <ctype.h>
+#include <stdlib.h>
 
 #include "web_server.h"
 #include "wifi_manager.h"
 #include "time_manager.h"
 #include "storage.h"
+#include "theme_manager.h"
 
 namespace WebServer
 {
@@ -16,6 +20,10 @@ namespace WebServer
 
     static bool running = false;
     static bool mdnsRunning = false;
+
+    // ==================================================
+    // Static files
+    // ==================================================
 
     static void serveFile(
         const char *path,
@@ -47,6 +55,7 @@ namespace WebServer
         }
 
         server.sendHeader("Cache-Control", "no-store");
+
         server.streamFile(file, contentType);
 
         file.close();
@@ -60,6 +69,10 @@ namespace WebServer
             "text/html; charset=utf-8");
     }
 
+    // ==================================================
+    // System status API
+    // ==================================================
+
     static void handleStatus()
     {
 
@@ -71,6 +84,7 @@ namespace WebServer
 
         if (valid)
         {
+
             snprintf(
                 timeString,
                 sizeof(timeString),
@@ -113,6 +127,179 @@ namespace WebServer
             json);
     }
 
+    // ==================================================
+    // Color conversion
+    // ==================================================
+
+    static bool parseColor(
+        const String &value,
+        CRGB &color)
+    {
+
+        if (value.length() != 7 ||
+            value[0] != '#')
+        {
+
+            return false;
+        }
+
+        for (size_t i = 1; i < 7; i++)
+        {
+
+            if (!isxdigit(
+                    static_cast<unsigned char>(value[i])))
+            {
+
+                return false;
+            }
+        }
+
+        uint32_t rgb = strtoul(
+            value.c_str() + 1,
+            nullptr,
+            16);
+
+        color = CRGB(
+            (rgb >> 16) & 0xFF,
+            (rgb >> 8) & 0xFF,
+            rgb & 0xFF);
+
+        return true;
+    }
+
+    // ==================================================
+    // Theme API - GET
+    // ==================================================
+
+    static void handleGetTheme()
+    {
+
+        const auto &theme =
+            ThemeManager::getTheme();
+
+        char json[128];
+
+        snprintf(
+            json,
+            sizeof(json),
+            "{"
+            "\"front\":\"#%02X%02X%02X\","
+            "\"rear\":\"#%02X%02X%02X\","
+            "\"brightness\":%u"
+            "}",
+            theme.frontColor.r,
+            theme.frontColor.g,
+            theme.frontColor.b,
+            theme.rearColor.r,
+            theme.rearColor.g,
+            theme.rearColor.b,
+            theme.brightness);
+
+        server.sendHeader(
+            "Cache-Control",
+            "no-store");
+
+        server.send(
+            200,
+            "application/json",
+            json);
+    }
+
+    // ==================================================
+    // Theme API - POST
+    // ==================================================
+
+    static void handleSetTheme()
+    {
+
+        ThemeManager::Theme theme =
+            ThemeManager::getTheme();
+
+        // Front color
+
+        if (server.hasArg("front"))
+        {
+
+            if (!parseColor(
+                    server.arg("front"),
+                    theme.frontColor))
+            {
+
+                server.send(
+                    400,
+                    "application/json",
+                    "{\"error\":\"Invalid front color\"}");
+
+                return;
+            }
+        }
+
+        // Rear color
+
+        if (server.hasArg("rear"))
+        {
+
+            if (!parseColor(
+                    server.arg("rear"),
+                    theme.rearColor))
+            {
+
+                server.send(
+                    400,
+                    "application/json",
+                    "{\"error\":\"Invalid rear color\"}");
+
+                return;
+            }
+        }
+
+        // Brightness
+
+        if (server.hasArg("brightness"))
+        {
+
+            String value =
+                server.arg("brightness");
+
+            char *end = nullptr;
+
+            long brightness = strtol(
+                value.c_str(),
+                &end,
+                10);
+
+            if (value.length() == 0 ||
+                end == value.c_str() ||
+                *end != '\0' ||
+                brightness < 0 ||
+                brightness > 255)
+            {
+
+                server.send(
+                    400,
+                    "application/json",
+                    "{\"error\":\"Invalid brightness\"}");
+
+                return;
+            }
+
+            theme.brightness =
+                static_cast<uint8_t>(brightness);
+        }
+
+        // Apply validated theme
+
+        ThemeManager::setTheme(theme);
+
+        // Return updated theme
+
+        handleGetTheme();
+    }
+
+    // ==================================================
+    // Error handling
+    // ==================================================
+
     static void handleNotFound()
     {
 
@@ -122,26 +309,67 @@ namespace WebServer
             "{\"error\":\"Not found\"}");
     }
 
+    // ==================================================
+    // Server initialization
+    // ==================================================
+
     void begin()
     {
 
-        server.on("/", HTTP_GET, handleRoot);
-        server.on("/style.css", HTTP_GET, []()
-                  { serveFile(
-                        "/www/style.css",
-                        "text/css"); });
+        // Web interface
 
-        server.on("/app.js", HTTP_GET, []()
-                  { serveFile(
-                        "/www/app.js",
-                        "application/javascript"); });
+        server.on(
+            "/",
+            HTTP_GET,
+            handleRoot);
+
+        server.on(
+            "/style.css",
+            HTTP_GET,
+            []()
+            {
+                serveFile(
+                    "/www/style.css",
+                    "text/css");
+            });
+
+        server.on(
+            "/app.js",
+            HTTP_GET,
+            []()
+            {
+                serveFile(
+                    "/www/app.js",
+                    "application/javascript");
+            });
+
+        // System API
+
         server.on(
             "/api/status",
             HTTP_GET,
             handleStatus);
 
+        // Theme API
+
+        server.on(
+            "/api/theme",
+            HTTP_GET,
+            handleGetTheme);
+
+        server.on(
+            "/api/theme",
+            HTTP_POST,
+            handleSetTheme);
+
+        // Error handling
+
         server.onNotFound(handleNotFound);
     }
+
+    // ==================================================
+    // Server update
+    // ==================================================
 
     void update()
     {
@@ -155,12 +383,14 @@ namespace WebServer
 
             if (running)
             {
+
                 server.stop();
                 running = false;
             }
 
             if (mdnsRunning)
             {
+
                 MDNS.close();
                 mdnsRunning = false;
             }
@@ -172,6 +402,7 @@ namespace WebServer
         {
 
             server.begin();
+
             running = true;
 
             Serial.println("Web server started");
@@ -179,7 +410,11 @@ namespace WebServer
             if (MDNS.begin("wordclock"))
             {
 
-                MDNS.addService("http", "tcp", 80);
+                MDNS.addService(
+                    "http",
+                    "tcp",
+                    80);
+
                 mdnsRunning = true;
 
                 Serial.println(
@@ -199,6 +434,7 @@ namespace WebServer
 
         if (mdnsRunning)
         {
+
             MDNS.update();
         }
     }
