@@ -11,6 +11,7 @@
 #include "settings_manager.h"
 #include "color_manager.h"
 #include "ota_manager.h"
+#include "custom_theme_store.h"
 
 using StatusManager::State;
 
@@ -40,6 +41,7 @@ void setup()
     SettingsManager::begin();
 
     ColorManager::runDiagnostics();
+    CustomThemeStore::runDiagnostics();
 
     RenderManager::begin();
 
