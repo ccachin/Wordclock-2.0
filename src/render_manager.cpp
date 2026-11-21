@@ -8,6 +8,7 @@
 #include "wordclock.h"
 #include "leds.h"
 #include "config.h"
+#include "transition_manager.h"
 
 namespace RenderManager
 {
@@ -46,6 +47,7 @@ namespace RenderManager
     void begin()
     {
 
+        TransitionManager::begin();
         lastHour = -1;
 
         lastMinute = -1;
@@ -221,6 +223,7 @@ namespace RenderManager
             statusActive ||
 
             animationActive ||
+            TransitionManager::isActive() ||
 
             ThemeManager::hasChanged();
 
@@ -273,6 +276,10 @@ namespace RenderManager
         // Status overlay
         // ==============================================
 
+        uint8_t brightness = theme.brightness;
+        TransitionManager::apply(currentMillis, timeChanged, brightness);
+        TransitionManager::remember(brightness);
+
         if (statusActive)
         {
 
@@ -289,7 +296,7 @@ namespace RenderManager
 
         Leds::setBrightness(
 
-            theme.brightness);
+            brightness);
 
         Leds::show();
 

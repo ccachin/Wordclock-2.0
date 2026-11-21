@@ -8,6 +8,7 @@
 
 #include "theme_manager.h"
 #include "color_manager.h"
+#include "transition_manager.h"
 
 namespace ThemeLibrary
 {
@@ -248,7 +249,15 @@ namespace ThemeLibrary
             theme.rearAnimation.speed = rs;
             // Preserve global brightness.
 
+            const auto &old = ThemeManager::getTheme();
+            bool different = old.frontColor != theme.frontColor ||
+                old.rearColor != theme.rearColor || old.harmony != theme.harmony ||
+                old.frontAnimation.effect != theme.frontAnimation.effect ||
+                old.frontAnimation.speed != theme.frontAnimation.speed ||
+                old.rearAnimation.effect != theme.rearAnimation.effect ||
+                old.rearAnimation.speed != theme.rearAnimation.speed;
             ThemeManager::setTheme(theme);
+            if (different) TransitionManager::request();
 
             Serial.print("Theme applied: ");
 

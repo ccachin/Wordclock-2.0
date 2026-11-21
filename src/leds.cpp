@@ -37,6 +37,11 @@ namespace Leds
             min(brightness, Config::MAX_BRIGHTNESS));
     }
 
+    CRGB getPixel(uint16_t index)
+    {
+        return index < Config::TOTAL_LED_COUNT ? pixels[index] : CRGB(0, 0, 0);
+    }
+
     void setPixel(uint16_t index, CRGB color)
     {
         if (index < Config::TOTAL_LED_COUNT)

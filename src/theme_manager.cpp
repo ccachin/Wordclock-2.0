@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include "settings_manager.h"
+#include "transition_manager.h"
 
 namespace ThemeManager
 {
@@ -30,6 +31,7 @@ namespace ThemeManager
     static void notifyChange()
     {
 
+        TransitionManager::cancel();
         updateEffectiveColors();
 
         changed = true;
