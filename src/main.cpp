@@ -4,6 +4,7 @@
 #include "time_manager.h"
 #include "status_manager.h"
 #include "wifi_manager.h"
+#include "web_server.h"
 
 using StatusManager::State;
 
@@ -25,6 +26,7 @@ void setup()
   TimeManager::begin();
   StatusManager::begin();
   WifiManager::begin();
+  WebServer::begin();
 
   StatusManager::setState(State::WifiConnecting);
 }
@@ -33,6 +35,7 @@ void loop()
 {
 
   WifiManager::update();
+  WebServer::update();
 
   bool connected = WifiManager::isConnected();
   bool timeValid = TimeManager::isValid();
