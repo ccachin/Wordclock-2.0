@@ -782,6 +782,45 @@ updateStatus();
 
 initialize();
 
+const transitionEnabled = document.getElementById("transitionEnabled");
+const transitionDuration = document.getElementById("transitionDuration");
+const transitionValue = document.getElementById("transitionValue");
+const transitionReset = document.getElementById("transitionReset");
+const transitionMessage = document.getElementById("transitionMessage");
+let transitionBusy = true;
+function updateTransitionUI() {
+    transitionEnabled.disabled = transitionBusy;
+    transitionDuration.disabled = transitionBusy || !transitionEnabled.checked;
+    transitionReset.disabled = transitionBusy;
+    transitionValue.textContent = transitionEnabled.checked ? (Number(transitionDuration.value)/1000).toLocaleString("fr-CH", {minimumFractionDigits:1, maximumFractionDigits:1}) + " s" : "Instantané";
+}
+function showTransition(data) {
+    transitionEnabled.checked = data.duration > 0;
+    if (data.duration > 0) transitionDuration.value = data.duration;
+}
+async function loadTransitions() {
+    try { showTransition(await request("/api/transitions")); transitionBusy = false; transitionMessage.textContent = ""; }
+    catch (e) { transitionMessage.textContent = "Réglages indisponibles, nouvelle tentative…"; setTimeout(loadTransitions, 3000); }
+    updateTransitionUI();
+}
+async function saveTransitions() {
+    if (transitionBusy) return;
+    transitionBusy = true; updateTransitionUI();
+    try {
+        showTransition(await request("/api/transitions", {method:"POST", body:new URLSearchParams({duration:transitionEnabled.checked ? transitionDuration.value : "0"})}));
+        transitionMessage.textContent = "Réglage appliqué";
+    } catch (e) {
+        transitionMessage.textContent = "Échec de la modification";
+        try { showTransition(await request("/api/transitions")); } catch (ignored) { setTimeout(loadTransitions, 3000); return; }
+    }
+    transitionBusy = false; updateTransitionUI();
+}
+transitionEnabled.addEventListener("change", saveTransitions);
+transitionDuration.addEventListener("input", updateTransitionUI);
+transitionDuration.addEventListener("change", saveTransitions);
+transitionReset.addEventListener("click", () => { transitionEnabled.checked = true; transitionDuration.value = 1500; saveTransitions(); });
+loadTransitions();
+
 for (const c of Object.values(animationControls)) {
     c.effect.addEventListener("change", scheduleThemeUpdate);
     c.speed.addEventListener("input", scheduleThemeUpdate);

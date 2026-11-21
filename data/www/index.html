@@ -175,6 +175,15 @@
 
         </section>
 
+        <section class="panel">
+            <h2>Transitions entre les thèmes</h2>
+            <div class="setting"><label for="transitionEnabled">Activer les transitions</label><input type="checkbox" id="transitionEnabled" disabled></div>
+            <div class="setting"><label for="transitionDuration">Durée du fondu</label><span id="transitionValue">1,5 s</span></div>
+            <input type="range" id="transitionDuration" min="100" max="5000" step="100" value="1500" disabled>
+            <button type="button" id="transitionReset" disabled>Rétablir les valeurs par défaut</button>
+            <p class="muted" id="transitionMessage" role="status"></p>
+        </section>
+
         <footer>
             Wordclock 3.0
         </footer>

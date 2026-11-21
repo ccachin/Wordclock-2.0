@@ -10,6 +10,7 @@
 #include "storage.h"
 #include "theme_manager.h"
 #include "color_manager.h"
+#include "transition_manager.h"
 
 namespace SettingsManager
 {
@@ -26,7 +27,7 @@ namespace SettingsManager
     constexpr char BACKUP_PATH[] =
         "/config/settings.bak";
 
-    constexpr int SETTINGS_VERSION = 3;
+    constexpr int SETTINGS_VERSION = 4;
 
     constexpr uint32_t SAVE_DELAY = 3000;
     constexpr uint32_t RETRY_DELAY = 10000;
@@ -99,7 +100,7 @@ namespace SettingsManager
     static bool readSettingsFile(
         const char *path,
         ThemeManager::Theme &theme,
-        int *loadedVersion = nullptr)
+        int *loadedVersion = nullptr, uint16_t *transitionDuration = nullptr)
     {
 
         File file = LittleFS.open(path, "r");
@@ -138,7 +139,7 @@ namespace SettingsManager
 
         int version = doc["version"].as<int>();
 
-        if (version != 1 && version != 2 && version != 3)
+        if (version != 1 && version != 2 && version != 3 && version != 4)
         {
 
             Serial.println(
@@ -205,7 +206,7 @@ namespace SettingsManager
         theme.harmony = harmony;
         theme.frontAnimation = AnimationManager::Animation();
         theme.rearAnimation = AnimationManager::Animation();
-        if (version == 3) {
+        if (version >= 3) {
             const char* f = doc["frontEffect"].as<const char*>();
             const char* r = doc["rearEffect"].as<const char*>();
             if (!f || !r || !AnimationManager::effectFromString(String(f), theme.frontAnimation.effect) ||
@@ -218,6 +219,15 @@ namespace SettingsManager
             theme.frontAnimation.speed = fs;
             theme.rearAnimation.speed = rs;
         }
+
+        uint16_t duration = TransitionManager::DEFAULT_DURATION;
+        if (version >= 4) {
+            if (!doc["transitionDuration"].is<int>()) return false;
+            int value = doc["transitionDuration"].as<int>();
+            if (value < 0 || value > TransitionManager::MAX_DURATION) return false;
+            duration = value;
+        }
+        if (transitionDuration) *transitionDuration = duration;
 
         if (loadedVersion != nullptr)
         {
@@ -243,14 +253,16 @@ namespace SettingsManager
             ThemeManager::getTheme();
 
         int version = 0;
+        uint16_t duration = TransitionManager::DEFAULT_DURATION;
 
         if (readSettingsFile(
                 SETTINGS_PATH,
                 theme,
-                &version))
+                &version, &duration))
         {
 
             ThemeManager::setTheme(theme);
+            TransitionManager::setDuration(duration);
 
             migrationNeeded =
                 version < SETTINGS_VERSION;
@@ -265,10 +277,11 @@ namespace SettingsManager
         if (readSettingsFile(
                 TEMP_PATH,
                 theme,
-                &version))
+                &version, &duration))
         {
 
             ThemeManager::setTheme(theme);
+            TransitionManager::setDuration(duration);
 
             migrationNeeded = true;
 
@@ -295,10 +308,11 @@ namespace SettingsManager
         if (readSettingsFile(
                 BACKUP_PATH,
                 theme,
-                &version))
+                &version, &duration))
         {
 
             ThemeManager::setTheme(theme);
+            TransitionManager::setDuration(duration);
 
             migrationNeeded = true;
 
@@ -357,6 +371,7 @@ namespace SettingsManager
         StaticJsonDocument<768> doc;
 
         doc["version"] = SETTINGS_VERSION;
+        doc["transitionDuration"] = TransitionManager::getDuration();
         doc["front"] = front;
         doc["rear"] = rear;
         doc["brightness"] = theme.brightness;
@@ -402,10 +417,11 @@ namespace SettingsManager
         }
 
         ThemeManager::Theme verified;
+        uint16_t verifiedDuration = 0;
 
         if (!readSettingsFile(
                 TEMP_PATH,
-                verified))
+                verified, nullptr, &verifiedDuration))
         {
 
             Serial.println(
@@ -417,6 +433,7 @@ namespace SettingsManager
         }
 
         if (
+            verifiedDuration != TransitionManager::getDuration() ||
             verified.frontColor != theme.frontColor ||
             verified.rearColor != theme.rearColor ||
             verified.brightness != theme.brightness ||

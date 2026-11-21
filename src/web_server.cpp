@@ -15,6 +15,7 @@
 #include "theme_library.h"
 #include "color_manager.h"
 #include "web_update_config.h"
+#include "transition_manager.h"
 
 namespace WebServer
 {
@@ -190,6 +191,22 @@ namespace WebServer
     // ==================================================
     // Current theme - GET
     // ==================================================
+
+    static void handleGetTransitions() {
+        char json[64];
+        snprintf(json, sizeof(json), "{\"duration\":%u}", static_cast<unsigned>(TransitionManager::getDuration()));
+        sendJson(200, json);
+    }
+    static void handleSetTransitions() {
+        String value = server.arg("duration");
+        if (value.length() == 0 || value.length() > 4) { sendJson(400, "{\"error\":\"Invalid duration\"}"); return; }
+        for (unsigned i = 0; i < value.length(); ++i)
+            if (value[i] < '0' || value[i] > '9') { sendJson(400, "{\"error\":\"Invalid duration\"}"); return; }
+        long duration = value.toInt();
+        if (duration > TransitionManager::MAX_DURATION) { sendJson(400, "{\"error\":\"Invalid duration\"}"); return; }
+        TransitionManager::setDuration(static_cast<uint16_t>(duration));
+        handleGetTransitions();
+    }
 
     static void handleGetTheme()
     {
@@ -744,6 +761,9 @@ namespace WebServer
             "/api/themes/apply",
             HTTP_POST,
             handleApplyTheme);
+
+        server.on("/api/transitions", HTTP_GET, handleGetTransitions);
+        server.on("/api/transitions", HTTP_POST, handleSetTransitions);
 
         if (WebUpdateConfig::ENABLED)
         {

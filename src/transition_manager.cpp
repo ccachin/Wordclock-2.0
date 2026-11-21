@@ -2,8 +2,16 @@
 #include "config.h"
 #include "leds.h"
 #include "color_manager.h"
+#include "settings_manager.h"
 namespace TransitionManager {
-    constexpr uint32_t DURATION = 1500;
+    static uint16_t duration = DEFAULT_DURATION;
+    static uint16_t activeDuration = DEFAULT_DURATION;
+    uint16_t getDuration() { return duration; }
+    void setDuration(uint16_t value) {
+        if (value > MAX_DURATION || value == duration) return;
+        duration = value;
+        SettingsManager::markChanged();
+    }
     static CRGB last[Config::TOTAL_LED_COUNT];
     static CRGB source[Config::TOTAL_LED_COUNT];
     static CRGB lastFront, sourceFront;
@@ -14,7 +22,8 @@ namespace TransitionManager {
     void cancel() { active = false; }
     bool isActive() { return active; }
     void request() {
-        if (!ready) return;
+        if (!ready || duration == 0) { active = false; return; }
+        activeDuration = duration;
         for (uint16_t i = 0; i < Config::TOTAL_LED_COUNT; ++i) source[i] = last[i];
         sourceFront = lastFront;
         sourceBrightness = lastBrightness;
@@ -24,8 +33,8 @@ namespace TransitionManager {
     void apply(uint32_t now, bool timeChanged, uint8_t& brightness) {
         if (!active) return;
         uint32_t elapsed = now - started;
-        if (elapsed >= DURATION) { active = false; return; }
-        float t = static_cast<float>(elapsed) / DURATION;
+        if (elapsed >= activeDuration) { active = false; return; }
+        float t = static_cast<float>(elapsed) / activeDuration;
         t = t*t*(3.0f-2.0f*t);
         for (uint16_t i = 0; i < Config::TOTAL_LED_COUNT; ++i) {
             CRGB target = Leds::getPixel(i);

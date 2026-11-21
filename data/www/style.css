@@ -546,3 +546,7 @@ footer {
 .animation-setting { display: grid; gap: 10px; margin: 20px 0; }
 .animation-setting [hidden] { display: none !important; }
 .animation-setting select { width: 100%; }
+
+#transitionReset { margin-top: 16px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); cursor: pointer; }
+#transitionReset:disabled { opacity: .5; cursor: default; }
+#transitionEnabled { width: 22px; height: 22px; }
