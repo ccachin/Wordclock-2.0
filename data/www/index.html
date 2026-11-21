@@ -2,6 +2,7 @@
 <html lang="fr">
 
 <head>
+
     <meta charset="UTF-8">
 
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,7 +11,9 @@
 
     <link rel="stylesheet" href="/style.css">
 
-    <script src="/app.js" defer></script>
+    <script src="/app.js" defer>
+    </script>
+
 </head>
 
 <body>
@@ -18,43 +21,84 @@
     <main>
 
         <header>
+
             <h1>wordclock.</h1>
-            <span id="status">Connexion...</span>
+
+            <span id="status">
+                Connexion...
+            </span>
+
         </header>
 
         <section class="clock">
-            <div id="time">--:--:--</div>
+
+            <div id="time">
+                --:--:--
+            </div>
+
         </section>
 
-        <section class="controls">
+        <section class="panel">
+
+            <div class="section-header">
+
+                <h2>Thèmes</h2>
+
+                <span id="activeTheme">
+                    Chargement...
+                </span>
+
+            </div>
+
+            <div id="themeList">
+
+                <p class="muted">
+                    Chargement des thèmes...
+                </p>
+
+            </div>
+
+        </section>
+
+        <section class="panel">
 
             <h2>Ambiance</h2>
 
             <div class="setting">
+
                 <label for="frontColor">
                     Couleur avant
                 </label>
 
-                <input type="color" id="frontColor" value="#ffe1b4">
+                <input type="color" id="frontColor" value="#ffe1b4" disabled>
+
             </div>
 
             <div class="setting">
+
                 <label for="rearColor">
                     Couleur arrière
                 </label>
 
-                <input type="color" id="rearColor" value="#3c64b4">
+                <input type="color" id="rearColor" value="#3c64b4" disabled>
+
             </div>
 
             <div class="setting">
+
                 <label for="brightness">
                     Luminosité
                 </label>
 
-                <span id="brightnessValue">3 %</span>
+                <span id="brightnessValue">
+                    3 %
+                </span>
+
             </div>
 
-            <input type="range" id="brightness" min="0" max="255" value="8">
+            <input type="range" id="brightness" min="0" max="255" value="8" disabled>
+
+            <p id="message" role="status"></p>
 
         </section>
 

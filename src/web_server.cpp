@@ -12,6 +12,7 @@
 #include "time_manager.h"
 #include "storage.h"
 #include "theme_manager.h"
+#include "theme_library.h"
 
 namespace WebServer
 {
@@ -54,7 +55,9 @@ namespace WebServer
             return;
         }
 
-        server.sendHeader("Cache-Control", "no-store");
+        server.sendHeader(
+            "Cache-Control",
+            "no-store");
 
         server.streamFile(file, contentType);
 
@@ -116,10 +119,14 @@ namespace WebServer
             timeString,
             WifiManager::getIPAddress().c_str(),
             static_cast<long>(WiFi.RSSI()),
-            static_cast<unsigned long>(millis() / 1000),
-            static_cast<unsigned long>(ESP.getFreeHeap()));
+            static_cast<unsigned long>(
+                millis() / 1000),
+            static_cast<unsigned long>(
+                ESP.getFreeHeap()));
 
-        server.sendHeader("Cache-Control", "no-store");
+        server.sendHeader(
+            "Cache-Control",
+            "no-store");
 
         server.send(
             200,
@@ -168,7 +175,7 @@ namespace WebServer
     }
 
     // ==================================================
-    // Theme API - GET
+    // Current theme - GET
     // ==================================================
 
     static void handleGetTheme()
@@ -206,7 +213,7 @@ namespace WebServer
     }
 
     // ==================================================
-    // Theme API - POST
+    // Current theme - POST
     // ==================================================
 
     static void handleSetTheme()
@@ -214,8 +221,6 @@ namespace WebServer
 
         ThemeManager::Theme theme =
             ThemeManager::getTheme();
-
-        // Front color
 
         if (server.hasArg("front"))
         {
@@ -234,8 +239,6 @@ namespace WebServer
             }
         }
 
-        // Rear color
-
         if (server.hasArg("rear"))
         {
 
@@ -252,8 +255,6 @@ namespace WebServer
                 return;
             }
         }
-
-        // Brightness
 
         if (server.hasArg("brightness"))
         {
@@ -287,11 +288,70 @@ namespace WebServer
                 static_cast<uint8_t>(brightness);
         }
 
-        // Apply validated theme
-
         ThemeManager::setTheme(theme);
 
-        // Return updated theme
+        handleGetTheme();
+    }
+
+    // ==================================================
+    // Theme library - GET
+    // ==================================================
+
+    static void handleGetThemes()
+    {
+
+        server.sendHeader(
+            "Cache-Control",
+            "no-store");
+
+        server.send(
+            200,
+            "application/json",
+            ThemeLibrary::getCatalog());
+    }
+
+    // ==================================================
+    // Apply theme - POST
+    // ==================================================
+
+    static void handleApplyTheme()
+    {
+
+        if (!server.hasArg("id"))
+        {
+
+            server.send(
+                400,
+                "application/json",
+                "{\"error\":\"Missing theme id\"}");
+
+            return;
+        }
+
+        String id = server.arg("id");
+
+        if (id.length() == 0 ||
+            id.length() > 64)
+        {
+
+            server.send(
+                400,
+                "application/json",
+                "{\"error\":\"Invalid theme id\"}");
+
+            return;
+        }
+
+        if (!ThemeLibrary::applyTheme(id))
+        {
+
+            server.send(
+                404,
+                "application/json",
+                "{\"error\":\"Theme not found or invalid\"}");
+
+            return;
+        }
 
         handleGetTheme();
     }
@@ -310,13 +370,11 @@ namespace WebServer
     }
 
     // ==================================================
-    // Server initialization
+    // Initialization
     // ==================================================
 
     void begin()
     {
-
-        // Web interface
 
         server.on(
             "/",
@@ -343,14 +401,10 @@ namespace WebServer
                     "application/javascript");
             });
 
-        // System API
-
         server.on(
             "/api/status",
             HTTP_GET,
             handleStatus);
-
-        // Theme API
 
         server.on(
             "/api/theme",
@@ -362,7 +416,15 @@ namespace WebServer
             HTTP_POST,
             handleSetTheme);
 
-        // Error handling
+        server.on(
+            "/api/themes",
+            HTTP_GET,
+            handleGetThemes);
+
+        server.on(
+            "/api/themes/apply",
+            HTTP_POST,
+            handleApplyTheme);
 
         server.onNotFound(handleNotFound);
     }
@@ -405,7 +467,8 @@ namespace WebServer
 
             running = true;
 
-            Serial.println("Web server started");
+            Serial.println(
+                "Web server started");
 
             if (MDNS.begin("wordclock"))
             {
@@ -423,7 +486,8 @@ namespace WebServer
             else
             {
 
-                Serial.println("mDNS failed");
+                Serial.println(
+                    "mDNS failed");
             }
 
             Serial.println(
