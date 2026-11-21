@@ -5,6 +5,7 @@
 #include "status_manager.h"
 #include "wifi_manager.h"
 #include "web_server.h"
+#include "storage.h"
 
 using StatusManager::State;
 
@@ -27,6 +28,7 @@ void setup()
   StatusManager::begin();
   WifiManager::begin();
   WebServer::begin();
+  Storage::begin();
 
   StatusManager::setState(State::WifiConnecting);
 }

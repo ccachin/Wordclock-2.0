@@ -2,10 +2,12 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
+#include <LittleFS.h>
 
 #include "web_server.h"
 #include "wifi_manager.h"
 #include "time_manager.h"
+#include "storage.h"
 
 namespace WebServer
 {
@@ -15,92 +17,47 @@ namespace WebServer
     static bool running = false;
     static bool mdnsRunning = false;
 
+    static void serveFile(
+        const char *path,
+        const char *contentType)
+    {
+
+        if (!Storage::isReady())
+        {
+
+            server.send(
+                503,
+                "text/plain",
+                "Storage unavailable");
+
+            return;
+        }
+
+        File file = LittleFS.open(path, "r");
+
+        if (!file)
+        {
+
+            server.send(
+                404,
+                "text/plain",
+                "File not found");
+
+            return;
+        }
+
+        server.sendHeader("Cache-Control", "no-store");
+        server.streamFile(file, contentType);
+
+        file.close();
+    }
+
     static void handleRoot()
     {
 
-        server.send(
-            200,
-            "text/html",
-            R"html(
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1">
-    <title>Wordclock 3.0</title>
-
-    <style>
-        body {
-            background: #171819;
-            color: #eeeeee;
-            font-family: Arial, sans-serif;
-            text-align: center;
-            padding: 40px 20px;
-        }
-
-        h1 {
-            font-size: 40px;
-            font-weight: normal;
-        }
-
-        #clock {
-            font-size: 64px;
-            margin: 40px 0;
-        }
-
-        #status {
-            color: #70c596;
-        }
-    </style>
-</head>
-
-<body>
-
-    <h1>wordclock.</h1>
-
-    <div id="status">Connexion...</div>
-    <div id="clock">--:--</div>
-
-    <p>Wordclock 3.0</p>
-
-    <script>
-
-        async function updateClock() {
-            try {
-                const response = await fetch(
-                    '/api/status',
-                    { cache: 'no-store' }
-                );
-
-                if (!response.ok) {
-                    throw new Error('HTTP error');
-                }
-
-                const data = await response.json();
-
-                document.getElementById('clock')
-                    .textContent = data.time || '--:--';
-
-                document.getElementById('status')
-                    .textContent = 'Connectée';
-
-            } catch (error) {
-
-                document.getElementById('status')
-                    .textContent = 'Connexion perdue';
-            }
-        }
-
-        updateClock();
-
-        setInterval(updateClock, 1000);
-
-    </script>
-
-</body>
-</html>
-)html");
+        serveFile(
+            "/www/index.html",
+            "text/html; charset=utf-8");
     }
 
     static void handleStatus()
@@ -169,7 +126,15 @@ namespace WebServer
     {
 
         server.on("/", HTTP_GET, handleRoot);
+        server.on("/style.css", HTTP_GET, []()
+                  { serveFile(
+                        "/www/style.css",
+                        "text/css"); });
 
+        server.on("/app.js", HTTP_GET, []()
+                  { serveFile(
+                        "/www/app.js",
+                        "application/javascript"); });
         server.on(
             "/api/status",
             HTTP_GET,
