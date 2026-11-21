@@ -10,6 +10,7 @@
 #include "theme_manager.h"
 #include "render_manager.h"
 #include "settings_manager.h"
+#include "color_manager.h"
 
 using StatusManager::State;
 
@@ -28,34 +29,26 @@ void setup()
     Serial.println("Wordclock 3.0");
     Serial.println("Starting...");
 
-    // Hardware
-
     Leds::begin();
-
-    // Storage
 
     Storage::begin();
 
-    // System managers
-
     TimeManager::begin();
+
     StatusManager::begin();
 
-    // Theme and saved settings
-
     ThemeManager::begin();
+
     SettingsManager::begin();
 
-    // Rendering
+    // Color engine diagnostics.
+    ColorManager::runDiagnostics();
 
     RenderManager::begin();
 
-    // Connectivity
-
     WifiManager::begin();
-    WebServer::begin();
 
-    // Initial status
+    WebServer::begin();
 
     StatusManager::setState(
         State::WifiConnecting);
@@ -68,9 +61,8 @@ void setup()
 void loop()
 {
 
-    // Connectivity
-
     WifiManager::update();
+
     WebServer::update();
 
     bool connected =
@@ -78,8 +70,6 @@ void loop()
 
     bool timeValid =
         TimeManager::isValid();
-
-    // Start NTP after Wi-Fi connection
 
     if (connected && !wasConnected)
     {
@@ -95,8 +85,6 @@ void loop()
 
     wasConnected = connected;
 
-    // Update system status
-
     if (WifiManager::isPortalActive())
     {
 
@@ -107,8 +95,11 @@ void loop()
     {
 
         StatusManager::setState(
+
             timeValid
+
                 ? State::Ready
+
                 : State::WifiConnecting);
     }
     else if (
@@ -117,20 +108,17 @@ void loop()
     {
 
         StatusManager::setState(
+
             timeValid
+
                 ? State::Ready
+
                 : State::TimeSyncPending);
     }
 
-    // Update status animations
-
     StatusManager::update();
 
-    // Render LEDs
-
     RenderManager::update();
-
-    // Save user settings when necessary
 
     SettingsManager::update();
 
