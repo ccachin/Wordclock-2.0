@@ -16,6 +16,7 @@
 #include "color_manager.h"
 #include "web_update_config.h"
 #include "transition_manager.h"
+#include "night_manager.h"
 
 namespace WebServer
 {
@@ -191,6 +192,52 @@ namespace WebServer
     // ==================================================
     // Current theme - GET
     // ==================================================
+
+    static void handleGetNight() {
+        const auto& n = NightManager::getSettings();
+        TimeManager::ClockTime now{};
+        const bool valid = TimeManager::getTime(now);
+        char json[192];
+        snprintf(json, sizeof(json), "{\"enabled\":%s,\"startMinute\":%u,\"endMinute\":%u,\"brightness\":%u,\"mode\":%u,\"active\":%s}",
+            n.enabled ? "true" : "false", unsigned(n.startMinute), unsigned(n.endMinute), unsigned(n.brightness),
+            unsigned(n.mode), NightManager::isActive(valid, now.hour, now.minute) ? "true" : "false");
+        sendJson(200, json);
+    }
+    static bool nightNumber(const char* key, unsigned maxValue, unsigned& result) {
+        const String value = server.arg(key);
+        if (value.length() == 0 || value.length() > 4) return false;
+        for (unsigned i = 0; i < value.length(); ++i)
+            if (value[i] < '0' || value[i] > '9') return false;
+        result = value.toInt();
+        return result <= maxValue;
+    }
+    static void handleSetNight() {
+        auto n = NightManager::getSettings();
+        unsigned value;
+        if (server.hasArg("enabled")) {
+            const String enabled = server.arg("enabled");
+            if (enabled != "0" && enabled != "1") { sendJson(400, "{\"error\":\"Invalid enabled\"}"); return; }
+            n.enabled = enabled == "1";
+        }
+        if (server.hasArg("startMinute")) {
+            if (!nightNumber("startMinute", 1439, value)) { sendJson(400, "{\"error\":\"Invalid startMinute\"}"); return; }
+            n.startMinute = value;
+        }
+        if (server.hasArg("endMinute")) {
+            if (!nightNumber("endMinute", 1439, value)) { sendJson(400, "{\"error\":\"Invalid endMinute\"}"); return; }
+            n.endMinute = value;
+        }
+        if (server.hasArg("brightness")) {
+            if (!nightNumber("brightness", 255, value) || value == 0) { sendJson(400, "{\"error\":\"Invalid brightness\"}"); return; }
+            n.brightness = value;
+        }
+        if (server.hasArg("mode")) {
+            if (!nightNumber("mode", 2, value)) { sendJson(400, "{\"error\":\"Invalid mode\"}"); return; }
+            n.mode = static_cast<NightManager::Mode>(value);
+        }
+        if (!NightManager::setSettings(n)) { sendJson(400, "{\"error\":\"Invalid night settings\"}"); return; }
+        handleGetNight();
+    }
 
     static void handleGetTransitions() {
         char json[64];
@@ -458,7 +505,8 @@ namespace WebServer
 
         return name == "index.html" ||
                name == "style.css" ||
-               name == "app.js";
+               name == "app.js" ||
+               name == "night.js";
     }
 
     // ==================================================
@@ -737,6 +785,10 @@ namespace WebServer
                     "application/javascript; charset=utf-8");
             });
 
+        server.on("/night.js", HTTP_GET, []() {
+            serveFile("/www/night.js", "application/javascript; charset=utf-8");
+        });
+
         server.on(
             "/api/status",
             HTTP_GET,
@@ -762,6 +814,8 @@ namespace WebServer
             HTTP_POST,
             handleApplyTheme);
 
+        server.on("/api/night", HTTP_GET, handleGetNight);
+        server.on("/api/night", HTTP_POST, handleSetNight);
         server.on("/api/transitions", HTTP_GET, handleGetTransitions);
         server.on("/api/transitions", HTTP_POST, handleSetTransitions);
 

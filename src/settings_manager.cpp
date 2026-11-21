@@ -11,6 +11,7 @@
 #include "theme_manager.h"
 #include "color_manager.h"
 #include "transition_manager.h"
+#include "night_manager.h"
 
 namespace SettingsManager
 {
@@ -27,7 +28,7 @@ namespace SettingsManager
     constexpr char BACKUP_PATH[] =
         "/config/settings.bak";
 
-    constexpr int SETTINGS_VERSION = 4;
+    constexpr int SETTINGS_VERSION = 5;
 
     constexpr uint32_t SAVE_DELAY = 3000;
     constexpr uint32_t RETRY_DELAY = 10000;
@@ -100,7 +101,7 @@ namespace SettingsManager
     static bool readSettingsFile(
         const char *path,
         ThemeManager::Theme &theme,
-        int *loadedVersion = nullptr, uint16_t *transitionDuration = nullptr)
+        int *loadedVersion = nullptr, uint16_t *transitionDuration = nullptr, NightManager::Settings *nightOut = nullptr)
     {
 
         File file = LittleFS.open(path, "r");
@@ -116,7 +117,7 @@ namespace SettingsManager
             return false;
         }
 
-        StaticJsonDocument<768> doc;
+        StaticJsonDocument<1024> doc;
 
         DeserializationError error =
             deserializeJson(doc, file);
@@ -139,7 +140,7 @@ namespace SettingsManager
 
         int version = doc["version"].as<int>();
 
-        if (version != 1 && version != 2 && version != 3 && version != 4)
+        if (version != 1 && version != 2 && version != 3 && version != 4 && version != 5)
         {
 
             Serial.println(
@@ -227,6 +228,17 @@ namespace SettingsManager
             if (value < 0 || value > TransitionManager::MAX_DURATION) return false;
             duration = value;
         }
+        NightManager::Settings night;
+        if (version >= 5) {
+            if (!doc["nightEnabled"].is<bool>() || !doc["nightStart"].is<int>() ||
+                !doc["nightEnd"].is<int>() || !doc["nightBrightness"].is<int>() || !doc["nightMode"].is<int>()) return false;
+            int start = doc["nightStart"], end = doc["nightEnd"], bright = doc["nightBrightness"], mode = doc["nightMode"];
+            if (start < 0 || start >= 1440 || end < 0 || end >= 1440 || bright < 1 || bright > 255 || mode < 0 || mode > 2) return false;
+            night.enabled = doc["nightEnabled"].as<bool>();
+            night.startMinute = start; night.endMinute = end; night.brightness = bright;
+            night.mode = static_cast<NightManager::Mode>(mode);
+        }
+        if (nightOut) *nightOut = night;
         if (transitionDuration) *transitionDuration = duration;
 
         if (loadedVersion != nullptr)
@@ -253,16 +265,18 @@ namespace SettingsManager
             ThemeManager::getTheme();
 
         int version = 0;
+        NightManager::Settings night;
         uint16_t duration = TransitionManager::DEFAULT_DURATION;
 
         if (readSettingsFile(
                 SETTINGS_PATH,
                 theme,
-                &version, &duration))
+                &version, &duration, &night))
         {
 
             ThemeManager::setTheme(theme);
             TransitionManager::setDuration(duration);
+            NightManager::setSettings(night);
 
             migrationNeeded =
                 version < SETTINGS_VERSION;
@@ -277,11 +291,12 @@ namespace SettingsManager
         if (readSettingsFile(
                 TEMP_PATH,
                 theme,
-                &version, &duration))
+                &version, &duration, &night))
         {
 
             ThemeManager::setTheme(theme);
             TransitionManager::setDuration(duration);
+            NightManager::setSettings(night);
 
             migrationNeeded = true;
 
@@ -308,11 +323,12 @@ namespace SettingsManager
         if (readSettingsFile(
                 BACKUP_PATH,
                 theme,
-                &version, &duration))
+                &version, &duration, &night))
         {
 
             ThemeManager::setTheme(theme);
             TransitionManager::setDuration(duration);
+            NightManager::setSettings(night);
 
             migrationNeeded = true;
 
@@ -368,9 +384,15 @@ namespace SettingsManager
             rear,
             sizeof(rear));
 
-        StaticJsonDocument<768> doc;
+        StaticJsonDocument<1024> doc;
 
         doc["version"] = SETTINGS_VERSION;
+        const auto night = NightManager::getSettings();
+        doc["nightEnabled"] = night.enabled;
+        doc["nightStart"] = night.startMinute;
+        doc["nightEnd"] = night.endMinute;
+        doc["nightBrightness"] = night.brightness;
+        doc["nightMode"] = static_cast<uint8_t>(night.mode);
         doc["transitionDuration"] = TransitionManager::getDuration();
         doc["front"] = front;
         doc["rear"] = rear;
@@ -418,10 +440,11 @@ namespace SettingsManager
 
         ThemeManager::Theme verified;
         uint16_t verifiedDuration = 0;
+        NightManager::Settings verifiedNight;
 
         if (!readSettingsFile(
                 TEMP_PATH,
-                verified, nullptr, &verifiedDuration))
+                verified, nullptr, &verifiedDuration, &verifiedNight))
         {
 
             Serial.println(
@@ -433,6 +456,7 @@ namespace SettingsManager
         }
 
         if (
+            !NightManager::equals(night, verifiedNight) ||
             verifiedDuration != TransitionManager::getDuration() ||
             verified.frontColor != theme.frontColor ||
             verified.rearColor != theme.rearColor ||

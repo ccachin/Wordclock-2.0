@@ -550,3 +550,14 @@ footer {
 #transitionReset { margin-top: 16px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); cursor: pointer; }
 #transitionReset:disabled { opacity: .5; cursor: default; }
 #transitionEnabled { width: 22px; height: 22px; }
+
+#nightFields { border: 0; padding: 0; margin: 0; min-width: 0; }
+#nightEnabled { width: 22px; height: 22px; }
+.night-times { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.night-times label { display: grid; gap: 8px; min-width: 0; }
+.night-times input { width: 100%; min-width: 0; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 9px; font: inherit; }
+.night-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.night-actions button { padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); cursor: pointer; }
+.night-actions button:disabled { opacity: .5; cursor: default; }
+#nightMessage.error { color: var(--error); }
+#nightStatus.active { color: var(--success); }

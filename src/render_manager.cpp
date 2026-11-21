@@ -9,6 +9,8 @@
 #include "leds.h"
 #include "config.h"
 #include "transition_manager.h"
+#include "night_manager.h"
+
 
 namespace RenderManager
 {
@@ -35,6 +37,8 @@ namespace RenderManager
 
 
     static bool lastTimeValid = false;
+    static bool lastNightActive = false;
+    static uint32_t lastNightRevision = 0;
 
     static StatusManager::State lastStatus =
 
@@ -48,6 +52,8 @@ namespace RenderManager
     {
 
         TransitionManager::begin();
+        NightManager::runDiagnostics();
+        lastNightActive = false;
         lastHour = -1;
 
         lastMinute = -1;
@@ -168,11 +174,16 @@ namespace RenderManager
 
         lastFrameAt = currentMillis;
 
-        TimeManager::ClockTime now;
+        TimeManager::ClockTime now{};
 
         bool timeValid =
 
             TimeManager::getTime(now);
+
+        const bool nightActive = NightManager::isActive(timeValid, now.hour, now.minute);
+        const uint32_t nightRevision = NightManager::getRevision();
+        const bool nightChanged = nightActive != lastNightActive || nightRevision != lastNightRevision;
+        if (nightChanged) TransitionManager::cancel();
 
         bool timeChanged =
 
@@ -214,6 +225,7 @@ namespace RenderManager
 
         bool needsRender =
 
+            nightChanged ||
             timeChanged ||
 
             timeValidityChanged ||
@@ -280,7 +292,14 @@ namespace RenderManager
         TransitionManager::apply(currentMillis, timeChanged, brightness);
         TransitionManager::remember(brightness);
 
-        if (statusActive)
+        if (nightActive) {
+            const auto& night = NightManager::getSettings();
+            if (brightness > night.brightness) brightness = night.brightness;
+            if (night.mode == NightManager::Mode::FrontOnly) Leds::clearRear();
+            if (night.mode == NightManager::Mode::Off) { Leds::clear(); brightness = 0; }
+        }
+
+        if (statusActive && !nightActive)
         {
 
             Leds::setRearPixel(
@@ -303,6 +322,8 @@ namespace RenderManager
         lastStatus = status;
 
         lastTimeValid = timeValid;
+        lastNightActive = nightActive;
+        lastNightRevision = nightRevision;
 
         ThemeManager::markRendered();
     }
