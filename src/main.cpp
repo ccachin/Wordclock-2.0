@@ -9,6 +9,7 @@
 #include "storage.h"
 #include "theme_manager.h"
 #include "render_manager.h"
+#include "settings_manager.h"
 
 using StatusManager::State;
 
@@ -31,18 +32,27 @@ void setup()
 
     Leds::begin();
 
+    // Storage
+
+    Storage::begin();
+
     // System managers
 
     TimeManager::begin();
     StatusManager::begin();
 
+    // Theme and saved settings
+
     ThemeManager::begin();
+    SettingsManager::begin();
+
+    // Rendering
+
     RenderManager::begin();
 
-    // Connectivity and storage
+    // Connectivity
 
     WifiManager::begin();
-    Storage::begin();
     WebServer::begin();
 
     // Initial status
@@ -119,6 +129,10 @@ void loop()
     // Render LEDs
 
     RenderManager::update();
+
+    // Save user settings when necessary
+
+    SettingsManager::update();
 
     delay(5);
 }
