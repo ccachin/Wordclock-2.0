@@ -26,7 +26,7 @@ namespace SettingsManager
     constexpr char BACKUP_PATH[] =
         "/config/settings.bak";
 
-    constexpr int SETTINGS_VERSION = 2;
+    constexpr int SETTINGS_VERSION = 3;
 
     constexpr uint32_t SAVE_DELAY = 3000;
     constexpr uint32_t RETRY_DELAY = 10000;
@@ -115,7 +115,7 @@ namespace SettingsManager
             return false;
         }
 
-        StaticJsonDocument<512> doc;
+        StaticJsonDocument<768> doc;
 
         DeserializationError error =
             deserializeJson(doc, file);
@@ -138,7 +138,7 @@ namespace SettingsManager
 
         int version = doc["version"].as<int>();
 
-        if (version != 1 && version != 2)
+        if (version != 1 && version != 2 && version != 3)
         {
 
             Serial.println(
@@ -180,7 +180,7 @@ namespace SettingsManager
         ColorManager::Harmony harmony =
             ColorManager::Harmony::Manual;
 
-        if (version == 2)
+        if (version >= 2)
         {
 
             const char *name =
@@ -203,6 +203,21 @@ namespace SettingsManager
             static_cast<uint8_t>(brightness);
 
         theme.harmony = harmony;
+        theme.frontAnimation = AnimationManager::Animation();
+        theme.rearAnimation = AnimationManager::Animation();
+        if (version == 3) {
+            const char* f = doc["frontEffect"].as<const char*>();
+            const char* r = doc["rearEffect"].as<const char*>();
+            if (!f || !r || !AnimationManager::effectFromString(String(f), theme.frontAnimation.effect) ||
+                !AnimationManager::effectFromString(String(r), theme.rearAnimation.effect)) return false;
+            if (theme.frontAnimation.effect == AnimationManager::Effect::Rainbow ||
+                theme.frontAnimation.effect == AnimationManager::Effect::Chase) return false;
+            if (!doc["frontSpeed"].is<int>() || !doc["rearSpeed"].is<int>()) return false;
+            int fs = doc["frontSpeed"].as<int>(), rs = doc["rearSpeed"].as<int>();
+            if (fs < 0 || fs > 100 || rs < 0 || rs > 100) return false;
+            theme.frontAnimation.speed = fs;
+            theme.rearAnimation.speed = rs;
+        }
 
         if (loadedVersion != nullptr)
         {
@@ -339,7 +354,7 @@ namespace SettingsManager
             rear,
             sizeof(rear));
 
-        StaticJsonDocument<512> doc;
+        StaticJsonDocument<768> doc;
 
         doc["version"] = SETTINGS_VERSION;
         doc["front"] = front;
@@ -350,6 +365,10 @@ namespace SettingsManager
             ColorManager::harmonyToString(
                 theme.harmony);
 
+        doc["frontEffect"] = AnimationManager::effectToString(theme.frontAnimation.effect);
+        doc["rearEffect"] = AnimationManager::effectToString(theme.rearAnimation.effect);
+        doc["frontSpeed"] = theme.frontAnimation.speed;
+        doc["rearSpeed"] = theme.rearAnimation.speed;
         File file =
             LittleFS.open(TEMP_PATH, "w");
 
@@ -401,7 +420,11 @@ namespace SettingsManager
             verified.frontColor != theme.frontColor ||
             verified.rearColor != theme.rearColor ||
             verified.brightness != theme.brightness ||
-            verified.harmony != theme.harmony)
+            verified.harmony != theme.harmony ||
+            verified.frontAnimation.effect != theme.frontAnimation.effect ||
+            verified.rearAnimation.effect != theme.rearAnimation.effect ||
+            verified.frontAnimation.speed != theme.frontAnimation.speed ||
+            verified.rearAnimation.speed != theme.rearAnimation.speed)
         {
 
             Serial.println(

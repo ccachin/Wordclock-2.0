@@ -5,6 +5,7 @@
 #include <FastLED.h>
 
 #include "color_manager.h"
+#include "animation_manager.h"
 
 namespace ThemeManager
 {
@@ -18,6 +19,8 @@ namespace ThemeManager
 
         ColorManager::Harmony harmony =
             ColorManager::Harmony::Manual;
+        AnimationManager::Animation frontAnimation;
+        AnimationManager::Animation rearAnimation;
     };
 
     void begin();

@@ -56,6 +56,8 @@ namespace ThemeManager
         currentTheme.harmony =
             ColorManager::Harmony::Manual;
 
+        currentTheme.frontAnimation = AnimationManager::Animation();
+        currentTheme.rearAnimation = AnimationManager::Animation();
         updateEffectiveColors();
 
         changed = true;
@@ -150,6 +152,11 @@ namespace ThemeManager
     {
 
         Theme nextTheme = theme;
+        if (nextTheme.frontAnimation.effect == AnimationManager::Effect::Rainbow ||
+            nextTheme.frontAnimation.effect == AnimationManager::Effect::Chase)
+            nextTheme.frontAnimation.effect = AnimationManager::Effect::Solid;
+        if (nextTheme.frontAnimation.speed > 100) nextTheme.frontAnimation.speed = 100;
+        if (nextTheme.rearAnimation.speed > 100) nextTheme.rearAnimation.speed = 100;
 
         if (
             nextTheme.brightness >
@@ -171,7 +178,11 @@ namespace ThemeManager
                 nextTheme.brightness &&
 
             currentTheme.harmony ==
-                nextTheme.harmony)
+                nextTheme.harmony &&
+            currentTheme.frontAnimation.effect == nextTheme.frontAnimation.effect &&
+            currentTheme.frontAnimation.speed == nextTheme.frontAnimation.speed &&
+            currentTheme.rearAnimation.effect == nextTheme.rearAnimation.effect &&
+            currentTheme.rearAnimation.speed == nextTheme.rearAnimation.speed)
         {
 
             return;

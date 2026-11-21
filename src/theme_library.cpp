@@ -13,49 +13,117 @@ namespace ThemeLibrary
 {
 
     static const char FACTORY_THEMES[] = R"json(
-    [
-        {
-            "version": 1,
-            "id": "warm-white",
-            "name": "Warm White",
-            "author": "Wordclock",
-            "front": "#FFE1B4",
-            "rear": "#B87838"
-        },
-        {
-            "version": 1,
-            "id": "ocean",
-            "name": "Ocean",
-            "author": "Wordclock",
-            "front": "#A9EBFF",
-            "rear": "#267DD9"
-        },
-        {
-            "version": 1,
-            "id": "sunset",
-            "name": "Sunset",
-            "author": "Wordclock",
-            "front": "#FFB568",
-            "rear": "#A63372"
-        },
-        {
-            "version": 1,
-            "id": "forest",
-            "name": "Forest",
-            "author": "Wordclock",
-            "front": "#C9E8A5",
-            "rear": "#296B48"
-        },
-        {
-            "version": 1,
-            "id": "aurora",
-            "name": "Aurora",
-            "author": "Wordclock",
-            "front": "#79F2D0",
-            "rear": "#7848D8"
-        }
-    ]
-    )json";
+[
+    {
+        "version": 2,
+        "id": "warm-white",
+        "name": "Warm White",
+        "author": "Wordclock",
+        "front": "#FFE1B4",
+        "rear": "#B87838",
+        "frontEffect": "solid",
+        "rearEffect": "solid",
+        "frontSpeed": 50,
+        "rearSpeed": 50
+    },
+    {
+        "version": 2,
+        "id": "ocean",
+        "name": "Ocean",
+        "author": "Wordclock",
+        "front": "#A9EBFF",
+        "rear": "#267DD9",
+        "frontEffect": "solid",
+        "rearEffect": "solid",
+        "frontSpeed": 50,
+        "rearSpeed": 50
+    },
+    {
+        "version": 2,
+        "id": "sunset",
+        "name": "Sunset",
+        "author": "Wordclock",
+        "front": "#FFB568",
+        "rear": "#A63372",
+        "frontEffect": "solid",
+        "rearEffect": "solid",
+        "frontSpeed": 50,
+        "rearSpeed": 50
+    },
+    {
+        "version": 2,
+        "id": "forest",
+        "name": "Forest",
+        "author": "Wordclock",
+        "front": "#C9E8A5",
+        "rear": "#296B48",
+        "frontEffect": "solid",
+        "rearEffect": "solid",
+        "frontSpeed": 50,
+        "rearSpeed": 50
+    },
+    {
+        "version": 2,
+        "id": "aurora",
+        "name": "Aurora",
+        "author": "Wordclock",
+        "front": "#79F2D0",
+        "rear": "#7848D8",
+        "frontEffect": "solid",
+        "rearEffect": "solid",
+        "frontSpeed": 50,
+        "rearSpeed": 50
+    },
+    {
+        "version": 2,
+        "id": "ocean-pulse",
+        "name": "Ocean Pulse",
+        "author": "Wordclock",
+        "front": "#A9EBFF",
+        "rear": "#267DD9",
+        "frontEffect": "solid",
+        "rearEffect": "breathing",
+        "frontSpeed": 50,
+        "rearSpeed": 70
+    },
+    {
+        "version": 2,
+        "id": "aurora-flow",
+        "name": "Aurora Flow",
+        "author": "Wordclock",
+        "front": "#79F2D0",
+        "rear": "#7848D8",
+        "frontEffect": "solid",
+        "rearEffect": "color-cycle",
+        "frontSpeed": 50,
+        "rearSpeed": 50
+    },
+    {
+        "version": 2,
+        "id": "rainbow",
+        "name": "Rainbow",
+        "author": "Wordclock",
+        "front": "#FFE1B4",
+        "rear": "#FFFFFF",
+        "frontEffect": "solid",
+        "rearEffect": "rainbow",
+        "frontSpeed": 50,
+        "rearSpeed": 65
+    },
+    {
+        "version": 2,
+        "id": "ember",
+        "name": "Ember",
+        "author": "Wordclock",
+        "front": "#FFB568",
+        "rear": "#C53D10",
+        "frontEffect": "solid",
+        "rearEffect": "chase",
+        "frontSpeed": 50,
+        "rearSpeed": 85
+    }
+]
+)json";
 
     static bool parseColor(
         const char *value,
@@ -103,7 +171,7 @@ namespace ThemeLibrary
     bool applyTheme(const String &id)
     {
 
-        DynamicJsonDocument doc(2048);
+        DynamicJsonDocument doc(6144);
 
         DeserializationError error =
             deserializeJson(
@@ -167,6 +235,17 @@ namespace ThemeLibrary
             theme.harmony =
                 ColorManager::Harmony::Manual;
 
+            theme.frontAnimation = AnimationManager::Animation();
+            theme.rearAnimation = AnimationManager::Animation();
+            const char* f = entry["frontEffect"] | "solid";
+            const char* r = entry["rearEffect"] | "solid";
+            if (!AnimationManager::effectFromString(String(f), theme.frontAnimation.effect) ||
+                !AnimationManager::effectFromString(String(r), theme.rearAnimation.effect)) return false;
+            int fs = entry["frontSpeed"] | 50;
+            int rs = entry["rearSpeed"] | 50;
+            if (fs < 0 || fs > 100 || rs < 0 || rs > 100) return false;
+            theme.frontAnimation.speed = fs;
+            theme.rearAnimation.speed = rs;
             // Preserve global brightness.
 
             ThemeManager::setTheme(theme);

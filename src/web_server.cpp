@@ -200,7 +200,7 @@ namespace WebServer
         CRGB effective =
             ThemeManager::getEffectiveRearColor();
 
-        char json[256];
+        char json[384];
 
         snprintf(
             json,
@@ -210,7 +210,7 @@ namespace WebServer
             "\"rear\":\"#%02X%02X%02X\","
             "\"effectiveRear\":\"#%02X%02X%02X\","
             "\"brightness\":%u,"
-            "\"harmony\":\"%s\""
+            "\"harmony\":\"%s\",\"frontEffect\":\"%s\",\"rearEffect\":\"%s\",\"frontSpeed\":%u,\"rearSpeed\":%u"
             "}",
             theme.frontColor.r,
             theme.frontColor.g,
@@ -223,7 +223,11 @@ namespace WebServer
             effective.b,
             theme.brightness,
             ColorManager::harmonyToString(
-                theme.harmony));
+                theme.harmony),
+            AnimationManager::effectToString(theme.frontAnimation.effect),
+            AnimationManager::effectToString(theme.rearAnimation.effect),
+            static_cast<unsigned>(theme.frontAnimation.speed),
+            static_cast<unsigned>(theme.rearAnimation.speed));
 
         sendJson(200, json);
     }
@@ -318,6 +322,26 @@ namespace WebServer
             }
         }
 
+        for (int face = 0; face < 2; ++face) {
+            bool front = face == 0;
+            auto &animation = front ? theme.frontAnimation : theme.rearAnimation;
+            const char* effectKey = front ? "frontEffect" : "rearEffect";
+            const char* speedKey = front ? "frontSpeed" : "rearSpeed";
+            if (server.hasArg(effectKey) &&
+                (!AnimationManager::effectFromString(server.arg(effectKey), animation.effect) ||
+                 (front && (animation.effect == AnimationManager::Effect::Rainbow || animation.effect == AnimationManager::Effect::Chase)))) {
+                sendJson(400, "{\"error\":\"Invalid effect\"}"); return;
+            }
+            if (server.hasArg(speedKey)) {
+                String value = server.arg(speedKey);
+                char* end = nullptr;
+                long speed = strtol(value.c_str(), &end, 10);
+                if (!value.length() || end == value.c_str() || *end || speed < 0 || speed > 100) {
+                    sendJson(400, "{\"error\":\"Invalid speed\"}"); return;
+                }
+                animation.speed = static_cast<uint8_t>(speed);
+            }
+        }
         ThemeManager::setTheme(theme);
 
         handleGetTheme();

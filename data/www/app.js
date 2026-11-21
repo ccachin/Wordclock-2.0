@@ -1,3 +1,15 @@
+const animationControls = Object.fromEntries(["front", "rear"].map(face => [face, {
+    effect: document.getElementById(face + "Effect"),
+    speed: document.getElementById(face + "Speed"),
+    row: document.getElementById(face + "SpeedRow"),
+    value: document.getElementById(face + "SpeedValue")
+}]));
+function updateAnimationControls() {
+    for (const c of Object.values(animationControls)) {
+        c.row.hidden = c.effect.value === "solid";
+        c.value.textContent = c.speed.value + " %";
+    }
+}
 
 const timeElement =
     document.getElementById("time");
@@ -181,6 +193,7 @@ function setControlsEnabled(enabled) {
     brightness.disabled = !enabled;
 
     harmony.disabled = !enabled;
+    for (const c of Object.values(animationControls)) { c.effect.disabled = !enabled; c.speed.disabled = !enabled; }
 
     themeList
         .querySelectorAll(".theme-card")
@@ -287,6 +300,11 @@ function updateHarmonyControls() {
 // ======================================================
 
 function updateControls(data) {
+    for (const [face,c] of Object.entries(animationControls)) {
+        c.effect.value = data[face + "Effect"] || "solid";
+        c.speed.value = data[face + "Speed"] ?? 50;
+    }
+    updateAnimationControls();
 
     frontColor.value =
         data.front.toLowerCase();
@@ -331,7 +349,12 @@ function updateActiveTheme() {
             frontColor.value.toLowerCase() &&
 
             theme.rear.toLowerCase() ===
-            rearColor.value.toLowerCase()
+            rearColor.value.toLowerCase() &&
+            ["front", "rear"].every(face => {
+                const c = animationControls[face];
+                const effect = theme[face + "Effect"] || "solid";
+                return effect === c.effect.value && (effect === "solid" || Number(c.speed.value) === (theme[face + "Speed"] ?? 50));
+            })
         );
     }
 
@@ -470,7 +493,7 @@ async function initialize() {
         const data =
             await request("/api/theme");
 
-        if (!data.harmony) {
+        if (!data.harmony || !data.frontEffect || !data.rearEffect) {
 
             throw new Error(
                 "Firmware update required"
@@ -535,7 +558,11 @@ function sendTheme() {
 
         brightness: brightness.value,
 
-        harmony: harmony.value
+        harmony: harmony.value,
+        frontEffect: animationControls.front.effect.value,
+        rearEffect: animationControls.rear.effect.value,
+        frontSpeed: animationControls.front.speed.value,
+        rearSpeed: animationControls.rear.speed.value
 
     });
 
@@ -597,6 +624,7 @@ function sendTheme() {
 function scheduleThemeUpdate() {
 
     revision++;
+    updateAnimationControls();
 
     updateBrightnessLabel();
 
@@ -753,3 +781,8 @@ harmony.addEventListener(
 updateStatus();
 
 initialize();
+
+for (const c of Object.values(animationControls)) {
+    c.effect.addEventListener("change", scheduleThemeUpdate);
+    c.speed.addEventListener("input", scheduleThemeUpdate);
+}

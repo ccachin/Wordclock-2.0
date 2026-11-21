@@ -543,3 +543,6 @@ footer {
     }
 
 }
+.animation-setting { display: grid; gap: 10px; margin: 20px 0; }
+.animation-setting [hidden] { display: none !important; }
+.animation-setting select { width: 100%; }
