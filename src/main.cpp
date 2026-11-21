@@ -2,31 +2,10 @@
 #include "config.h"
 #include "leds.h"
 #include "wordclock.h"
+#include "time_manager.h"
 
-struct TestTime
-{
-  uint8_t hour;
-  uint8_t minute;
-};
-
-constexpr TestTime testTimes[] = {
-    {10, 0},
-    {10, 5},
-    {10, 15},
-    {10, 28},
-    {10, 30},
-    {10, 35},
-    {10, 45},
-    {10, 59},
-    {12, 0},
-    {0, 0},
-    {1, 0},
-    {23, 58}};
-
-constexpr size_t TEST_COUNT =
-    sizeof(testTimes) / sizeof(testTimes[0]);
-
-size_t testIndex = 0;
+int lastMinute = -1;
+int lastSecond = -1;
 
 void setup()
 {
@@ -35,29 +14,56 @@ void setup()
 
   Serial.println();
   Serial.println("Wordclock 3.0");
-  Serial.println("Time display test");
+  Serial.println("Time manager test");
 
   Leds::begin();
+  TimeManager::begin();
+
+  // Temporary test time
+  if (!TimeManager::setTime(
+          2026, 11, 21, 10, 58, 50))
+  {
+    Serial.println("Time initialization failed");
+  }
 }
 
 void loop()
 {
 
-  const TestTime &time = testTimes[testIndex];
+  TimeManager::ClockTime now;
 
-  Serial.printf(
-      "Displaying %02u:%02u\n",
-      time.hour,
-      time.minute);
+  if (!TimeManager::getTime(now))
+  {
+    delay(10);
+    return;
+  }
 
-  Wordclock::displayTime(
-      time.hour,
-      time.minute,
-      CRGB::Green);
+  // Serial output every second
+  if (now.second != lastSecond)
+  {
 
-  Leds::show();
+    lastSecond = now.second;
 
-  testIndex = (testIndex + 1) % TEST_COUNT;
+    Serial.printf(
+        "%02u:%02u:%02u\n",
+        now.hour,
+        now.minute,
+        now.second);
+  }
 
-  delay(5000);
+  // Update the display when the minute changes
+  if (now.minute != lastMinute)
+  {
+
+    lastMinute = now.minute;
+
+    Wordclock::displayTime(
+        now.hour,
+        now.minute,
+        CRGB::Green);
+
+    Leds::show();
+  }
+
+  delay(10);
 }
