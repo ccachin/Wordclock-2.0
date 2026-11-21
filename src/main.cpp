@@ -1,3 +1,4 @@
+
 #include <Arduino.h>
 
 #include "leds.h"
@@ -11,83 +12,113 @@
 
 using StatusManager::State;
 
-bool wasConnected = false;
+static bool wasConnected = false;
+
+// ======================================================
+// Setup
+// ======================================================
 
 void setup()
 {
 
-  Serial.begin(115200);
+    Serial.begin(115200);
 
-  Serial.println();
-  Serial.println("Wordclock 3.0");
-  Serial.println("Starting...");
+    Serial.println();
+    Serial.println("Wordclock 3.0");
+    Serial.println("Starting...");
 
-  Leds::begin();
+    // Hardware
 
-  TimeManager::begin();
-  StatusManager::begin();
+    Leds::begin();
 
-  ThemeManager::begin();
-  RenderManager::begin();
+    // System managers
 
-  WifiManager::begin();
-  Storage::begin();
-  WebServer::begin();
+    TimeManager::begin();
+    StatusManager::begin();
 
-  StatusManager::setState(
-      State::WifiConnecting);
+    ThemeManager::begin();
+    RenderManager::begin();
+
+    // Connectivity and storage
+
+    WifiManager::begin();
+    Storage::begin();
+    WebServer::begin();
+
+    // Initial status
+
+    StatusManager::setState(
+        State::WifiConnecting);
 }
+
+// ======================================================
+// Main loop
+// ======================================================
 
 void loop()
 {
 
-  WifiManager::update();
-  WebServer::update();
+    // Connectivity
 
-  bool connected = WifiManager::isConnected();
-  bool timeValid = TimeManager::isValid();
+    WifiManager::update();
+    WebServer::update();
 
-  if (connected && !wasConnected)
-  {
+    bool connected =
+        WifiManager::isConnected();
 
-    Serial.println(
-        "Starting NTP synchronization");
+    bool timeValid =
+        TimeManager::isValid();
 
-    TimeManager::startNtp();
+    // Start NTP after Wi-Fi connection
 
-    StatusManager::setState(
-        State::Connected);
-  }
+    if (connected && !wasConnected)
+    {
 
-  wasConnected = connected;
+        Serial.println(
+            "Starting NTP synchronization");
 
-  if (WifiManager::isPortalActive())
-  {
+        TimeManager::startNtp();
 
-    StatusManager::setState(
-        State::WifiSetupRequired);
-  }
-  else if (!connected)
-  {
+        StatusManager::setState(
+            State::Connected);
+    }
 
-    StatusManager::setState(
-        timeValid
-            ? State::Ready
-            : State::WifiConnecting);
-  }
-  else if (
-      StatusManager::getState() !=
-      State::Connected)
-  {
+    wasConnected = connected;
 
-    StatusManager::setState(
-        timeValid
-            ? State::Ready
-            : State::TimeSyncPending);
-  }
+    // Update system status
 
-  RenderManager::update();
-  StatusManager::update();
+    if (WifiManager::isPortalActive())
+    {
 
-  delay(5);
+        StatusManager::setState(
+            State::WifiSetupRequired);
+    }
+    else if (!connected)
+    {
+
+        StatusManager::setState(
+            timeValid
+                ? State::Ready
+                : State::WifiConnecting);
+    }
+    else if (
+        StatusManager::getState() !=
+        State::Connected)
+    {
+
+        StatusManager::setState(
+            timeValid
+                ? State::Ready
+                : State::TimeSyncPending);
+    }
+
+    // Update status animations
+
+    StatusManager::update();
+
+    // Render LEDs
+
+    RenderManager::update();
+
+    delay(5);
 }

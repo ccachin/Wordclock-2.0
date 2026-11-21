@@ -1,120 +1,136 @@
+
 #include "status_manager.h"
-#include "leds.h"
 
 namespace StatusManager
 {
 
-    constexpr uint8_t STATUS_LED = 2;
-
     constexpr uint32_t PULSE_PERIOD = 2400;
     constexpr uint32_t CONFIRM_DURATION = 2000;
-    constexpr uint32_t UPDATE_INTERVAL = 20;
 
     static State currentState = State::Starting;
 
-    static uint32_t stateStart = 0;
-    static uint32_t lastUpdate = 0;
+    static uint32_t stateStartedAt = 0;
+
+    // ==================================================
+    // Initialization
+    // ==================================================
 
     void begin()
     {
-        stateStart = millis();
-        lastUpdate = millis();
+
+        currentState = State::Starting;
+
+        stateStartedAt = millis();
     }
+
+    // ==================================================
+    // State management
+    // ==================================================
 
     void setState(State state)
     {
 
-        if (state == currentState)
+        if (currentState == state)
         {
+
             return;
         }
 
         currentState = state;
-        stateStart = millis();
 
-        Leds::setRearPixel(STATUS_LED, CRGB::Black);
-        Leds::show();
+        stateStartedAt = millis();
     }
 
     State getState()
     {
+
         return currentState;
     }
 
-    static CRGB getPulseColor(CRGB color, uint32_t elapsed)
+    bool isActive()
     {
 
-        uint8_t phase = static_cast<uint8_t>(
-            ((elapsed % PULSE_PERIOD) * 256UL) / PULSE_PERIOD);
-
-        uint8_t brightness = sin8(phase - 64);
-
-        color.nscale8_video(brightness);
-
-        return color;
+        return currentState != State::Ready;
     }
+
+    // ==================================================
+    // State update
+    // ==================================================
 
     void update()
     {
 
-        if (currentState == State::Ready)
+        if (currentState == State::Connected)
         {
-            return;
+
+            if (millis() - stateStartedAt >=
+                CONFIRM_DURATION)
+            {
+
+                setState(State::Ready);
+            }
         }
+    }
 
-        uint32_t now = millis();
+    // ==================================================
+    // Pulse animation
+    // ==================================================
 
-        if (now - lastUpdate < UPDATE_INTERVAL)
-        {
-            return;
-        }
+    static CRGB getPulseColor(CRGB color)
+    {
 
-        lastUpdate = now;
+        uint32_t elapsed =
+            millis() - stateStartedAt;
 
-        uint32_t elapsed = now - stateStart;
+        uint8_t phase =
+            static_cast<uint8_t>(
+                (elapsed % PULSE_PERIOD) *
+                256UL / PULSE_PERIOD);
 
-        CRGB color = CRGB::Black;
+        uint8_t intensity =
+            sin8(static_cast<uint8_t>(phase - 64));
+
+        color.nscale8_video(intensity);
+
+        return color;
+    }
+
+    // ==================================================
+    // Status color
+    // ==================================================
+
+    CRGB getColor()
+    {
 
         switch (currentState)
         {
 
         case State::Starting:
-            color = getPulseColor(
-                CRGB::White, elapsed);
-            break;
+
+            return getPulseColor(CRGB::White);
 
         case State::WifiConnecting:
-            color = getPulseColor(
-                CRGB::Blue, elapsed);
-            break;
+
+            return getPulseColor(CRGB::Blue);
 
         case State::WifiSetupRequired:
-            color = getPulseColor(
-                CRGB::Orange, elapsed);
-            break;
+
+            return getPulseColor(CRGB::Orange);
 
         case State::TimeSyncPending:
-            color = getPulseColor(
-                CRGB::Purple, elapsed);
-            break;
+
+            return getPulseColor(CRGB::Purple);
 
         case State::Connected:
 
-            if (elapsed >= CONFIRM_DURATION)
-            {
-                setState(State::Ready);
-                return;
-            }
-
-            color = CRGB::Green;
-            break;
+            return CRGB::Green;
 
         case State::Ready:
-            return;
-        }
 
-        Leds::setRearPixel(STATUS_LED, color);
-        Leds::show();
+        default:
+
+            return CRGB::Black;
+        }
     }
 
 }
