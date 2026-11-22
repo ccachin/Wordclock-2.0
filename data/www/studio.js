@@ -160,6 +160,7 @@
     // Theme persistence is independent from the preview session.
     const fields = {name:'Name',author:'Author',description:'Description',front:'FrontColor',rear:'RearColor',harmony:'Harmony',frontEffect:'FrontEffect',rearEffect:'RearEffect',frontSpeed:'FrontSpeed',rearSpeed:'RearSpeed'};
     const source=byId('studioSource'), status=byId('studioSaveStatus');
+    let shareId='', shareData=null;
     let lastSource='', imported=false, fromFile=false, editing='', working=false, catalog=[], catalogReady=false;
     function draft() {
         const data={version:2};
@@ -173,19 +174,24 @@
     const dirty=()=>imported||JSON.stringify(draft())!==baseline;
     function confirmDiscard(){return !dirty()||window.confirm('Abandonner les modifications non enregistrées ?');}
     function buttons(){
+        if(shareId!==source.value||studio.hidden)closeShare();
         lastSource=source.value;
         const personal=source.value.startsWith('custom-');
         for(const id of ['studioNew','studioSave','studioCancel','studioSource','studioDelete','studioImport']) byId(id).disabled=working;
         byId('studioExportAll').disabled=working||!catalogReady||!catalog.some(t=>t.id.startsWith('custom-'));
         byId('studioImportAll').disabled=working||!catalogReady;
-        byId('studioEdit').disabled=working||!catalogReady||!personal;
         byId('studioCopy').disabled=working||!catalogReady||!source.value;
         byId('studioExport').disabled=working||!catalogReady||!source.value;
+        byId('studioShare').disabled=working||!catalogReady||!personal;
+        byId('studioShare').title=personal?'Partager la version enregistrée':'Sélectionnez un thème personnel enregistré';
+        byId('studioMore').disabled=working;
+        byId('studioShareSubmit').disabled=working||!shareData||!byId('studioShareConsent').checked;
         byId('studioDelete').disabled=working||!catalogReady||!personal;
         byId('studioMode').textContent=(editing?'Modification d’un thème personnel':'Nouveau thème')+(dirty()?' — non enregistré':'');
         for(const suffix of Object.values(fields)) byId('studio'+suffix).disabled=working;
     }
     function loadDraft(data,id=''){
+        closeShare();setMore(false);
         imported=false;fromFile=false;editing=id;
         for(const [key,suffix] of Object.entries(fields)) byId('studio'+suffix).value=data[key]??defaults[key];
         controls.forEach(c=>{c.start=performance.now();sync(c);});updatePreview();
@@ -234,10 +240,15 @@
     studio.addEventListener('input',buttons);
     byId('studioNew').addEventListener('click',()=>{if(confirmDiscard()){disableLive();resetDraft();previewWanted=true;}});
     byId('studioCancel').addEventListener('click',()=>{if(confirmDiscard())operation(loadActive);});
-    for(const copy of [false,true]) byId(copy?'studioCopy':'studioEdit').addEventListener('click',()=>{
+    function setMore(open){
+        byId('studioMorePanel').hidden=!open;
+        byId('studioMore').setAttribute('aria-expanded',String(open));
+    }
+    byId('studioMore').addEventListener('click',()=>setMore(byId('studioMorePanel').hidden));
+    byId('studioCopy').addEventListener('click',()=>{
         if(!confirmDiscard())return;
-        const t=catalog.find(t=>t.id===source.value);if(!t||(!copy&&!t.id.startsWith('custom-')))return;
-        disableLive();loadDraft(copy?{...t,name:uniqueName(t.name,catalog)}:t,copy?'':t.id);if(copy)imported=true;previewWanted=true;buttons();status.textContent=copy?'Copie prête à enregistrer.':'';
+        const t=catalog.find(t=>t.id===source.value);if(!t)return;
+        disableLive();loadDraft({...t,name:uniqueName(t.name,catalog)});imported=true;previewWanted=true;buttons();status.textContent='Copie prête à enregistrer.';
     });
     byId('studioSave').addEventListener('click',()=>operation(async()=>{
         const data=draft();validate(data);
@@ -329,6 +340,32 @@
             disableLive();loadDraft(planned);source.value='';imported=true;fromFile=true;previewWanted=true;
             status.textContent='Thème importé dans le Studio. Cliquez sur Enregistrer et appliquer pour le conserver.';
         });
+    });
+    function closeShare(){
+        shareId='';shareData=null;byId('studioSharePanel').hidden=true;
+        byId('studioShareConsent').checked=false;
+    }
+    byId('studioShare').addEventListener('click',()=>operation(async()=>{
+        closeShare();setMore(false);const id=source.value;
+        if(!id.startsWith('custom-'))throw new Error('Choisissez un thème personnel enregistré.');
+        const t=await api('GET',id);
+        if(t.id!==id)throw new Error('Thème indisponible.');
+        const data=validateImport(t);validate(data);
+        shareId=id;shareData=data;
+        byId('studioShareInfo').textContent='Version enregistrée : '+data.name+' — '+(data.author||'Auteur non renseigné')+(data.description?' — '+data.description:'');
+        byId('studioSharePanel').hidden=false;
+    }));
+    byId('studioShareConsent').addEventListener('change',buttons);
+    byId('studioShareCancel').addEventListener('click',()=>{closeShare();buttons();});
+    byId('studioShareSubmit').addEventListener('click',()=>{
+        if(working||!shareData||shareId!==source.value||!byId('studioShareConsent').checked)return;
+        const json=JSON.stringify(shareData,null,2).replace(/`/g,'\\u0060');
+        const body='Licence : CC0 1.0 — Je confirme être autorisé à soumettre ce thème.\n\n```json\n'+json+'\n```';
+        const url=new URL('https://github.com/ccachin/wordclock-themes/issues/new');
+        url.searchParams.set('title','[Theme] '+shareData.name);url.searchParams.set('body',body);
+        window.open(url.href,'_blank','noopener,noreferrer');
+        status.textContent='Terminez la soumission sur GitHub. Aucune publication automatique.';
+        closeShare();buttons();
     });
     // Export the saved source, never the draft or global clock settings.
     byId('studioExport').addEventListener('click',()=>operation(async()=>{

@@ -223,8 +223,7 @@
             <div class="studio-fields">
                 <label for="studioSource">Thème de départ</label>
                 <select id="studioSource"><option value="">Choisir un thème</option></select>
-                <div class="night-actions studio-actions"><button id="studioNew" type="button">Nouveau</button><button id="studioEdit" type="button" disabled>Modifier</button><button id="studioCopy" type="button" disabled>Dupliquer</button><button id="studioDelete" type="button" disabled>Supprimer</button><button id="studioExport" type="button" disabled>Exporter</button><button id="studioImport" type="button">Importer</button><input id="studioImportFile" type="file" accept=".json,application/json" hidden></div>
-                <div class="night-actions studio-actions"><button id="studioExportAll" type="button" disabled>Exporter mes thèmes</button><button id="studioImportAll" type="button">Importer une collection</button><input id="studioCollectionFile" type="file" accept=".json,application/json" hidden></div>
+                <div class="night-actions studio-actions"><button id="studioNew" type="button">Nouveau</button><button id="studioCopy" type="button" disabled>Dupliquer</button><button id="studioDelete" type="button" disabled>Supprimer</button></div>
                 <p id="studioMode" class="muted">Nouveau thème</p>
                 <label for="studioName">Nom du thème</label><input id="studioName" type="text" maxlength="48" placeholder="Nouveau thème">
                 <label for="studioAuthor">Auteur</label><input id="studioAuthor" type="text" maxlength="48">
@@ -239,6 +238,16 @@
                 <div class="separator"></div>
                 <h2>Animations</h2><div class="animation-setting"><label for="studioFrontEffect">Face avant</label><select id="studioFrontEffect"><option value="solid">Fixe</option><option value="breathing">Respiration</option><option value="color-cycle">Cycle de couleurs</option></select><div id="studioFrontSpeedRow" hidden><div class="setting"><label for="studioFrontSpeed">Vitesse</label><output id="studioFrontSpeedValue">50 %</output></div><input type="range" id="studioFrontSpeed" min="0" max="100" value="50"><p class="muted" id="studioFrontPeriod"></p></div></div><div class="animation-setting"><label for="studioRearEffect">Face arrière</label><select id="studioRearEffect"><option value="solid">Fixe</option><option value="breathing">Respiration</option><option value="color-cycle">Cycle de couleurs</option><option value="rainbow">Arc-en-ciel</option><option value="chase">Chenillard</option></select><div id="studioRearSpeedRow" hidden><div class="setting"><label for="studioRearSpeed">Vitesse</label><output id="studioRearSpeedValue">50 %</output></div><input type="range" id="studioRearSpeed" min="0" max="100" value="50"><p class="muted" id="studioRearPeriod"></p></div></div>
                 <div class="night-actions studio-actions"><button id="studioSave" type="button">Enregistrer et appliquer</button><button id="studioCancel" type="button">Annuler</button></div>
+                <div class="night-actions studio-actions"><button id="studioShare" type="button" disabled>Partager</button><button id="studioMore" type="button" aria-expanded="false" aria-controls="studioMorePanel">Plus</button></div>
+                <div id="studioMorePanel" class="night-actions studio-actions" hidden><button id="studioExport" type="button" disabled>Exporter le thème</button><button id="studioImport" type="button">Importer un thème</button><button id="studioExportAll" type="button" disabled>Sauvegarder mes thèmes</button><button id="studioImportAll" type="button">Restaurer mes thèmes</button><input id="studioImportFile" type="file" accept=".json,application/json" hidden><input id="studioCollectionFile" type="file" accept=".json,application/json" hidden></div>
+                <section id="studioSharePanel" hidden>
+                    <h3>Partager un thème</h3>
+                    <p id="studioShareInfo" class="muted"></p>
+                    <label><input id="studioShareConsent" type="checkbox"> Je suis autorisé à partager ce thème et j’accepte sa publication sous licence CC0 1.0.</label>
+                    <p class="muted">La demande sera publique sur GitHub, où un compte est requis. Vérifiez votre pseudonyme et votre description.</p>
+                    <p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer">Consulter la licence CC0 1.0</a></p>
+                    <div class="night-actions"><button id="studioShareSubmit" type="button" disabled>Ouvrir la demande GitHub</button><button id="studioShareCancel" type="button">Annuler</button></div>
+                </section>
                 <p id="studioSaveStatus" role="status" class="muted"></p>
             </div>
         </section>
