@@ -170,6 +170,7 @@
         for(const id of ['studioNew','studioSave','studioCancel','studioSource','studioDelete']) byId(id).disabled=working;
         byId('studioEdit').disabled=working||!catalogReady||!personal;
         byId('studioCopy').disabled=working||!catalogReady||!source.value;
+        byId('studioExport').disabled=working||!catalogReady||!source.value;
         byId('studioDelete').disabled=working||!catalogReady||!personal;
         byId('studioMode').textContent=(editing?'Modification d’un thème personnel':'Nouveau thème')+(dirty()?' — non enregistré':'');
         for(const suffix of Object.values(fields)) byId('studio'+suffix).disabled=working;
@@ -221,6 +222,20 @@
         while(busy||stopping) await new Promise(resolve=>setTimeout(resolve,50));
         const applied=await applyTheme(saved.id);
         status.textContent='Thème enregistré. '+(applied?'Thème appliqué.':'Application non confirmée : réessayez depuis la bibliothèque.')+(refreshed?'':' Actualisation de la bibliothèque impossible.');
+    }));
+    // Export the saved source, never the draft or global clock settings.
+    byId('studioExport').addEventListener('click',()=>operation(async()=>{
+        const id=source.value;
+        if(!catalogReady||!id)throw new Error('Choisissez un thème à exporter.');
+        const t=id.startsWith('custom-')?await api('GET',id):catalog.find(t=>t.id===id);
+        if(!t||t.id!==id||t.version!==2)throw new Error('Thème indisponible ou format non pris en charge.');
+        const data={version:2,id:t.id,name:t.name,author:t.author??'',description:t.description??'',front:t.front,rear:t.rear,harmony:t.harmony??'manual',frontEffect:t.frontEffect,rearEffect:t.rearEffect,frontSpeed:t.frontSpeed,rearSpeed:t.rearSpeed};
+        if(Object.values(data).some(v=>v===undefined))throw new Error('Thème incomplet.');
+        const slug=t.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||id;
+        const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'}));
+        const link=document.createElement('a');link.href=url;link.download=slug+'.json';
+        try{document.body.appendChild(link);link.click();status.textContent='Export demandé : '+link.download;}
+        finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
     }));
     byId('studioDelete').addEventListener('click',()=>{
         const id=source.value, target=catalog.find(t=>t.id===id);
