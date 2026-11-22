@@ -576,7 +576,8 @@ namespace WebServer
                name == "style.css" ||
                name == "app.js" ||
                name == "night.js" ||
-               name == "studio.js";
+               name == "studio.js" ||
+               name == "community.js";
     }
 
     // ==================================================
@@ -723,6 +724,10 @@ namespace WebServer
 
         server.on("/studio.js", HTTP_GET, []() {
             serveFile("/www/studio.js", "application/javascript; charset=utf-8");
+        });
+
+        server.on("/community.js", HTTP_GET, []() {
+            serveFile("/www/community.js", "application/javascript; charset=utf-8");
         });
 
         server.on(
