@@ -1,5 +1,6 @@
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
@@ -418,10 +419,42 @@ namespace WebServer
 
     static void handleGetThemes()
     {
-
-        sendJson(
-            200,
-            ThemeLibrary::getCatalog());
+        String factory = ThemeLibrary::getCatalog();
+        int closing = factory.lastIndexOf(']');
+        if (closing < 0) {
+            sendJson(500, "{\"error\":\"Factory catalog unavailable\"}");
+            return;
+        }
+        String ids;
+        DynamicJsonDocument list(3072);
+        if (Storage::isReady()) {
+            if (!CustomThemeStore::listIds(ids) || deserializeJson(list, ids) || !list.is<JsonArray>()) {
+                sendJson(503, "{\"error\":\"Custom catalog unavailable\"}");
+                return;
+            }
+        }
+        // Stream each entry separately; never allocate the full merged catalog.
+        factory.remove(closing);
+        server.sendHeader("Cache-Control", "no-store");
+        server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+        server.send(200, "application/json", "");
+        server.sendContent(factory);
+        factory = String();
+        ids = String();
+        for (JsonVariantConst item : list.as<JsonArrayConst>()) {
+            if (!server.client().connected()) return;
+            ThemeCodec::Entry entry;
+            String encoded;
+            if (!CustomThemeStore::load(item.as<String>(), entry) || !ThemeCodec::encode(entry, encoded)) {
+                Serial.println("Custom catalog: unreadable entry skipped");
+                continue;
+            }
+            server.sendContent(",");
+            server.sendContent(encoded);
+            yield();
+        }
+        server.sendContent("]");
+        server.sendContent("");
     }
 
     static void handleApplyTheme()
@@ -514,203 +547,65 @@ namespace WebServer
     // Web update - PUT
     // ==================================================
 
+    // One staging file per allowed asset. Offset zero starts a fresh transfer.
+    static bool readNumber(const String& value, uint32_t& result, uint8_t base=10)
+    {
+        if (!value.length() || value.length() > (base == 16 ? 8 : 10)) return false;
+        result = 0;
+        for (unsigned int i=0; i<value.length(); ++i) {
+            char c=value[i];
+            unsigned int digit = c >= '0' && c <= '9' ? c-'0' :
+                c >= 'a' && c <= 'f' ? c-'a'+10 : 99;
+            if (digit >= base || result > (UINT32_MAX-digit)/base) return false;
+            result=result*base+digit;
+        }
+        return true;
+    }
+
     static void handleWebUpdate()
     {
-
-        if (!authorizeWebUpdate())
-        {
-            return;
+        if (!authorizeWebUpdate()) return;
+        if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
+        String name=server.arg("name");
+        if (!isAllowedWebFile(name)) { sendJson(400, "{\"error\":\"File not allowed\"}"); return; }
+        String path="/www/"+name, temporaryPath=path+".tmp";
+        uint32_t offset=0, total=0, expectedCrc=0;
+        if (!readNumber(server.arg("offset"),offset) || !readNumber(server.arg("total"),total) ||
+            !readNumber(server.arg("crc"),expectedCrc,16) || !total || total>WebUpdateConfig::MAX_FILE_SIZE || offset>total) {
+            sendJson(400,"{\"error\":\"Invalid transfer parameters\"}"); return;
         }
-
-        if (!Storage::isReady())
-        {
-
-            sendJson(
-                503,
-                "{\"error\":\"Storage unavailable\"}");
-
-            return;
-        }
-
-        String name = server.arg("name");
-
-        if (!isAllowedWebFile(name))
-        {
-
-            sendJson(
-                400,
-                "{\"error\":\"File not allowed\"}");
-
-            return;
-        }
-
-        if (!server.hasArg("plain"))
-        {
-
-            sendJson(
-                400,
-                "{\"error\":\"Missing file content\"}");
-
-            return;
-        }
-
-        const String &content =
-            server.arg("plain");
-
-        size_t length = content.length();
-
-        if (
-            length == 0 ||
-            length > WebUpdateConfig::MAX_FILE_SIZE)
-        {
-
-            sendJson(
-                413,
-                "{\"error\":\"Invalid file size\"}");
-
-            return;
-        }
-
-        if (!LittleFS.exists("/www"))
-        {
-
-            if (!LittleFS.mkdir("/www"))
-            {
-
-                sendJson(
-                    500,
-                    "{\"error\":\"Cannot create web directory\"}");
-
-                return;
-            }
-        }
-
-        String path = "/www/" + name;
-
-        String temporaryPath = path + ".tmp";
-
-        if (LittleFS.exists(temporaryPath))
-        {
-            LittleFS.remove(temporaryPath);
-        }
-
-        File file = LittleFS.open(
-            temporaryPath,
-            "w");
-
-        if (!file)
-        {
-
-            sendJson(
-                500,
-                "{\"error\":\"Cannot open temporary file\"}");
-
-            return;
-        }
-
-        size_t written = file.write(
-            reinterpret_cast<const uint8_t *>(
-                content.c_str()),
-            length);
-
-        file.flush();
-        file.close();
-
-        if (written != length)
-        {
-
-            LittleFS.remove(temporaryPath);
-
-            sendJson(
-                500,
-                "{\"error\":\"Incomplete write\"}");
-
-            return;
-        }
-
-        File verification = LittleFS.open(
-            temporaryPath,
-            "r");
-
-        if (!verification)
-        {
-
-            LittleFS.remove(temporaryPath);
-
-            sendJson(
-                500,
-                "{\"error\":\"Verification failed\"}");
-
-            return;
-        }
-
-        bool verified =
-            verification.size() == length;
-
-        for (
-            size_t i = 0;
-            verified && i < length;
-            i++)
-        {
-
-            int value = verification.read();
-
-            if (
-                value !=
-                static_cast<uint8_t>(content[i]))
-            {
-                verified = false;
-            }
-
-            if (i % 512 == 0)
-            {
+        if (server.arg("action")=="commit") {
+            File f=LittleFS.open(temporaryPath,"r");
+            if (!f || f.size()!=total || offset!=total) { sendJson(409,"{\"error\":\"Incomplete staging file\"}"); return; }
+            uint32_t crc=0xffffffffu; size_t count=0;
+            uint8_t buffer[256];
+            while (count<total) {
+                size_t n=f.read(buffer, sizeof(buffer));
+                if (!n) break;
+                count+=n;
+                for (size_t i=0;i<n;++i) {
+                    crc ^= buffer[i];
+                    for (int bit=0;bit<8;++bit) crc=(crc>>1)^((crc&1)?0xedb88320u:0u);
+                }
                 yield();
             }
+            f.close();
+            if (count!=total || (crc^0xffffffffu)!=expectedCrc) { sendJson(409,"{\"error\":\"CRC or size mismatch\"}"); return; }
+            if (!LittleFS.rename(temporaryPath,path)) { sendJson(500,"{\"error\":\"Cannot replace file\"}"); return; }
+            sendJson(200,String("{\"ok\":true,\"size\":")+String(total)+"}"); return;
         }
-
-        verification.close();
-
-        if (!verified)
-        {
-
-            LittleFS.remove(temporaryPath);
-
-            sendJson(
-                500,
-                "{\"error\":\"File content mismatch\"}");
-
-            return;
-        }
-
-        if (!LittleFS.rename(
-                temporaryPath,
-                path))
-        {
-
-            LittleFS.remove(temporaryPath);
-
-            sendJson(
-                500,
-                "{\"error\":\"Cannot replace file\"}");
-
-            return;
-        }
-
-        Serial.print("Web file updated: ");
-        Serial.print(path);
-        Serial.print(" (");
-        Serial.print(length);
-        Serial.println(" bytes)");
-
-        String json =
-            "{\"ok\":true,\"file\":\"";
-
-        json += name;
-        json += "\",\"size\":";
-        json += String(length);
-        json += "}";
-
-        sendJson(200, json);
+        if (server.arg("action")!="chunk") { sendJson(400,"{\"error\":\"Unknown transfer action\"}"); return; }
+        const String content=server.arg("plain");
+        size_t length=content.length();
+        if (!length || length>1024 || length>total-offset) { sendJson(413,"{\"error\":\"Invalid chunk size\"}"); return; }
+        if (!LittleFS.exists("/www") && !LittleFS.mkdir("/www")) { sendJson(500,"{\"error\":\"Cannot create web directory\"}"); return; }
+        File f=LittleFS.open(temporaryPath,offset==0?"w":"a");
+        if (!f) { sendJson(500,"{\"error\":\"Cannot open staging file\"}"); return; }
+        if (f.size()!=offset) { f.close(); sendJson(409,"{\"error\":\"Offset mismatch; restart transfer\"}"); return; }
+        size_t written=f.write(reinterpret_cast<const uint8_t*>(content.c_str()),length);
+        f.close();
+        if (written!=length) { sendJson(500,"{\"error\":\"Incomplete chunk write\"}"); return; }
+        sendJson(200,String("{\"ok\":true,\"offset\":")+String(offset+length)+"}");
     }
 
     // ==================================================
@@ -741,7 +636,7 @@ namespace WebServer
         json += String(
             WebUpdateConfig::MAX_FILE_SIZE);
 
-        json += "}";
+        json += ",\"chunkSize\":1024,\"protocol\":2}";
 
         sendJson(200, json);
     }

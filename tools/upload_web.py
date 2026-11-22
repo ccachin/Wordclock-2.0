@@ -6,6 +6,7 @@ import http.client
 import json
 from pathlib import Path
 import time
+import zlib
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -43,6 +44,11 @@ def main():
         if not info.get('enabled'):
             raise ValueError('Web updates disabled')
         limit = int(info['maxFileSize'])
+        if info.get('protocol') != 2:
+            raise ValueError('Install firmware with web upload protocol 2 first')
+        chunk_size = min(1024, int(info['chunkSize']))
+        if chunk_size <= 0:
+            raise ValueError('Invalid chunk size')
         assets = [(name, (ROOT / name).read_bytes()) for name in FILES]
         for name, data in assets:
             if not 0 < len(data) <= limit:
@@ -56,9 +62,21 @@ def main():
                     if exc.code != 404:
                         raise
             try:
-                result = json.loads(request('/api/dev/web?name=' + urllib.parse.quote(name), data))
+                params = {'name': name, 'total': len(data), 'crc': f'{zlib.crc32(data):08x}'}
+                for offset in range(0, len(data), chunk_size):
+                    chunk = data[offset:offset + chunk_size]
+                    query = urllib.parse.urlencode(dict(params, action='chunk', offset=offset))
+                    result = json.loads(request('/api/dev/web?' + query, chunk))
+                    end = offset + len(chunk)
+                    if not result.get('ok') or result.get('offset') != end:
+                        raise ValueError(f'Unexpected chunk response: {result}')
+                    print(f'{name}: {end}/{len(data)} bytes ({end * 100 // len(data)}%)')
+                query = urllib.parse.urlencode(dict(params, action='commit', offset=len(data)))
+                result = json.loads(request('/api/dev/web?' + query, b''))
                 if not result.get('ok') or result.get('size') != len(data):
-                    raise ValueError(f'Unexpected upload response for {name}: {result}')
+                    raise ValueError(f'Unexpected commit response: {result}')
+            except urllib.error.HTTPError as exc:
+                raise RuntimeError(f'{name}: HTTP {exc.code}: {exc.read().decode(errors="replace")}') from exc
             except Exception as exc:
                 raise RuntimeError(f'{name}: upload not confirmed; rerun to verify device contents ({exc})') from exc
             time.sleep(0.5)

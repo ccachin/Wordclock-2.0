@@ -9,6 +9,7 @@
 #include "theme_manager.h"
 #include "color_manager.h"
 #include "transition_manager.h"
+#include "custom_theme_store.h"
 
 namespace ThemeLibrary
 {
@@ -169,8 +170,31 @@ namespace ThemeLibrary
         return String(FACTORY_THEMES);
     }
 
+    static bool applyResolvedTheme(ThemeManager::Theme theme, const String& id)
+    {
+        const auto &old = ThemeManager::getTheme();
+        theme.brightness = old.brightness;
+        const bool different = old.frontColor != theme.frontColor ||
+            old.rearColor != theme.rearColor || old.harmony != theme.harmony ||
+            old.frontAnimation.effect != theme.frontAnimation.effect ||
+            old.frontAnimation.speed != theme.frontAnimation.speed ||
+            old.rearAnimation.effect != theme.rearAnimation.effect ||
+            old.rearAnimation.speed != theme.rearAnimation.speed;
+        ThemeManager::setTheme(theme);
+        if (different) TransitionManager::request();
+        Serial.print("Theme applied: ");
+        Serial.println(id);
+        return true;
+    }
+
     bool applyTheme(const String &id)
     {
+
+        if (id.startsWith("custom-")) {
+            ThemeCodec::Entry entry;
+            if (!CustomThemeStore::load(id, entry)) return false;
+            return applyResolvedTheme(entry.theme, id);
+        }
 
         DynamicJsonDocument doc(6144);
 
@@ -247,23 +271,7 @@ namespace ThemeLibrary
             if (fs < 0 || fs > 100 || rs < 0 || rs > 100) return false;
             theme.frontAnimation.speed = fs;
             theme.rearAnimation.speed = rs;
-            // Preserve global brightness.
-
-            const auto &old = ThemeManager::getTheme();
-            bool different = old.frontColor != theme.frontColor ||
-                old.rearColor != theme.rearColor || old.harmony != theme.harmony ||
-                old.frontAnimation.effect != theme.frontAnimation.effect ||
-                old.frontAnimation.speed != theme.frontAnimation.speed ||
-                old.rearAnimation.effect != theme.rearAnimation.effect ||
-                old.rearAnimation.speed != theme.rearAnimation.speed;
-            ThemeManager::setTheme(theme);
-            if (different) TransitionManager::request();
-
-            Serial.print("Theme applied: ");
-
-            Serial.println(id);
-
-            return true;
+            return applyResolvedTheme(theme, id);
         }
 
         return false;

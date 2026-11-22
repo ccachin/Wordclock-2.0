@@ -341,9 +341,11 @@ function updateActiveTheme() {
 
     let selected = null;
 
-    if (harmony.value === "manual") {
+    {
 
         selected = themes.find(theme =>
+
+            (theme.harmony || "manual") === harmony.value &&
 
             theme.front.toLowerCase() ===
             frontColor.value.toLowerCase() &&
@@ -437,6 +439,9 @@ function renderThemeLibrary() {
         name.className = "theme-name";
 
         name.textContent = theme.name;
+        if (theme.id.startsWith("custom-")) {
+            name.textContent += " (Perso)";
+        }
 
         const colors =
             document.createElement("div");
