@@ -540,7 +540,8 @@ namespace WebServer
         return name == "index.html" ||
                name == "style.css" ||
                name == "app.js" ||
-               name == "night.js";
+               name == "night.js" ||
+               name == "studio.js";
     }
 
     // ==================================================
@@ -683,6 +684,10 @@ namespace WebServer
 
         server.on("/night.js", HTTP_GET, []() {
             serveFile("/www/night.js", "application/javascript; charset=utf-8");
+        });
+
+        server.on("/studio.js", HTTP_GET, []() {
+            serveFile("/www/studio.js", "application/javascript; charset=utf-8");
         });
 
         server.on(

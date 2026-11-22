@@ -15,6 +15,7 @@
     </script>
 
     <script src="/night.js" defer></script>
+    <script src="/studio.js" defer></script>
 </head>
 
 <body>
@@ -39,6 +40,11 @@
 
         </section>
 
+        <nav class="studio-nav" aria-label="Navigation principale">
+            <button type="button" id="libraryTab" aria-pressed="true" aria-controls="libraryView">Bibliothèque</button>
+            <button type="button" id="studioTab" aria-pressed="false" aria-controls="studioView">Studio</button>
+        </nav>
+        <div id="libraryView">
         <section class="panel">
 
             <div class="section-header">
@@ -203,6 +209,28 @@
             <p id="nightMessage" class="muted" role="status"></p>
         </section>
 
+        </div>
+        <section class="panel" id="studioView" hidden>
+            <div class="section-header"><h2>Studio</h2><span class="muted">Aperçu local</span></div>
+            <p class="muted">Créez votre ambiance lumineuse.</p>
+            <div class="studio-previews">
+                <div><div id="studioFrontPreview" class="studio-front" aria-label="Face avant"></div><p>Face avant</p></div>
+                <div><div id="studioRearPreview" class="studio-rear" aria-label="Face arrière"><div class="studio-rear-center"></div></div><p>Face arrière</p></div>
+            </div>
+            <div class="studio-fields">
+                <label for="studioName">Nom du thème</label><input id="studioName" type="text" maxlength="48" placeholder="Nouveau thème">
+                <label for="studioAuthor">Auteur</label><input id="studioAuthor" type="text" maxlength="48">
+                <label for="studioDescription">Description</label><textarea id="studioDescription" rows="3" maxlength="200"></textarea>
+                <div class="separator"></div>
+                <h2>Couleurs</h2>
+                <div class="setting"><label for="studioFrontColor">Face avant</label><input id="studioFrontColor" type="color" value="#ffe1b4"></div>
+                <div class="setting"><label for="studioRearColor">Face arrière</label><input id="studioRearColor" type="color" value="#0055ff"></div>
+                <div class="separator"></div>
+                <h2>Harmonies et animations</h2>
+                <p class="muted">Disponibles à la prochaine étape.</p>
+                <p class="muted" role="status">Les changements restent dans cet aperçu. Aucun réglage de l’horloge n’est modifié.</p>
+            </div>
+        </section>
         <footer>
             Wordclock 3.0
         </footer>

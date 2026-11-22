@@ -11,7 +11,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-FILES = ('style.css', 'app.js', 'night.js', 'index.html')
+FILES = ('style.css', 'app.js', 'night.js', 'studio.js', 'index.html')
 ROOT = Path(__file__).resolve().parent.parent / 'data' / 'www'
 
 def main():
