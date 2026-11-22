@@ -832,6 +832,20 @@ namespace WebServer
             sendJson(200, json);
         });
 
+        server.on("/api/themes/custom", HTTP_POST, []() {
+            if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
+            if (!server.hasArg("plain")) { sendJson(400, "{\"error\":\"JSON body required\"}"); return; }
+            String body = server.arg("plain");
+            if (body.length() > ThemeCodec::MAX_BYTES) { sendJson(413, "{\"error\":\"Theme too large\"}"); return; }
+            ThemeCodec::Entry entry;
+            if (!ThemeCodec::decode(body, entry, true)) { sendJson(400, "{\"error\":\"Invalid theme\"}"); return; }
+            if (CustomThemeStore::count() >= CustomThemeStore::MAX_THEMES) { sendJson(409, "{\"error\":\"Theme limit reached\"}"); return; }
+            if (!CustomThemeStore::create(entry)) { sendJson(500, "{\"error\":\"Creation failed\"}"); return; }
+            String json;
+            if (!ThemeCodec::encode(entry, json)) { sendJson(500, "{\"error\":\"Theme saved but response encoding failed\"}"); return; }
+            sendJson(201, json);
+        });
+
         server.on("/api/night", HTTP_GET, handleGetNight);
         server.on("/api/night", HTTP_POST, handleSetNight);
         server.on("/api/transitions", HTTP_GET, handleGetTransitions);

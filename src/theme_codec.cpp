@@ -28,13 +28,15 @@ static bool anim(JsonObjectConst obj,const char* effect,const char* speed,Animat
     if(!obj[speed].is<int>()||obj[speed].as<int>()<0||obj[speed].as<int>()>100)return false;
     a.speed=obj[speed].as<int>();return true;
 }
-bool decode(const String& json, Entry& out){
+bool decode(const String& json, Entry& out, bool allowMissingId){
     if(!json.length()||json.length()>MAX_BYTES)return false;
     DynamicJsonDocument doc(4096);
     if(deserializeJson(doc,json,DeserializationOption::NestingLimit(3))||!doc.is<JsonObject>())return false;
     JsonObjectConst o=doc.as<JsonObjectConst>(); Entry e;
     if(!o["version"].is<int>()||o["version"].as<int>()!=2)return false;
-    if(!field(o["id"],e.id,48,true)||!validId(e.id)||!field(o["name"],e.name,48,true)||!field(o["author"],e.author,48,false))return false;
+    if (allowMissingId && !o.containsKey("id")) { e.id = "custom-new"; }
+    else if (!field(o["id"],e.id,48,true) || !validId(e.id)) return false;
+    if (!field(o["name"],e.name,48,true) || !field(o["author"],e.author,48,false)) return false;
     if(o.containsKey("description")&&!field(o["description"],e.description,200,false))return false;
     if(!color(o["front"],e.theme.frontColor)||!color(o["rear"],e.theme.rearColor)||!anim(o,"frontEffect","frontSpeed",e.theme.frontAnimation,true)||!anim(o,"rearEffect","rearSpeed",e.theme.rearAnimation,false))return false;
     if(o.containsKey("harmony")){String h;if(!field(o["harmony"],h,24,true)||!ColorManager::harmonyFromString(h,e.theme.harmony))return false;}

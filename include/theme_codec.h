@@ -7,6 +7,6 @@ struct Entry {
     ThemeManager::Theme theme{};
 };
 bool validId(const String& id);
-bool decode(const String& json, Entry& out);
+bool decode(const String& json, Entry& out, bool allowMissingId = false);
 bool encode(const Entry& entry, String& json);
 }

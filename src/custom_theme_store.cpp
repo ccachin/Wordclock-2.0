@@ -32,8 +32,38 @@ bool listIds(String& json) {
     }
     return json.concat(']');
 }
-static bool write(const ThemeCodec::Entry& e){String s;if(!Storage::isReady()||!valid(e.id)||!ThemeCodec::encode(e,s))return false;String p=path(e.id),tmp=p+".tmp";File f=LittleFS.open(tmp,"w");if(!f)return false;size_t n=f.print(s);f.close();ThemeCodec::Entry check;if(n!=s.length()||!read(tmp,check)||check.id!=e.id){LittleFS.remove(tmp);return false;}if(!LittleFS.rename(tmp,p)){LittleFS.remove(tmp);return false;}return true;}
-bool create(ThemeCodec::Entry& e){if(!Storage::isReady()||count()>=MAX_THEMES)return false;ThemeCodec::Entry candidate=e;for(unsigned i=0;i<32;++i){char id[32];snprintf(id,sizeof(id),"custom-%08lx-%08lx",(unsigned long)ESP.getChipId(),(unsigned long)random(0x7fffffff));candidate.id=id;if(!LittleFS.exists(path(candidate.id))){if(!write(candidate))return false;e=candidate;return true;}}return false;}
+static bool write(const ThemeCodec::Entry& e) {
+    String s;
+    if (!Storage::isReady() || !valid(e.id) || !ThemeCodec::encode(e,s)) {
+        Serial.println("Custom theme: validation or encoding failed"); return false;
+    }
+    String p=path(e.id), tmp=p+".tmp";
+    File f=LittleFS.open(tmp,"w");
+    if (!f) { Serial.printf("Custom theme: open failed: %s\n",tmp.c_str()); return false; }
+    size_t n=f.print(s); f.close();
+    ThemeCodec::Entry check;
+    if (n!=s.length() || !read(tmp,check) || check.id!=e.id) {
+        Serial.println("Custom theme: write or verification failed"); LittleFS.remove(tmp); return false;
+    }
+    if (!LittleFS.rename(tmp,p)) {
+        Serial.println("Custom theme: rename failed"); LittleFS.remove(tmp); return false;
+    }
+    Serial.printf("Custom theme saved: %s\n",e.id.c_str()); return true;
+}
+bool create(ThemeCodec::Entry& e) {
+    if (!Storage::isReady() || count()>=MAX_THEMES) { Serial.println("Custom theme: storage unavailable or limit reached"); return false; }
+    ThemeCodec::Entry candidate=e;
+    for (unsigned i=0;i<32;++i) {
+        char id[24];
+        snprintf(id,sizeof(id),"custom-%06lx-%06lx",(unsigned long)(ESP.getChipId() & 0xffffffUL),(unsigned long)random(0x1000000L));
+        candidate.id=id;
+        if (!LittleFS.exists(path(candidate.id))) {
+            if (!write(candidate)) return false;
+            e=candidate; return true;
+        }
+    }
+    Serial.println("Custom theme: ID generation failed"); return false;
+}
 bool update(const ThemeCodec::Entry& e){return Storage::isReady()&&valid(e.id)&&LittleFS.exists(path(e.id))&&write(e);}
 bool remove(const String& id){return Storage::isReady()&&valid(id)&&LittleFS.remove(path(id));}
 void runDiagnostics(){
