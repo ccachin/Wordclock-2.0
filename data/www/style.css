@@ -621,3 +621,17 @@ select{background:var(--control)}.community-card{border-radius:6px}.studio-nav b
 .face-brightness summary { cursor: pointer; font-weight: 500; }
 .face-brightness[open] summary { margin-bottom: 1rem; }
 .face-brightness .setting { margin-top: .8rem; }
+
+/* Shared letter-grid previews */
+.matrix-preview svg {display:block;width:100%;height:100%;padding:5%;box-sizing:border-box;overflow:visible}
+.matrix-preview svg text {font: 6.8px monospace;letter-spacing:0;text-anchor:middle;fill:#555;}
+.matrix-preview svg text.lit {fill:var(--front);}
+.home-preview.matrix-preview {width:min(245px,75%);margin:30px auto;}
+.home-preview.front-off svg text.lit {fill:#555;}
+.home-preview.rear-off {box-shadow:none!important;}
+#powerToggle {display:block;margin:0 auto 20px;}
+
+/* Home preview: distinct unlit glyphs and readable illuminated letters. */
+.home-preview.matrix-preview svg text {fill:#393939;font-weight:500;}
+.home-preview.matrix-preview svg text.lit {fill:var(--front);font-weight:600;}
+.home-preview.matrix-preview.front-off svg text.lit {fill:#393939;font-weight:500;}

@@ -13,7 +13,7 @@
         el('nightHint').textContent = start.value === end.value ? 'Horaires identiques : le mode nuit ne s’activera pas.' : 'La luminosité nocturne est un plafond. Les horaires utilisent l’heure locale de l’horloge.';
     }
     function fill(n) { enabled.checked=n.enabled; start.value=toTime(n.startMinute); end.value=toTime(n.endMinute); mode.value=String(n.mode); brightness.value=String(n.brightness); preview(); }
-    function status(n) { const e=el('nightStatus'); e.textContent=n.active?'Actif':n.enabled?'Programmé':'Désactivé'; e.classList.toggle('active',n.active); }
+    function status(n) { document.dispatchEvent(new CustomEvent("wordclock:night-status",{detail:n})); const e=el('nightStatus'); e.textContent=n.active?'Actif':n.enabled?'Programmé':'Désactivé'; e.classList.toggle('active',n.active); }
     async function request(options={}) { const r=await fetch('/api/night',{cache:'no-store',...options}); if(!r.ok) throw Error(`HTTP ${r.status}`); return r.json(); }
     async function poll() {
         if (!busy) {

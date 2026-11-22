@@ -156,6 +156,8 @@ async function updateStatus() {
                 ? data.time
                 : "--:--:--";
 
+        const match=data.timeValid&&/^(\d{2}):(\d{2})/.exec(data.time);
+        homeTime=match?[Number(match[1]),Number(match[2])]:[-1,-1];
         statusElement.textContent =
             "Connectée";
 
@@ -170,6 +172,7 @@ async function updateStatus() {
         statusElement.style.color =
             "var(--error)";
 
+        homeTime=[-1,-1];
         timeElement.textContent =
             "--:--:--";
 
@@ -188,6 +191,7 @@ const frontBrightness = document.getElementById("frontBrightness");
 const rearBrightness = document.getElementById("rearBrightness");
 function setControlsEnabled(enabled) {
     frontBrightness.disabled = rearBrightness.disabled = !enabled;
+    document.getElementById("powerToggle").disabled = !enabled;
 
     frontColor.disabled = !enabled;
 
@@ -211,6 +215,8 @@ function updateBrightnessLabel() {
     document.getElementById("frontBrightnessValue").textContent = frontBrightness.value + " %";
     document.getElementById("rearBrightnessValue").textContent = rearBrightness.value + " %";
 
+    document.getElementById("powerToggle").textContent=Number(brightness.value)===0?"Allumer":"Éteindre";
+    if(Number(brightness.value)>0){lastBrightness=Number(brightness.value);try{localStorage.setItem("wordclock-last-brightness",String(lastBrightness));}catch(e){}}
     brightnessValue.textContent =
 
         Math.round(
@@ -276,9 +282,6 @@ function updatePalettePreview() {
     effectiveRearColor.style.backgroundColor =
         rear;
 
-    const homePreview=document.querySelector(".home-preview");
-    homePreview.style.setProperty("--front",frontColor.value);
-    homePreview.style.setProperty("--rear",rear);
     effectiveRearColor.title =
         rear.toUpperCase();
 }
@@ -379,6 +382,7 @@ function updateActiveTheme() {
 
             : "Personnalisé";
 
+    document.getElementById("homeTheme").textContent=activeTheme.textContent;
     themeList
         .querySelectorAll(".theme-card")
         .forEach(button => {
@@ -436,13 +440,11 @@ function renderThemeLibrary() {
             theme.rear
         );
 
-        const previewText =
-            document.createElement("span");
-
-        previewText.textContent =
-            "IL EST\nHUIT\nHEURES";
-
-        preview.appendChild(previewText);
+        window.WordclockStudioVisual.matrixPreview(preview);
+        if(theme.harmony && theme.harmony!=="manual") {
+            const v=window.WordclockStudioVisual;
+            preview.style.setProperty('--rear',v.css(v.rotate(v.rgb(theme.front),{identical:0,complementary:180,'analogous-plus':30,'analogous-minus':-30,triadic:120}[theme.harmony]??0)));
+        }
 
         const name =
             document.createElement("span");
@@ -803,9 +805,44 @@ harmony.addEventListener(
 // Start
 // ======================================================
 
-updateStatus();
-
-initialize();
+let homeTime=[-1,-1], lastBrightness=8, nightPreview=null;
+try {const n=Number(localStorage.getItem('wordclock-last-brightness'));if(Number.isInteger(n)&&n>0&&n<=255)lastBrightness=n;}catch(e){}
+const powerToggle=document.getElementById('powerToggle');
+powerToggle.addEventListener('click',()=>{brightness.value=Number(brightness.value)?0:lastBrightness;scheduleThemeUpdate();});
+document.addEventListener('wordclock:night-status',e=>{nightPreview=e.detail;});
+// Defer initialization until all deferred scripts have executed.
+document.addEventListener('DOMContentLoaded',()=>{
+    const v=window.WordclockStudioVisual, el=document.querySelector('.home-preview');
+    const setTime=v.matrixPreview(el,-1,-1);
+    let previous='', lastKey='', start=performance.now();
+    function draw(now){
+        if(!document.hidden&&!document.getElementById('homeView').hidden){
+            const key=homeTime.join(':');if(key!==previous){setTime(...homeTime);previous=key;}
+            const effectKey=[frontColor.value,rearColor.value,harmony.value,...Object.values(animationControls).flatMap(c=>[c.effect.value,c.speed.value])].join(':');
+            if(effectKey!==lastKey){start=now;lastKey=effectKey;}
+            let g=initialized?Number(brightness.value):0;
+            if(nightPreview?.active)g=nightPreview.mode===2?0:Math.min(g,nightPreview.brightness);
+            const scale=(c,n)=>v.css(c.map(x=>x*n));
+            const f=v.rgb(frontColor.value),r=v.rgb(harmony.value==='manual'?rearColor.value:effectiveRear);
+            const fc=v.effect(f,{...animationControls.front,start},now);
+            const rc=Array.from({length:20},(_,i)=>v.effect(r,{...animationControls.rear,start},now,i));
+            // Screen contrast is perceptual, not a linear LED power measurement.
+            const frontLevel=g/255*Number(frontBrightness.value)/100;
+            const peak=Math.max(...fc);
+            const perceptual=frontLevel>0&&peak>0 ? 0.28+0.72*Math.sqrt(frontLevel) : 0;
+            const normalization=peak>0 ? Math.max(1,160/Math.max(...f,1)) : 1;
+            const displayFront=fc.map(x=>x*normalization*perceptual);
+            el.style.setProperty('--front',v.css(displayFront));
+            const rearScale=nightPreview?.active&&nightPreview.mode===1?0:g/255*Number(rearBrightness.value)/100;
+            const groups=Array.from({length:4},(_,side)=>{const a=rc.slice(side*5,side*5+5);return scale([0,1,2].map(k=>a.reduce((sum,c)=>sum+c[k],0)/5),rearScale);});
+            el.style.boxShadow=`0 9px 18px ${groups[0]}, -9px 0 18px ${groups[1]}, 0 -9px 18px ${groups[2]}, 9px 0 18px ${groups[3]}`;
+            el.classList.toggle('rear-off',rearScale===0);
+            el.classList.toggle('front-off',g===0||Number(frontBrightness.value)===0);
+        }
+        setTimeout(()=>requestAnimationFrame(draw),50);
+    }
+    requestAnimationFrame(draw);updateStatus();initialize();
+});
 
 const transitionEnabled = document.getElementById("transitionEnabled");
 const transitionDuration = document.getElementById("transitionDuration");

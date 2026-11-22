@@ -26,7 +26,7 @@
         for(const t of filtered){
             const card=document.createElement('button');card.type='button';card.className='theme-card community-card';card.setAttribute('aria-pressed',String(t===selected));card.disabled=locked;
             const preview=document.createElement('div');preview.className='theme-preview';preview.style.setProperty('--front',t.front);preview.style.setProperty('--rear',t.rear);
-            const words=document.createElement('span');words.textContent='IL EST\nHUIT\nHEURES';preview.append(words);
+            window.WordclockStudioVisual.matrixPreview(preview);
             const title=document.createElement('strong');title.textContent=t.name;
             const author=document.createElement('small');author.textContent=t.author;
             const colors=document.createElement('div');colors.className='theme-colors';for(const c of [t.front,t.rear]){const dot=document.createElement('span');dot.className='color-dot';dot.style.backgroundColor=c;colors.append(dot);}

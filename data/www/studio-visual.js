@@ -2,8 +2,27 @@
     'use strict';
     const byId=id=>document.getElementById(id);
     const matrix = ['ILAESTBDEUX','QUATREDCINQ','SIXNEUFONZE','UNEHSEPTDIX','HUITFTROISZ','UMIDIHEURES','MINUITSETFA','MOINSOVINGT','DIXTLESDEMI','QUARTUCINQO','WGBSDLO****'];
+    function timePixels(hour, minute) {
+        const lit=new Set();
+        if(!Number.isInteger(hour)||hour<0||hour>23||!Number.isInteger(minute)||minute<0||minute>59)return lit;
+        const add=(start,length)=>{for(let i=0;i<length;i++)lit.add(start+i);};
+        const step=Math.floor(minute/5);
+        if(step>=7)hour=(hour+1)%24;
+        add(0,2);add(3,3);
+        const hours=[[66,6],[33,3],[7,4],[49,5],[11,6],[18,4],[22,3],[37,4],[44,4],[25,4],[41,3],[29,4]];
+        if(hour===12)add(56,4);else {add(...hours[hour%12]);if(hour!==0)add(60,hour%12===1?5:6);}
+        const mins=[[],[[105,4]],[[88,3]],[[73,2],[99,5]],[[83,5]],[[83,5],[105,4]],[[73,2],[95,4]],[[77,5],[83,5],[105,4]],[[77,5],[83,5]],[[77,5],[92,2],[99,5]],[[77,5],[88,3]],[[77,5],[105,4]]];
+        mins[step].forEach(w=>add(...w));add(117,minute%5);return lit;
+    }
+    function matrixPreview(element,hour=8,minute=0) {
+        const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 110 110');svg.setAttribute('aria-hidden','true');
+        const cells=Array.from(matrix.join(''),(letter,i)=>{const t=document.createElementNS(svg.namespaceURI,'text');t.setAttribute('x',String(5+i%11*10));t.setAttribute('y',String(8+Math.floor(i/11)*10));t.textContent=letter==='*'?'·':letter;svg.append(t);return t;});
+        element.replaceChildren(svg);element.classList.add('matrix-preview');
+        function setTime(h,m){const lit=timePixels(h,m);cells.forEach((c,i)=>c.classList.toggle('lit',lit.has(i)));}
+        setTime(hour,minute);return setTime;
+    }
     // Static example: IL EST HUIT HEURES. No device writes.
-    const lit = new Set([0,1,3,4,5,44,45,46,47,60,61,62,63,64,65]);
+    const lit = timePixels(8,0);
     const front = byId('studioFrontPreview');
     const rear = byId('studioRearPreview');
     Array.from(matrix.join('')).forEach((letter, index) => {
@@ -78,5 +97,5 @@
     }
     controls.forEach(c=>{for(const el of [c.effect,c.speed]) el.addEventListener('input',()=>{c.start=performance.now();sync(c);updatePreview();});sync(c);});
     for(const id of ['studioFrontColor','studioRearColor','studioHarmony']) byId(id).addEventListener('input',updatePreview);
-    window.WordclockStudioVisual=Object.freeze({controls,sync,render,updatePreview});
+    window.WordclockStudioVisual=Object.freeze({controls,sync,render,updatePreview,timePixels,matrixPreview,rgb,css,rotate,effect});
 })();
