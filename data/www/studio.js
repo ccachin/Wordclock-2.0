@@ -11,7 +11,7 @@
         libraryTab.setAttribute('aria-pressed', String(!active));
         studioTab.setAttribute('aria-pressed', String(active));
     }
-    libraryTab.addEventListener('click', () => showStudio(false));
+    libraryTab.addEventListener('click', () => { disableLive(); showStudio(false); });
     studioTab.addEventListener('click', () => showStudio(true));
     const matrix = ['ILAESTBDEUX','QUATREDCINQ','SIXNEUFONZE','UNEHSEPTDIX','HUITFTROISZ','UMIDIHEURES','MINUITSETFA','MOINSOVINGT','DIXTLESDEMI','QUARTUCINQO','WGBSDLO****'];
     // Static example: IL EST HUIT HEURES. No device writes.
@@ -90,7 +90,64 @@
     }
     controls.forEach(c=>{for(const el of [c.effect,c.speed]) el.addEventListener('input',()=>{c.start=performance.now();sync(c);updatePreview();});sync(c);});
     for(const id of ['studioFrontColor','studioRearColor','studioHarmony']) byId(id).addEventListener('input',updatePreview);
-    // Local only, no HTTP requests. Skip drawing while the editor is hidden.
+    const liveButton = byId('studioLive'), liveStatus = byId('studioLiveStatus');
+    let live = false, busy = false, pending = false, stopping = false, token = '', lastSent = 0;
+    function displayLive(message) {
+        liveButton.setAttribute('aria-pressed', String(live));
+        liveButton.textContent = live ? 'Désactiver l’aperçu physique' : 'Activer l’aperçu physique';
+        liveButton.disabled = stopping;
+        liveStatus.textContent = message;
+    }
+    function payload(action) {
+        const p = new URLSearchParams({action, token});
+        if(action === 'set') for(const [key,id] of Object.entries({front:'FrontColor',rear:'RearColor',harmony:'Harmony',frontEffect:'FrontEffect',rearEffect:'RearEffect',frontSpeed:'FrontSpeed',rearSpeed:'RearSpeed'})) p.set(key,byId('studio'+id).value);
+        return p;
+    }
+    async function requestPreview(action) {
+        const controller = new AbortController();
+        const timeout = setTimeout(()=>controller.abort(),3000);
+        try {
+            const response = await fetch('/api/preview',{method:'POST',body:payload(action),signal:controller.signal,cache:'no-store'});
+            if(!response.ok) throw new Error(response.status===409?'Aperçu utilisé ailleurs ou indisponible':`HTTP ${response.status}`);
+            if(!(await response.json()).ok) throw new Error('Réponse invalide');
+        } finally { clearTimeout(timeout); }
+    }
+    async function flush() {
+        if(busy) return;
+        busy=true;
+        try {
+            if(live && (pending || performance.now()-lastSent>=2000) && performance.now()-lastSent>=100) {
+                pending=false;lastSent=performance.now();
+                await requestPreview('set');
+                if(live) displayLive('Aperçu physique actif (luminosité et mode nuit conservés).');
+            }
+        } catch(e) {
+            live=false;stopping=true;displayLive('Connexion interrompue : restauration automatique sous 10 s après la dernière requête reçue.');
+        } finally {
+            if(stopping) {
+                try {await requestPreview('stop');displayLive('Ambiance précédente restaurée.');}
+                catch(e){displayLive('Restauration automatique sous 10 s après la dernière requête reçue.');}
+                stopping=false;liveButton.disabled=false;
+            }
+            busy=false;
+        }
+    }
+    function disableLive() {
+        if(!live) return;
+        live=false;pending=false;stopping=true;displayLive('Restauration en cours…');flush();
+    }
+    // Stop must also run when no set is pending.
+    liveButton.addEventListener('click',()=>{
+        if(live){disableLive();return;}
+        if(stopping||busy)return;
+        token=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
+        live=true;pending=true;lastSent=-1000;displayLive('Connexion…');flush();
+    });
+    studio.addEventListener('input',()=>{if(live)pending=true;});
+    setInterval(()=>{if(live||stopping)flush();},100);
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)disableLive();});
+    window.addEventListener('pagehide',()=>{if(live||stopping)navigator.sendBeacon('/api/preview',payload('stop'));live=false;});
+    // Skip drawing while the editor is hidden.
     let last=0;
     function frame(now) { if(!studio.hidden && now-last>=40) {render(now);last=now;} requestAnimationFrame(frame); }
     updatePreview();requestAnimationFrame(frame);

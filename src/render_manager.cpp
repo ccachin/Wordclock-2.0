@@ -10,6 +10,7 @@
 #include "config.h"
 #include "transition_manager.h"
 #include "night_manager.h"
+#include "preview_manager.h"
 
 
 namespace RenderManager
@@ -39,6 +40,7 @@ namespace RenderManager
     static bool lastTimeValid = false;
     static bool lastNightActive = false;
     static uint32_t lastNightRevision = 0;
+    static uint32_t lastPreviewRevision = 0;
 
     static StatusManager::State lastStatus =
 
@@ -209,7 +211,11 @@ namespace RenderManager
 
             StatusManager::isActive();
 
-        const auto &theme = ThemeManager::getTheme();
+        const bool previewActive = PreviewManager::active();
+        const uint32_t previewRevision = PreviewManager::revision();
+        const bool previewChanged = previewRevision != lastPreviewRevision;
+        if (previewActive || previewChanged) TransitionManager::cancel();
+        const auto theme = PreviewManager::renderTheme();
         const auto &frontAnimation = theme.frontAnimation;
         const auto &rearAnimation = theme.rearAnimation;
         if (frontAnimation.effect != previousFront.effect || frontAnimation.speed != previousFront.speed)
@@ -225,6 +231,7 @@ namespace RenderManager
 
         bool needsRender =
 
+            previewChanged ||
             nightChanged ||
             timeChanged ||
 
@@ -278,7 +285,7 @@ namespace RenderManager
 
         renderRear(
 
-            ThemeManager::getEffectiveRearColor(),
+            ColorManager::resolveRearColor(theme.frontColor, theme.rearColor, theme.harmony),
 
             rearAnimation,
 
@@ -289,7 +296,7 @@ namespace RenderManager
         // ==============================================
 
         uint8_t brightness = theme.brightness;
-        TransitionManager::apply(currentMillis, timeChanged, brightness);
+        if (!previewActive && !previewChanged) TransitionManager::apply(currentMillis, timeChanged, brightness);
         TransitionManager::remember(brightness);
 
         if (nightActive) {
@@ -324,6 +331,7 @@ namespace RenderManager
         lastTimeValid = timeValid;
         lastNightActive = nightActive;
         lastNightRevision = nightRevision;
+        lastPreviewRevision = previewRevision;
 
         ThemeManager::markRendered();
     }

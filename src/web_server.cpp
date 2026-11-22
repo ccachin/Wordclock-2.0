@@ -19,6 +19,7 @@
 #include "transition_manager.h"
 #include "night_manager.h"
 #include "custom_theme_store.h"
+#include "preview_manager.h"
 
 namespace WebServer
 {
@@ -194,6 +195,40 @@ namespace WebServer
     // ==================================================
     // Current theme - GET
     // ==================================================
+
+    static bool validPreviewToken(const String& token) {
+        if (token.length() != 32) return false;
+        for (size_t i=0;i<token.length();++i) if (!isxdigit(static_cast<unsigned char>(token[i]))) return false;
+        return true;
+    }
+    static void handlePreview() {
+        const String token = server.arg("token");
+        if (!validPreviewToken(token)) { sendJson(400, "{\"error\":\"Invalid token\"}"); return; }
+        const String action = server.arg("action");
+        if (action == "stop") {
+            const bool ok = PreviewManager::stop(token);
+            sendJson(ok ? 200 : 409, ok ? "{\"ok\":true}" : "{\"error\":\"Preview busy\"}"); return;
+        }
+        auto theme = ThemeManager::getTheme();
+        if (action != "set" || !parseColor(server.arg("front"), theme.frontColor) ||
+            !parseColor(server.arg("rear"), theme.rearColor) ||
+            !ColorManager::harmonyFromString(server.arg("harmony"), theme.harmony)) {
+            sendJson(400, "{\"error\":\"Invalid preview\"}"); return;
+        }
+        for (int face=0;face<2;++face) {
+            auto& a = face == 0 ? theme.frontAnimation : theme.rearAnimation;
+            const String speed = server.arg(face == 0 ? "frontSpeed" : "rearSpeed");
+            bool valid = speed.length() > 0 && speed.length() <= 3;
+            for (size_t i=0;i<speed.length();++i) if (speed[i]<'0'||speed[i]>'9') valid=false;
+            if (!valid || speed.toInt()>100 || !AnimationManager::effectFromString(server.arg(face == 0 ? "frontEffect" : "rearEffect"), a.effect) ||
+                (face==0 && (a.effect==AnimationManager::Effect::Rainbow || a.effect==AnimationManager::Effect::Chase))) {
+                sendJson(400, "{\"error\":\"Invalid animation\"}"); return;
+            }
+            a.speed = speed.toInt();
+        }
+        const bool ok = PreviewManager::set(token, theme);
+        sendJson(ok ? 200 : 409, ok ? "{\"ok\":true}" : "{\"error\":\"Preview busy or offline\"}");
+    }
 
     static void handleGetNight() {
         const auto& n = NightManager::getSettings();
@@ -777,6 +812,7 @@ namespace WebServer
             sendJson(200, "{\"ok\":true}");
         });
 
+        server.on("/api/preview", HTTP_POST, handlePreview);
         server.on("/api/night", HTTP_GET, handleGetNight);
         server.on("/api/night", HTTP_POST, handleSetNight);
         server.on("/api/transitions", HTTP_GET, handleGetTransitions);
