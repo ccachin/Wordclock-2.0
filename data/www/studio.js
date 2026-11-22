@@ -153,7 +153,7 @@
     // Theme persistence is independent from the preview session.
     const fields = {name:'Name',author:'Author',description:'Description',front:'FrontColor',rear:'RearColor',harmony:'Harmony',frontEffect:'FrontEffect',rearEffect:'RearEffect',frontSpeed:'FrontSpeed',rearSpeed:'RearSpeed'};
     const source=byId('studioSource'), status=byId('studioSaveStatus');
-    let imported=false, editing='', working=false, catalog=[], catalogReady=false;
+    let imported=false, fromFile=false, editing='', working=false, catalog=[], catalogReady=false;
     function draft() {
         const data={version:2};
         for(const [key,suffix] of Object.entries(fields)) {
@@ -178,7 +178,7 @@
         for(const suffix of Object.values(fields)) byId('studio'+suffix).disabled=working;
     }
     function loadDraft(data,id=''){
-        imported=false;editing=id;
+        imported=false;fromFile=false;editing=id;
         for(const [key,suffix] of Object.entries(fields)) byId('studio'+suffix).value=data[key]??defaults[key];
         controls.forEach(c=>{c.start=performance.now();sync(c);});updatePreview();
         baseline=JSON.stringify(draft());if(live)pending=true;buttons();
@@ -213,17 +213,25 @@
     for(const copy of [false,true]) byId(copy?'studioCopy':'studioEdit').addEventListener('click',()=>{
         if(!confirmDiscard())return;
         const t=catalog.find(t=>t.id===source.value);if(!t||(!copy&&!t.id.startsWith('custom-')))return;
-        disableLive();loadDraft(copy?{...t,name:''}:t,copy?'':t.id);status.textContent=copy?'Donnez un nom à la copie.':'';
+        disableLive();loadDraft(copy?{...t,name:uniqueName(t.name,catalog)}:t,copy?'':t.id);if(copy)imported=true;buttons();status.textContent=copy?'Copie prête à enregistrer.':'';
     });
     byId('studioSave').addEventListener('click',()=>operation(async()=>{
-        const data=draft();validate(data);if(editing)data.id=editing;
+        const data=draft();validate(data);
+        if(!await refreshSources())throw new Error('Impossible de vérifier les doublons.');
+        const pool=catalog.filter(t=>t.id!==editing);
+        const originalName=data.name;
+        const planned=prepareSave(data,pool,fromFile&&!editing);
+        if(!planned){status.textContent='Thème identique déjà présent : enregistrement ignoré.';return;}
+        data.name=planned.name;
+        const renamed=data.name!==originalName;
+        if(editing)data.id=editing;
         let saved;try{saved=await api(editing?'PUT':'POST',editing,data);}catch(e){throw new Error(e.message+' — vérifiez la bibliothèque avant de réessayer.');}
         if(!saved.id||!saved.id.startsWith('custom-'))throw new Error('Réponse inattendue : vérifiez la bibliothèque avant de réessayer.');
         disableLive();loadDraft(saved,saved.id);
         const refreshed=await refreshSources();if(refreshed)source.value=saved.id;
         while(busy||stopping) await new Promise(resolve=>setTimeout(resolve,50));
         const applied=await applyTheme(saved.id);
-        status.textContent='Thème enregistré. '+(applied?'Thème appliqué.':'Application non confirmée : réessayez depuis la bibliothèque.')+(refreshed?'':' Actualisation de la bibliothèque impossible.');
+        status.textContent=(renamed?'Nom ajusté : '+saved.name+'. ':'')+'Thème enregistré. '+(applied?'Thème appliqué.':'Application non confirmée : réessayez depuis la bibliothèque.')+(refreshed?'':' Actualisation de la bibliothèque impossible.');
     }));
     // Validate portable theme files before touching the current draft.
     function validateImport(data) {
@@ -252,6 +260,33 @@
         if(bytes(JSON.stringify(result))>2048) throw new Error('Thème trop volumineux.');
         return result;
     }
+    // Compare portable fields, not device-specific identifiers.
+    const nameKey=n=>n.trim().normalize('NFC').toLowerCase();
+    function uniqueName(name,pool){
+        const used=new Set(pool.map(t=>nameKey(t.name)));
+        if(!used.has(nameKey(name)))return name;
+        const base=name.replace(/ \(Copie(?: \d+)?\)$/i,'');
+        for(let i=1;;i++){
+            const suffix=i===1?' (Copie)':` (Copie ${i})`;
+            let stem=base;
+            while(new TextEncoder().encode(stem+suffix).length>48)stem=Array.from(stem).slice(0,-1).join('');
+            const candidate=stem.trimEnd()+suffix;
+            if(!used.has(nameKey(candidate)))return candidate;
+        }
+    }
+    function fingerprint(t){
+        const v=validateImport(t);validate(v);
+        v.name=nameKey(v.name);v.front=v.front.toLowerCase();v.rear=v.rear.toLowerCase();
+        return JSON.stringify(v);
+    }
+    function planImport(theme,pool){
+        validate(theme);
+        if(pool.some(t=>fingerprint(t)===fingerprint(theme)))return null;
+        return {...theme,name:uniqueName(theme.name,pool)};
+    }
+    function prepareSave(theme,pool,checkIdentical){
+        return checkIdentical?planImport(theme,pool):{...theme,name:uniqueName(theme.name,pool)};
+    }
     const importFile=byId('studioImportFile');
     byId('studioImport').addEventListener('click',()=>{if(!working){importFile.value='';importFile.click();}});
     importFile.addEventListener('change',()=>{
@@ -262,8 +297,11 @@
             try {data=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(await file.arrayBuffer()));}
             catch(e){throw new Error('Fichier JSON ou encodage UTF-8 invalide.');}
             const theme=validateImport(data);
+            if(!await refreshSources())throw new Error('Bibliothèque indisponible.');
+            const planned=planImport(theme,catalog);
+            if(!planned){status.textContent='Thème identique déjà présent : import ignoré.';return;}
             if(!confirmDiscard())return;
-            disableLive();loadDraft(theme);source.value='';imported=true;
+            disableLive();loadDraft(planned);source.value='';imported=true;fromFile=true;
             status.textContent='Thème importé dans le Studio. Cliquez sur Enregistrer et appliquer pour le conserver.';
         });
     });
@@ -308,11 +346,19 @@
             try{data=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(await file.arrayBuffer()));}
             catch(e){throw new Error('Fichier JSON ou encodage UTF-8 invalide.');}
             if(!data||data.format!=='wordclock-theme-collection'||data.version!==1||!Array.isArray(data.themes)||!data.themes.length||data.themes.length>30)throw new Error('Collection version 1 requise (1 à 30 thèmes).');
-            const entries=data.themes.map((t,i)=>{try{return validateImport(t);}catch(e){throw new Error(`Thème ${i+1} : ${e.message}`);}});
+            const incoming=data.themes.map((t,i)=>{try{return validateImport(t);}catch(e){throw new Error(`Thème ${i+1} : ${e.message}`);}});
             if(!await refreshSources())throw new Error('Impossible de vérifier la capacité disponible.');
+            const pool=catalog.slice(),entries=[];let skipped=0,renamed=0;
+            for(const theme of incoming){
+                const planned=planImport(theme,pool);
+                if(!planned){skipped++;continue;}
+                if(planned.name!==theme.name)renamed++;
+                entries.push(planned);pool.push(planned);
+            }
+            if(!entries.length){status.textContent=`${skipped} thème(s) identique(s) ignoré(s).`;return;}
             const available=30-catalog.filter(t=>t.id.startsWith('custom-')).length;
             if(entries.length>available)throw new Error(`Places disponibles : ${available}, thèmes à importer : ${entries.length}.`);
-            if(!window.confirm(`Importer ${entries.length} thème(s) comme nouvelles créations, sans les appliquer ?\n\n`+entries.map(t=>t.name).join('\n'))) {status.textContent='Import annulé.';return;}
+            if(!window.confirm(`Importer ${entries.length} thème(s) comme nouvelles créations, sans les appliquer ? (${skipped} ignoré(s), ${renamed} renommé(s))\n\n`+entries.map(t=>t.name).join('\n'))) {status.textContent='Import annulé.';return;}
             let count=0, failure='';
             for(const entry of entries){
                 status.textContent=`Import : ${count}/${entries.length}`;
@@ -320,7 +366,7 @@
                 catch(e){failure=e.message;break;}
             }
             const refreshed=await refreshSources();
-            status.textContent=`${count}/${entries.length} thème(s) importé(s).`+(failure?' Arrêt : '+failure+'. Vérifiez la bibliothèque avant de réessayer.':'')+(refreshed?'':' Actualisation impossible.');
+            status.textContent=`${count}/${entries.length} thème(s) importé(s). ${skipped} identique(s) ignoré(s), ${renamed} renommage(s) prévu(s).`+(failure?' Arrêt : '+failure+'. Vérifiez la bibliothèque avant de réessayer.':'')+(refreshed?'':' Actualisation impossible.');
         });
     });
     byId('studioDelete').addEventListener('click',()=>{
