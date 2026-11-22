@@ -168,6 +168,8 @@
     function buttons(){
         const personal=source.value.startsWith('custom-');
         for(const id of ['studioNew','studioSave','studioCancel','studioSource','studioDelete','studioImport']) byId(id).disabled=working;
+        byId('studioExportAll').disabled=working||!catalogReady||!catalog.some(t=>t.id.startsWith('custom-'));
+        byId('studioImportAll').disabled=working||!catalogReady;
         byId('studioEdit').disabled=working||!catalogReady||!personal;
         byId('studioCopy').disabled=working||!catalogReady||!source.value;
         byId('studioExport').disabled=working||!catalogReady||!source.value;
@@ -279,6 +281,48 @@
         try{document.body.appendChild(link);link.click();status.textContent='Export demandé : '+link.download;}
         finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
     }));
+    // Collections are processed one theme at a time, never sent as a bulk body.
+    const collectionFile=byId('studioCollectionFile');
+    byId('studioExportAll').addEventListener('click',()=>operation(async()=>{
+        const ids=catalog.filter(t=>t.id.startsWith('custom-')).map(t=>t.id);
+        if(!catalogReady||!ids.length)throw new Error('Aucun thème personnel à exporter.');
+        const entries=[];
+        for(const id of ids){
+            status.textContent=`Export : ${entries.length}/${ids.length}`;
+            const t=await api('GET',id);
+            if(t.id!==id)throw new Error('Identifiant inattendu : '+id);
+            entries.push({...validateImport(t),id});
+        }
+        const data={format:'wordclock-theme-collection',version:1,themes:entries};
+        const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'}));
+        const link=document.createElement('a');link.href=url;link.download='wordclock-themes-'+new Date().toISOString().slice(0,10)+'.json';
+        try{document.body.appendChild(link);link.click();status.textContent=`Export demandé : ${entries.length} thème(s).`;}
+        finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
+    }));
+    byId('studioImportAll').addEventListener('click',()=>{if(!working){collectionFile.value='';collectionFile.click();}});
+    collectionFile.addEventListener('change',()=>{
+        const file=collectionFile.files[0];collectionFile.value='';if(!file)return;
+        operation(async()=>{
+            if(file.size>256*1024)throw new Error('Collection trop volumineuse (256 Ko maximum).');
+            let data;
+            try{data=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(await file.arrayBuffer()));}
+            catch(e){throw new Error('Fichier JSON ou encodage UTF-8 invalide.');}
+            if(!data||data.format!=='wordclock-theme-collection'||data.version!==1||!Array.isArray(data.themes)||!data.themes.length||data.themes.length>30)throw new Error('Collection version 1 requise (1 à 30 thèmes).');
+            const entries=data.themes.map((t,i)=>{try{return validateImport(t);}catch(e){throw new Error(`Thème ${i+1} : ${e.message}`);}});
+            if(!await refreshSources())throw new Error('Impossible de vérifier la capacité disponible.');
+            const available=30-catalog.filter(t=>t.id.startsWith('custom-')).length;
+            if(entries.length>available)throw new Error(`Places disponibles : ${available}, thèmes à importer : ${entries.length}.`);
+            if(!window.confirm(`Importer ${entries.length} thème(s) comme nouvelles créations, sans les appliquer ?\n\n`+entries.map(t=>t.name).join('\n'))) {status.textContent='Import annulé.';return;}
+            let count=0, failure='';
+            for(const entry of entries){
+                status.textContent=`Import : ${count}/${entries.length}`;
+                try{const saved=await api('POST','',entry);if(!saved.id||!saved.id.startsWith('custom-'))throw new Error('Création non confirmée');count++;}
+                catch(e){failure=e.message;break;}
+            }
+            const refreshed=await refreshSources();
+            status.textContent=`${count}/${entries.length} thème(s) importé(s).`+(failure?' Arrêt : '+failure+'. Vérifiez la bibliothèque avant de réessayer.':'')+(refreshed?'':' Actualisation impossible.');
+        });
+    });
     byId('studioDelete').addEventListener('click',()=>{
         const id=source.value, target=catalog.find(t=>t.id===id);
         if(!catalogReady||!target||!id.startsWith('custom-'))return;
