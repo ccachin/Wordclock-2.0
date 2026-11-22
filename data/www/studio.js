@@ -153,7 +153,7 @@
     // Theme persistence is independent from the preview session.
     const fields = {name:'Name',author:'Author',description:'Description',front:'FrontColor',rear:'RearColor',harmony:'Harmony',frontEffect:'FrontEffect',rearEffect:'RearEffect',frontSpeed:'FrontSpeed',rearSpeed:'RearSpeed'};
     const source=byId('studioSource'), status=byId('studioSaveStatus');
-    let editing='', working=false, catalog=[], catalogReady=false;
+    let imported=false, editing='', working=false, catalog=[], catalogReady=false;
     function draft() {
         const data={version:2};
         for(const [key,suffix] of Object.entries(fields)) {
@@ -163,11 +163,11 @@
         return data;
     }
     const defaults=draft(); let baseline=JSON.stringify(defaults);
-    const dirty=()=>JSON.stringify(draft())!==baseline;
+    const dirty=()=>imported||JSON.stringify(draft())!==baseline;
     function confirmDiscard(){return !dirty()||window.confirm('Abandonner les modifications non enregistrées ?');}
     function buttons(){
         const personal=source.value.startsWith('custom-');
-        for(const id of ['studioNew','studioSave','studioCancel','studioSource','studioDelete']) byId(id).disabled=working;
+        for(const id of ['studioNew','studioSave','studioCancel','studioSource','studioDelete','studioImport']) byId(id).disabled=working;
         byId('studioEdit').disabled=working||!catalogReady||!personal;
         byId('studioCopy').disabled=working||!catalogReady||!source.value;
         byId('studioExport').disabled=working||!catalogReady||!source.value;
@@ -176,7 +176,7 @@
         for(const suffix of Object.values(fields)) byId('studio'+suffix).disabled=working;
     }
     function loadDraft(data,id=''){
-        editing=id;
+        imported=false;editing=id;
         for(const [key,suffix] of Object.entries(fields)) byId('studio'+suffix).value=data[key]??defaults[key];
         controls.forEach(c=>{c.start=performance.now();sync(c);});updatePreview();
         baseline=JSON.stringify(draft());if(live)pending=true;buttons();
@@ -223,6 +223,48 @@
         const applied=await applyTheme(saved.id);
         status.textContent='Thème enregistré. '+(applied?'Thème appliqué.':'Application non confirmée : réessayez depuis la bibliothèque.')+(refreshed?'':' Actualisation de la bibliothèque impossible.');
     }));
+    // Validate portable theme files before touching the current draft.
+    function validateImport(data) {
+        if(!data || typeof data!=='object' || Array.isArray(data) || data.version!==2) throw new Error('Format de thème version 2 requis.');
+        const bytes=s=>new TextEncoder().encode(s).length;
+        function text(key,max,required=false,fallback) {
+            const v=data[key]===undefined?fallback:data[key];
+            if(typeof v!=='string'||bytes(v)>max||/[\x00-\x1f\x7f]/.test(v)||(required&&!v.trim())) throw new Error('Champ invalide : '+key);
+            return v;
+        }
+        if(data.id!==undefined && (typeof data.id!=='string'||data.id.length>48||!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(data.id))) throw new Error('Identifiant invalide.');
+        const result={version:2,name:text('name',48,true),author:text('author',48),description:text('description',200,false,'')};
+        for(const key of ['front','rear']) {
+            if(typeof data[key]!=='string'||!/^#[0-9a-fA-F]{6}$/.test(data[key])) throw new Error('Couleur invalide : '+key);
+            result[key]=data[key];
+        }
+        for(const [key,options] of Object.entries({harmony:['manual','identical','complementary','analogous-plus','analogous-minus','triadic'],frontEffect:['solid','breathing','color-cycle'],rearEffect:['solid','breathing','color-cycle','rainbow','chase']})) {
+            const value=key==='harmony'&&data[key]===undefined?'manual':data[key];
+            if(!options.includes(value)) throw new Error('Valeur invalide : '+key);
+            result[key]=value;
+        }
+        for(const key of ['frontSpeed','rearSpeed']) {
+            if(!Number.isInteger(data[key])||data[key]<0||data[key]>100) throw new Error('Vitesse invalide : '+key);
+            result[key]=data[key];
+        }
+        if(bytes(JSON.stringify(result))>2048) throw new Error('Thème trop volumineux.');
+        return result;
+    }
+    const importFile=byId('studioImportFile');
+    byId('studioImport').addEventListener('click',()=>{if(!working){importFile.value='';importFile.click();}});
+    importFile.addEventListener('change',()=>{
+        const file=importFile.files[0];importFile.value='';if(!file)return;
+        operation(async()=>{
+            if(file.size>8192) throw new Error('Fichier trop volumineux (8 Ko maximum).');
+            let data;
+            try {data=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(await file.arrayBuffer()));}
+            catch(e){throw new Error('Fichier JSON ou encodage UTF-8 invalide.');}
+            const theme=validateImport(data);
+            if(!confirmDiscard())return;
+            disableLive();loadDraft(theme);source.value='';imported=true;
+            status.textContent='Thème importé dans le Studio. Cliquez sur Enregistrer et appliquer pour le conserver.';
+        });
+    });
     // Export the saved source, never the draft or global clock settings.
     byId('studioExport').addEventListener('click',()=>operation(async()=>{
         const id=source.value;
