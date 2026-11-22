@@ -822,7 +822,7 @@ namespace WebServer
                 if (!CustomThemeStore::listIds(json)) { sendJson(500, "{\"error\":\"List failed\"}"); return; }
             } else {
                 String id = server.arg("id");
-                if (!id.startsWith("custom-") || id.length() <= 7 || !ThemeCodec::validId(id)) {
+                if (!CustomThemeStore::validCustomId(id)) {
                     sendJson(400, "{\"error\":\"Invalid custom theme ID\"}"); return;
                 }
                 ThemeCodec::Entry entry;
@@ -844,6 +844,37 @@ namespace WebServer
             String json;
             if (!ThemeCodec::encode(entry, json)) { sendJson(500, "{\"error\":\"Theme saved but response encoding failed\"}"); return; }
             sendJson(201, json);
+        });
+
+        server.on("/api/themes/custom", HTTP_PUT, []() {
+            if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
+            String id = server.arg("id");
+            if (!CustomThemeStore::validCustomId(id)) { sendJson(400, "{\"error\":\"Invalid custom theme ID\"}"); return; }
+            if (!server.hasArg("plain")) { sendJson(400, "{\"error\":\"JSON body required\"}"); return; }
+            String body = server.arg("plain");
+            if (body.length() > ThemeCodec::MAX_BYTES) { sendJson(413, "{\"error\":\"Theme too large\"}"); return; }
+            ThemeCodec::Entry entry;
+            if (!ThemeCodec::decode(body, entry, false)) { sendJson(400, "{\"error\":\"Invalid theme or missing ID\"}"); return; }
+            if (entry.id != id) { sendJson(400, "{\"error\":\"Theme ID mismatch\"}"); return; }
+            entry.id = id;
+            {
+                ThemeCodec::Entry original;
+                if (!CustomThemeStore::load(id, original)) { sendJson(404, "{\"error\":\"Theme not found or unreadable\"}"); return; }
+            }
+            String json;
+            if (!ThemeCodec::encode(entry, json)) { sendJson(400, "{\"error\":\"Invalid theme\"}"); return; }
+            if (!CustomThemeStore::update(entry)) { sendJson(500, "{\"error\":\"Update failed\"}"); return; }
+            sendJson(200, json);
+        });
+
+        server.on("/api/themes/custom", HTTP_DELETE, []() {
+            if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
+            String id = server.arg("id");
+            if (!CustomThemeStore::validCustomId(id)) { sendJson(400, "{\"error\":\"Invalid custom theme ID\"}"); return; }
+            String path = String("/themes/custom/") + id + ".json";
+            if (!LittleFS.exists(path)) { sendJson(404, "{\"error\":\"Theme not found\"}"); return; }
+            if (!CustomThemeStore::remove(id)) { sendJson(500, "{\"error\":\"Deletion failed\"}"); return; }
+            sendJson(200, "{\"ok\":true}");
         });
 
         server.on("/api/night", HTTP_GET, handleGetNight);
