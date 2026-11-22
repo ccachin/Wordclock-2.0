@@ -577,6 +577,8 @@ namespace WebServer
                name == "app.js" ||
                name == "night.js" ||
                name == "studio.js" ||
+               name == "theme-rules.js" ||
+               name == "studio-visual.js" ||
                name == "community.js";
     }
 
@@ -720,6 +722,14 @@ namespace WebServer
 
         server.on("/night.js", HTTP_GET, []() {
             serveFile("/www/night.js", "application/javascript; charset=utf-8");
+        });
+
+        server.on("/theme-rules.js", HTTP_GET, []() {
+            serveFile("/www/theme-rules.js", "application/javascript; charset=utf-8");
+        });
+
+        server.on("/studio-visual.js", HTTP_GET, []() {
+            serveFile("/www/studio-visual.js", "application/javascript; charset=utf-8");
         });
 
         server.on("/studio.js", HTTP_GET, []() {

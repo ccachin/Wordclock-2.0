@@ -21,83 +21,8 @@
         if(working || !community.hidden || !confirmDiscard())return;
         previewWanted=false; disableLive(); resetDraft(); showStudio(false,true); document.dispatchEvent(new Event('wordclock:community-open'));
     });
-    const matrix = ['ILAESTBDEUX','QUATREDCINQ','SIXNEUFONZE','UNEHSEPTDIX','HUITFTROISZ','UMIDIHEURES','MINUITSETFA','MOINSOVINGT','DIXTLESDEMI','QUARTUCINQO','WGBSDLO****'];
-    // Static example: IL EST HUIT HEURES. No device writes.
-    const lit = new Set([0,1,3,4,5,44,45,46,47,60,61,62,63,64,65]);
-    const front = byId('studioFrontPreview');
-    const rear = byId('studioRearPreview');
-    Array.from(matrix.join('')).forEach((letter, index) => {
-        const cell = document.createElement('span');
-        cell.textContent = letter;
-        if (lit.has(index)) cell.classList.add('lit');
-        front.appendChild(cell);
-    });
-    const rgb = hex => [1,3,5].map(i => parseInt(hex.slice(i,i+2),16));
-    const css = c => '#' + c.map(x => Math.max(0,Math.min(255,Math.round(x))).toString(16).padStart(2,'0')).join('');
-    function hsv(c) {
-        const [r,g,b] = c.map(x=>x/255), v=Math.max(r,g,b), d=v-Math.min(r,g,b);
-        let h=0;
-        if(d) h=60*(v===r?(g-b)/d:v===g?(b-r)/d+2:(r-g)/d+4);
-        return [(h+360)%360,v?d/v:0,v];
-    }
-    function fromHsv(h,s,v) {
-        h=((h%360)+360)%360;
-        const c=v*s,x=c*(1-Math.abs(h/60%2-1)),m=v-c;
-        return [[c,x,0],[x,c,0],[0,c,x],[0,x,c],[x,0,c],[c,0,x]][Math.floor(h/60)].map(n=>Math.round((n+m)*255));
-    }
-    function rotate(c,degrees) { const [h,s,v]=hsv(c); return fromHsv(h+degrees,s,v); }
-    const harmony=byId('studioHarmony');
-    const segments=[];
-    const svg=rear.querySelector('svg');
-    // Five trapezoids on each side, bottom, left, top, right.
-    for(let side=0;side<4;side++) {
-        for(let i=0;i<5;i++) {
-            const path=document.createElementNS('http://www.w3.org/2000/svg','path');
-            const a=i*20,b=(i+1)*20,c=10+i*16,d=10+(i+1)*16;
-            path.setAttribute('d',`M ${100-a} 100 L ${100-b} 100 L ${100-d} 90 L ${100-c} 90 Z`);
-            path.setAttribute('transform',`rotate(${side*90} 50 50)`);
-            svg.appendChild(path); segments.push(path);
-        }
-    }
-    const controls=['Front','Rear'].map(face=>({effect:byId(`studio${face}Effect`),speed:byId(`studio${face}Speed`),row:byId(`studio${face}SpeedRow`),value:byId(`studio${face}SpeedValue`),period:byId(`studio${face}Period`),start:performance.now()}));
-    const period=c=>30000-290*Number(c.speed.value);
-    function sync(c) {
-        c.row.hidden=c.effect.value==='solid';
-        c.value.textContent=c.speed.value+' %';
-        c.period.textContent=`Période : ${(period(c)/1000).toFixed(1)} s`;
-    }
-    function effect(base,c,now,i=0) {
-        const t=((now-c.start)%period(c))/period(c);
-        const phase=Math.floor(t*256)/256;
-        let level=255;
-        switch(c.effect.value) {
-            case 'solid': return base;
-            case 'breathing': level=40+215*(1+Math.cos(phase*2*Math.PI))/2; break;
-            case 'color-cycle': return rotate(base,t*360);
-            case 'rainbow': return fromHsv((Math.floor(i*256/20)/256-phase)*360,1,Math.max(...base)/255);
-            case 'chase': level=12+243*Math.pow((1+Math.cos((Math.floor(i*256/20)/256-phase)*2*Math.PI))/2,4); break;
-        }
-        return base.map(n=>n?Math.min(255,Math.floor(n*Math.floor(level)/256)+1):0);
-    }
-    function bases() {
-        const f=rgb(byId('studioFrontColor').value), r=rgb(byId('studioRearColor').value);
-        const offsets={identical:0,complementary:180,'analogous-plus':30,'analogous-minus':-30,triadic:120};
-        return [f,harmony.value==='manual'?r:rotate(f,offsets[harmony.value])];
-    }
-    function render(now) {
-        const [f,r]=bases();
-        front.style.setProperty('--studio-front',css(effect(f,controls[0],now)));
-        segments.forEach((p,i)=>{const col=css(effect(r,controls[1],now,i));p.setAttribute('fill',col);p.setAttribute('stroke',col);p.style.filter=`drop-shadow(0 0 2px ${col})`;});
-    }
-    function updatePreview() {
-        const manual=harmony.value==='manual';
-        byId('studioManualRear').hidden=!manual;
-        byId('studioAutoRear').hidden=manual;
-        byId('studioEffectiveRear').style.backgroundColor=css(bases()[1]);
-        render(performance.now());
-    }
-    controls.forEach(c=>{for(const el of [c.effect,c.speed]) el.addEventListener('input',()=>{c.start=performance.now();sync(c);updatePreview();});sync(c);});
-    for(const id of ['studioFrontColor','studioRearColor','studioHarmony']) byId(id).addEventListener('input',updatePreview);
+    const {controls,sync,render,updatePreview}=window.WordclockStudioVisual;
+    const {validate,validateImport,uniqueName,fingerprint,planImport,prepareSave}=window.WordclockThemeRules;
     const liveStatus = byId('studioLiveStatus');
     let communityPreview=null;
     let live = false, busy = false, pending = false, stopping = false, token = '', lastSent = 0;
@@ -211,14 +136,6 @@
         const response=await fetch('/api/themes/custom'+(id?'?id='+encodeURIComponent(id):''),{method,cache:'no-store',...(data?{headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{})});
         const result=await response.json();if(!response.ok)throw new Error(result.error||'HTTP '+response.status);return result;
     }
-    function validate(data){
-        data.name=data.name.trim();data.author=data.author.trim();data.description=data.description.trim();
-        if(!data.name)throw new Error('Indiquez un nom.');
-        for(const [key,max] of [['name',48],['author',48],['description',200]]) {
-            if(new TextEncoder().encode(data[key]).length>max)throw new Error('Texte trop long : '+key+' (limite '+max+' octets UTF-8).');
-            if(/[\x00-\x1f\x7f]/.test(data[key]))throw new Error('Les caractères de contrôle et retours à la ligne ne sont pas acceptés.');
-        }
-    }
     async function operation(fn){if(working)return;working=true;buttons();status.textContent='';try{await fn();}catch(e){status.textContent='Erreur : '+e.message;}finally{working=false;buttons();}}
     function selectTheme(t){
         loadDraft(t,t.id.startsWith('custom-')?t.id:'');source.value=t.id;buttons();
@@ -270,59 +187,6 @@
         status.textContent=(renamed?'Nom ajusté : '+saved.name+'. ':'')+'Thème enregistré. '+(applied?'Thème appliqué.':'Application non confirmée : réessayez depuis la bibliothèque.')+(refreshed?'':' Actualisation de la bibliothèque impossible.');
     }));
     // Validate portable theme files before touching the current draft.
-    function validateImport(data) {
-        if(!data || typeof data!=='object' || Array.isArray(data) || data.version!==2) throw new Error('Format de thème version 2 requis.');
-        const bytes=s=>new TextEncoder().encode(s).length;
-        function text(key,max,required=false,fallback) {
-            const v=data[key]===undefined?fallback:data[key];
-            if(typeof v!=='string'||bytes(v)>max||/[\x00-\x1f\x7f]/.test(v)||(required&&!v.trim())) throw new Error('Champ invalide : '+key);
-            return v;
-        }
-        if(data.id!==undefined && (typeof data.id!=='string'||data.id.length>48||!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(data.id))) throw new Error('Identifiant invalide.');
-        const result={version:2,name:text('name',48,true),author:text('author',48),description:text('description',200,false,'')};
-        for(const key of ['front','rear']) {
-            if(typeof data[key]!=='string'||!/^#[0-9a-fA-F]{6}$/.test(data[key])) throw new Error('Couleur invalide : '+key);
-            result[key]=data[key];
-        }
-        for(const [key,options] of Object.entries({harmony:['manual','identical','complementary','analogous-plus','analogous-minus','triadic'],frontEffect:['solid','breathing','color-cycle'],rearEffect:['solid','breathing','color-cycle','rainbow','chase']})) {
-            const value=key==='harmony'&&data[key]===undefined?'manual':data[key];
-            if(!options.includes(value)) throw new Error('Valeur invalide : '+key);
-            result[key]=value;
-        }
-        for(const key of ['frontSpeed','rearSpeed']) {
-            if(!Number.isInteger(data[key])||data[key]<0||data[key]>100) throw new Error('Vitesse invalide : '+key);
-            result[key]=data[key];
-        }
-        if(bytes(JSON.stringify(result))>2048) throw new Error('Thème trop volumineux.');
-        return result;
-    }
-    // Compare portable fields, not device-specific identifiers.
-    const nameKey=n=>n.trim().normalize('NFC').toLowerCase();
-    function uniqueName(name,pool){
-        const used=new Set(pool.map(t=>nameKey(t.name)));
-        if(!used.has(nameKey(name)))return name;
-        const base=name.replace(/ \(Copie(?: \d+)?\)$/i,'');
-        for(let i=1;;i++){
-            const suffix=i===1?' (Copie)':` (Copie ${i})`;
-            let stem=base;
-            while(new TextEncoder().encode(stem+suffix).length>48)stem=Array.from(stem).slice(0,-1).join('');
-            const candidate=stem.trimEnd()+suffix;
-            if(!used.has(nameKey(candidate)))return candidate;
-        }
-    }
-    function fingerprint(t){
-        const v=validateImport(t);validate(v);
-        v.name=nameKey(v.name);v.front=v.front.toLowerCase();v.rear=v.rear.toLowerCase();
-        return JSON.stringify(v);
-    }
-    function planImport(theme,pool){
-        validate(theme);
-        if(pool.some(t=>fingerprint(t)===fingerprint(theme)))return null;
-        return {...theme,name:uniqueName(theme.name,pool)};
-    }
-    function prepareSave(theme,pool,checkIdentical){
-        return checkIdentical?planImport(theme,pool):{...theme,name:uniqueName(theme.name,pool)};
-    }
     const importFile=byId('studioImportFile');
     byId('studioImport').addEventListener('click',()=>{if(!working){importFile.value='';importFile.click();}});
     importFile.addEventListener('change',()=>{
