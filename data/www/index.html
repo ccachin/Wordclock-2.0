@@ -43,6 +43,7 @@
         <nav class="studio-nav" aria-label="Navigation principale">
             <button type="button" id="libraryTab" aria-pressed="true" aria-controls="libraryView">Bibliothèque</button>
             <button type="button" id="studioTab" aria-pressed="false" aria-controls="studioView">Studio</button>
+            <button type="button" id="communityTab" aria-pressed="false" aria-controls="communityView">Communauté</button>
         </nav>
         <div id="libraryView">
         <section class="panel">
@@ -239,6 +240,12 @@
                 <div class="night-actions studio-actions"><button id="studioSave" type="button">Enregistrer et appliquer</button><button id="studioCancel" type="button">Annuler</button></div>
                 <p id="studioSaveStatus" role="status" class="muted"></p>
             </div>
+        </section>
+        <section class="panel" id="communityView" hidden>
+            <h2>Communauté</h2>
+            <p class="muted" id="communityStatus" role="status"></p>
+            <button type="button" id="communityReload">Actualiser</button>
+            <div id="communityList" class="community-list"></div>
         </section>
         <footer>
             Wordclock 3.0
