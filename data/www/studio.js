@@ -11,8 +11,8 @@
         libraryTab.setAttribute('aria-pressed', String(!active));
         studioTab.setAttribute('aria-pressed', String(active));
     }
-    libraryTab.addEventListener('click', () => { if (working || !confirmDiscard()) return; disableLive(); resetDraft(); showStudio(false); });
-    studioTab.addEventListener('click', () => { showStudio(true); refreshSources(); });
+    libraryTab.addEventListener('click', () => { if (working || !confirmDiscard()) return; previewWanted=false; disableLive(); resetDraft(); showStudio(false); });
+    studioTab.addEventListener('click', () => { if(working||!studio.hidden)return; showStudio(true); operation(loadActive); });
     const matrix = ['ILAESTBDEUX','QUATREDCINQ','SIXNEUFONZE','UNEHSEPTDIX','HUITFTROISZ','UMIDIHEURES','MINUITSETFA','MOINSOVINGT','DIXTLESDEMI','QUARTUCINQO','WGBSDLO****'];
     // Static example: IL EST HUIT HEURES. No device writes.
     const lit = new Set([0,1,3,4,5,44,45,46,47,60,61,62,63,64,65]);
@@ -90,12 +90,9 @@
     }
     controls.forEach(c=>{for(const el of [c.effect,c.speed]) el.addEventListener('input',()=>{c.start=performance.now();sync(c);updatePreview();});sync(c);});
     for(const id of ['studioFrontColor','studioRearColor','studioHarmony']) byId(id).addEventListener('input',updatePreview);
-    const liveButton = byId('studioLive'), liveStatus = byId('studioLiveStatus');
+    const liveStatus = byId('studioLiveStatus');
     let live = false, busy = false, pending = false, stopping = false, token = '', lastSent = 0;
     function displayLive(message) {
-        liveButton.setAttribute('aria-pressed', String(live));
-        liveButton.textContent = live ? 'Désactiver l’aperçu physique' : 'Activer l’aperçu physique';
-        liveButton.disabled = stopping;
         liveStatus.textContent = message;
     }
     function payload(action) {
@@ -119,15 +116,15 @@
             if(live && (pending || performance.now()-lastSent>=2000) && performance.now()-lastSent>=100) {
                 pending=false;lastSent=performance.now();
                 await requestPreview('set');
-                if(live) displayLive('Aperçu physique actif (luminosité et mode nuit conservés).');
+                if(live) displayLive('');
             }
         } catch(e) {
-            live=false;stopping=true;displayLive('Connexion interrompue : restauration automatique sous 10 s après la dernière requête reçue.');
+            retryAt=performance.now()+5000;live=false;stopping=true;displayLive('Connexion interrompue : restauration automatique sous 10 s après la dernière requête reçue.');
         } finally {
             if(stopping) {
                 try {await requestPreview('stop');displayLive('Ambiance précédente restaurée.');}
                 catch(e){displayLive('Restauration automatique sous 10 s après la dernière requête reçue.');}
-                stopping=false;liveButton.disabled=false;
+                stopping=false;
             }
             busy=false;
         }
@@ -136,16 +133,15 @@
         if(!live) return;
         live=false;pending=false;stopping=true;displayLive('Restauration en cours…');flush();
     }
-    // Stop must also run when no set is pending.
-    liveButton.addEventListener('click',()=>{
-        if(live){disableLive();return;}
-        if(stopping||busy)return;
+    let previewWanted=false, retryAt=0;
+    function startLive(){
+        if(!previewWanted||studio.hidden||document.hidden||working||live||busy||stopping||performance.now()<retryAt)return;
         token=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
         live=true;pending=true;lastSent=-1000;displayLive('Connexion…');flush();
-    });
+    }
     studio.addEventListener('input',()=>{if(live)pending=true;});
-    setInterval(()=>{if(live||stopping)flush();},100);
-    document.addEventListener('visibilitychange',()=>{if(document.hidden)disableLive();});
+    setInterval(()=>{if(live||stopping)flush();else startLive();},100);
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)disableLive();else startLive();});
     window.addEventListener('pagehide',()=>{if(live||stopping)navigator.sendBeacon('/api/preview',payload('stop'));live=false;});
     // Skip drawing while the editor is hidden.
     let last=0;
@@ -153,7 +149,7 @@
     // Theme persistence is independent from the preview session.
     const fields = {name:'Name',author:'Author',description:'Description',front:'FrontColor',rear:'RearColor',harmony:'Harmony',frontEffect:'FrontEffect',rearEffect:'RearEffect',frontSpeed:'FrontSpeed',rearSpeed:'RearSpeed'};
     const source=byId('studioSource'), status=byId('studioSaveStatus');
-    let imported=false, fromFile=false, editing='', working=false, catalog=[], catalogReady=false;
+    let lastSource='', imported=false, fromFile=false, editing='', working=false, catalog=[], catalogReady=false;
     function draft() {
         const data={version:2};
         for(const [key,suffix] of Object.entries(fields)) {
@@ -166,6 +162,7 @@
     const dirty=()=>imported||JSON.stringify(draft())!==baseline;
     function confirmDiscard(){return !dirty()||window.confirm('Abandonner les modifications non enregistrées ?');}
     function buttons(){
+        lastSource=source.value;
         const personal=source.value.startsWith('custom-');
         for(const id of ['studioNew','studioSave','studioCancel','studioSource','studioDelete','studioImport']) byId(id).disabled=working;
         byId('studioExportAll').disabled=working||!catalogReady||!catalog.some(t=>t.id.startsWith('custom-'));
@@ -206,14 +203,30 @@
         }
     }
     async function operation(fn){if(working)return;working=true;buttons();status.textContent='';try{await fn();}catch(e){status.textContent='Erreur : '+e.message;}finally{working=false;buttons();}}
-    source.addEventListener('change',buttons);
+    function selectTheme(t){
+        loadDraft(t,t.id.startsWith('custom-')?t.id:'');source.value=t.id;buttons();
+    }
+    async function loadActive(){
+        previewWanted=false;disableLive();
+        const data=await request('/api/theme');
+        if(!await refreshSources())throw new Error('Bibliothèque indisponible.');
+        const matches=catalog.filter(t=>(t.harmony||'manual')===(data.harmony||'manual')&&['front','rear'].every(f=>t[f].toLowerCase()===data[f].toLowerCase()&&(t[f+'Effect']||'solid')===(data[f+'Effect']||'solid')&&(t[f+'Speed']??50)===(data[f+'Speed']??50)));
+        if(matches.length)selectTheme(matches[0]);else {loadDraft({...defaults,...data});source.value='';buttons();}
+        previewWanted=true;
+    }
+    source.addEventListener('change',()=>{
+        const id=source.value,t=catalog.find(t=>t.id===id);
+        if(!confirmDiscard()){source.value=lastSource;buttons();return;}
+        if(t)selectTheme(t);else resetDraft();
+        lastSource=source.value;previewWanted=true;buttons();
+    });
     studio.addEventListener('input',buttons);
-    byId('studioNew').addEventListener('click',()=>{if(confirmDiscard()){disableLive();resetDraft();}});
-    byId('studioCancel').addEventListener('click',()=>{if(confirmDiscard()){disableLive();resetDraft();}});
+    byId('studioNew').addEventListener('click',()=>{if(confirmDiscard()){disableLive();resetDraft();previewWanted=true;}});
+    byId('studioCancel').addEventListener('click',()=>{if(confirmDiscard())operation(loadActive);});
     for(const copy of [false,true]) byId(copy?'studioCopy':'studioEdit').addEventListener('click',()=>{
         if(!confirmDiscard())return;
         const t=catalog.find(t=>t.id===source.value);if(!t||(!copy&&!t.id.startsWith('custom-')))return;
-        disableLive();loadDraft(copy?{...t,name:uniqueName(t.name,catalog)}:t,copy?'':t.id);if(copy)imported=true;buttons();status.textContent=copy?'Copie prête à enregistrer.':'';
+        disableLive();loadDraft(copy?{...t,name:uniqueName(t.name,catalog)}:t,copy?'':t.id);if(copy)imported=true;previewWanted=true;buttons();status.textContent=copy?'Copie prête à enregistrer.':'';
     });
     byId('studioSave').addEventListener('click',()=>operation(async()=>{
         const data=draft();validate(data);
@@ -231,6 +244,7 @@
         const refreshed=await refreshSources();if(refreshed)source.value=saved.id;
         while(busy||stopping) await new Promise(resolve=>setTimeout(resolve,50));
         const applied=await applyTheme(saved.id);
+        if(!applied)previewWanted=false;
         status.textContent=(renamed?'Nom ajusté : '+saved.name+'. ':'')+'Thème enregistré. '+(applied?'Thème appliqué.':'Application non confirmée : réessayez depuis la bibliothèque.')+(refreshed?'':' Actualisation de la bibliothèque impossible.');
     }));
     // Validate portable theme files before touching the current draft.
@@ -301,7 +315,7 @@
             const planned=planImport(theme,catalog);
             if(!planned){status.textContent='Thème identique déjà présent : import ignoré.';return;}
             if(!confirmDiscard())return;
-            disableLive();loadDraft(planned);source.value='';imported=true;fromFile=true;
+            disableLive();loadDraft(planned);source.value='';imported=true;fromFile=true;previewWanted=true;
             status.textContent='Thème importé dans le Studio. Cliquez sur Enregistrer et appliquer pour le conserver.';
         });
     });
