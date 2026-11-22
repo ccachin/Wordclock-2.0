@@ -654,7 +654,7 @@ async function applyTheme(id) {
 
     if (applyingTheme || !initialized) {
 
-        return;
+        return false;
     }
 
     applyingTheme = true;
@@ -711,6 +711,7 @@ async function applyTheme(id) {
         updateControls(data);
 
         showMessage("Thème appliqué");
+        return true;
 
     } catch (error) {
 
@@ -732,6 +733,8 @@ async function applyTheme(id) {
 
             console.error(syncError);
         }
+
+        return false;
 
     } finally {
 
@@ -829,4 +832,9 @@ loadTransitions();
 for (const c of Object.values(animationControls)) {
     c.effect.addEventListener("change", scheduleThemeUpdate);
     c.speed.addEventListener("input", scheduleThemeUpdate);
+}
+
+async function refreshThemeLibrary() {
+    themes = await request("/api/themes");
+    renderThemeLibrary();
 }
