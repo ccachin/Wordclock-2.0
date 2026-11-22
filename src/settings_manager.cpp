@@ -28,7 +28,7 @@ namespace SettingsManager
     constexpr char BACKUP_PATH[] =
         "/config/settings.bak";
 
-    constexpr int SETTINGS_VERSION = 5;
+    constexpr int SETTINGS_VERSION = 6;
 
     constexpr uint32_t SAVE_DELAY = 3000;
     constexpr uint32_t RETRY_DELAY = 10000;
@@ -140,7 +140,7 @@ namespace SettingsManager
 
         int version = doc["version"].as<int>();
 
-        if (version != 1 && version != 2 && version != 3 && version != 4 && version != 5)
+        if (version != 1 && version != 2 && version != 3 && version != 4 && version != 5 && version != 6)
         {
 
             Serial.println(
@@ -204,6 +204,13 @@ namespace SettingsManager
         theme.brightness =
             static_cast<uint8_t>(brightness);
 
+        theme.frontBrightness = theme.rearBrightness = 100;
+        if (version >= 6) {
+            if (!doc["frontBrightness"].is<int>() || !doc["rearBrightness"].is<int>()) return false;
+            int f = doc["frontBrightness"].as<int>(), r = doc["rearBrightness"].as<int>();
+            if (f < 0 || f > 100 || r < 0 || r > 100) return false;
+            theme.frontBrightness = f; theme.rearBrightness = r;
+        }
         theme.harmony = harmony;
         theme.frontAnimation = AnimationManager::Animation();
         theme.rearAnimation = AnimationManager::Animation();
@@ -397,6 +404,8 @@ namespace SettingsManager
         doc["front"] = front;
         doc["rear"] = rear;
         doc["brightness"] = theme.brightness;
+        doc["frontBrightness"] = theme.frontBrightness;
+        doc["rearBrightness"] = theme.rearBrightness;
 
         doc["harmony"] =
             ColorManager::harmonyToString(
@@ -461,6 +470,8 @@ namespace SettingsManager
             verified.frontColor != theme.frontColor ||
             verified.rearColor != theme.rearColor ||
             verified.brightness != theme.brightness ||
+            verified.frontBrightness != theme.frontBrightness ||
+            verified.rearBrightness != theme.rearBrightness ||
             verified.harmony != theme.harmony ||
             verified.frontAnimation.effect != theme.frontAnimation.effect ||
             verified.rearAnimation.effect != theme.rearAnimation.effect ||

@@ -16,6 +16,8 @@ namespace ThemeManager
         CRGB frontColor;
         CRGB rearColor;
         uint8_t brightness;
+        uint8_t frontBrightness = 100;
+        uint8_t rearBrightness = 100;
 
         ColorManager::Harmony harmony =
             ColorManager::Harmony::Manual;

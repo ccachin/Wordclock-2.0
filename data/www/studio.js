@@ -6,16 +6,25 @@
     const library = byId('libraryView');
     const studio = byId('studioView');
     const communityTab = byId('communityTab'), community = byId('communityView');
-    function showStudio(active, online=false) {
+    function showStudio(active, online=false, destination="themes") {
+        const page=active?"studio":online?"themes":destination;
+        byId("homeView").hidden=page!=="home";
+        byId("settingsView").hidden=page!=="settings";
+        byId("themesNav").hidden=page!=="themes";
+        for(const [id,target] of [["homeTab","home"],["themesTab","themes"],["studioTab","studio"],["settingsTab","settings"]])byId(id).setAttribute("aria-pressed",String(page===target));
         if(!online){communityPreview=null; document.dispatchEvent(new Event("wordclock:community-close"));}
-        library.hidden = active || online;
+        library.hidden = page!=="themes" || online;
         community.hidden = !online;
         communityTab.setAttribute('aria-pressed', String(online));
         studio.hidden = !active;
-        libraryTab.setAttribute('aria-pressed', String(!active && !online));
+        libraryTab.setAttribute('aria-pressed', String(page==="themes" && !online));
         studioTab.setAttribute('aria-pressed', String(active));
     }
     libraryTab.addEventListener('click', () => { if (working || !confirmDiscard()) return; previewWanted=false; disableLive(); resetDraft(); showStudio(false); });
+    for(const [id,destination] of [['homeTab','home'],['settingsTab','settings'],['themesTab','themes']])byId(id).addEventListener('click',()=>{
+        if(working||byId(id).getAttribute('aria-pressed')==='true'||!confirmDiscard())return;
+        previewWanted=false; disableLive(); resetDraft(); showStudio(false,false,destination);
+    });
     studioTab.addEventListener('click', () => { if(working||!studio.hidden)return; showStudio(true); operation(loadActive); });
     communityTab.addEventListener('click', () => {
         if(working || !community.hidden || !confirmDiscard())return;

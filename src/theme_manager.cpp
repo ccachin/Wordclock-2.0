@@ -55,6 +55,7 @@ namespace ThemeManager
         currentTheme.brightness =
             Config::DEFAULT_BRIGHTNESS;
 
+        currentTheme.frontBrightness = currentTheme.rearBrightness = 100;
         currentTheme.harmony =
             ColorManager::Harmony::Manual;
 
@@ -154,6 +155,8 @@ namespace ThemeManager
     {
 
         Theme nextTheme = theme;
+        if (nextTheme.frontBrightness > 100) nextTheme.frontBrightness = 100;
+        if (nextTheme.rearBrightness > 100) nextTheme.rearBrightness = 100;
         if (nextTheme.frontAnimation.effect == AnimationManager::Effect::Rainbow ||
             nextTheme.frontAnimation.effect == AnimationManager::Effect::Chase)
             nextTheme.frontAnimation.effect = AnimationManager::Effect::Solid;
@@ -179,6 +182,8 @@ namespace ThemeManager
             currentTheme.brightness ==
                 nextTheme.brightness &&
 
+            currentTheme.frontBrightness == nextTheme.frontBrightness &&
+            currentTheme.rearBrightness == nextTheme.rearBrightness &&
             currentTheme.harmony ==
                 nextTheme.harmony &&
             currentTheme.frontAnimation.effect == nextTheme.frontAnimation.effect &&

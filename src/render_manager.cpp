@@ -320,9 +320,18 @@ namespace RenderManager
         // Global brightness
         // ==============================================
 
-        Leds::setBrightness(
-
-            brightness);
+        // Scale after transition snapshots and night/status processing.
+        // Keep snapshots unscaled to avoid cumulative attenuation.
+        for (uint16_t i = 0; i < Config::TOTAL_LED_COUNT; ++i) {
+            const uint8_t percent = i < Config::FRONT_LED_COUNT ? theme.frontBrightness : theme.rearBrightness;
+            if (percent == 100) continue;
+            CRGB c = Leds::getPixel(i);
+            c.r = (uint16_t(c.r) * percent + 50) / 100;
+            c.g = (uint16_t(c.g) * percent + 50) / 100;
+            c.b = (uint16_t(c.b) * percent + 50) / 100;
+            Leds::setPixel(i, c);
+        }
+        Leds::setBrightness(brightness);
 
         Leds::show();
 

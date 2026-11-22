@@ -310,7 +310,7 @@ namespace WebServer
             "\"front\":\"#%02X%02X%02X\","
             "\"rear\":\"#%02X%02X%02X\","
             "\"effectiveRear\":\"#%02X%02X%02X\","
-            "\"brightness\":%u,"
+            "\"brightness\":%u,\"frontBrightness\":%u,\"rearBrightness\":%u,"
             "\"harmony\":\"%s\",\"frontEffect\":\"%s\",\"rearEffect\":\"%s\",\"frontSpeed\":%u,\"rearSpeed\":%u"
             "}",
             theme.frontColor.r,
@@ -323,6 +323,7 @@ namespace WebServer
             effective.g,
             effective.b,
             theme.brightness,
+            unsigned(theme.frontBrightness), unsigned(theme.rearBrightness),
             ColorManager::harmonyToString(
                 theme.harmony),
             AnimationManager::effectToString(theme.frontAnimation.effect),
@@ -407,6 +408,15 @@ namespace WebServer
                 static_cast<uint8_t>(brightness);
         }
 
+        unsigned faceBrightness;
+        if (server.hasArg("frontBrightness")) {
+            if (!nightNumber("frontBrightness", 100, faceBrightness)) { sendJson(400, "{\"error\":\"Invalid frontBrightness\"}"); return; }
+            theme.frontBrightness = faceBrightness;
+        }
+        if (server.hasArg("rearBrightness")) {
+            if (!nightNumber("rearBrightness", 100, faceBrightness)) { sendJson(400, "{\"error\":\"Invalid rearBrightness\"}"); return; }
+            theme.rearBrightness = faceBrightness;
+        }
         if (server.hasArg("harmony"))
         {
 

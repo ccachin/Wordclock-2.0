@@ -174,6 +174,8 @@ namespace ThemeLibrary
     {
         const auto &old = ThemeManager::getTheme();
         theme.brightness = old.brightness;
+        theme.frontBrightness = old.frontBrightness;
+        theme.rearBrightness = old.rearBrightness;
         const bool different = old.frontColor != theme.frontColor ||
             old.rearColor != theme.rearColor || old.harmony != theme.harmony ||
             old.frontAnimation.effect != theme.frontAnimation.effect ||

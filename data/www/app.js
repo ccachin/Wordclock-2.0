@@ -184,7 +184,10 @@ async function updateStatus() {
 // User controls
 // ======================================================
 
+const frontBrightness = document.getElementById("frontBrightness");
+const rearBrightness = document.getElementById("rearBrightness");
 function setControlsEnabled(enabled) {
+    frontBrightness.disabled = rearBrightness.disabled = !enabled;
 
     frontColor.disabled = !enabled;
 
@@ -195,6 +198,7 @@ function setControlsEnabled(enabled) {
     harmony.disabled = !enabled;
     for (const c of Object.values(animationControls)) { c.effect.disabled = !enabled; c.speed.disabled = !enabled; }
 
+    document.getElementById("homeTheme").textContent=activeTheme.textContent;
     themeList
         .querySelectorAll(".theme-card")
         .forEach(button => {
@@ -204,6 +208,8 @@ function setControlsEnabled(enabled) {
 }
 
 function updateBrightnessLabel() {
+    document.getElementById("frontBrightnessValue").textContent = frontBrightness.value + " %";
+    document.getElementById("rearBrightnessValue").textContent = rearBrightness.value + " %";
 
     brightnessValue.textContent =
 
@@ -270,6 +276,9 @@ function updatePalettePreview() {
     effectiveRearColor.style.backgroundColor =
         rear;
 
+    const homePreview=document.querySelector(".home-preview");
+    homePreview.style.setProperty("--front",frontColor.value);
+    homePreview.style.setProperty("--rear",rear);
     effectiveRearColor.title =
         rear.toUpperCase();
 }
@@ -314,6 +323,8 @@ function updateControls(data) {
 
     brightness.value =
         data.brightness;
+    frontBrightness.value = data.frontBrightness ?? 100;
+    rearBrightness.value = data.rearBrightness ?? 100;
 
     harmony.value =
         data.harmony || "manual";
@@ -562,6 +573,8 @@ function sendTheme() {
         rear: rearColor.value,
 
         brightness: brightness.value,
+        frontBrightness: frontBrightness.value,
+        rearBrightness: rearBrightness.value,
 
         harmony: harmony.value,
         frontEffect: animationControls.front.effect.value,
@@ -686,7 +699,9 @@ async function applyTheme(id) {
 
                 body: new URLSearchParams({
 
-                    brightness: brightness.value
+                    brightness: brightness.value,
+                    frontBrightness: frontBrightness.value,
+                    rearBrightness: rearBrightness.value
 
                 })
 
@@ -765,6 +780,8 @@ rearColor.addEventListener(
 
 );
 
+frontBrightness.addEventListener("input", scheduleThemeUpdate);
+rearBrightness.addEventListener("input", scheduleThemeUpdate);
 brightness.addEventListener(
 
     "input",
@@ -838,3 +855,10 @@ async function refreshThemeLibrary() {
     themes = await request("/api/themes");
     renderThemeLibrary();
 }
+
+// Browser-local appearance, independent of device settings.
+const appearanceToggle=document.getElementById('appearanceToggle');
+function setAppearance(dark){document.documentElement.dataset.appearance=dark?'dark':'light';appearanceToggle.textContent=dark?'Mode clair':'Mode sombre';appearanceToggle.setAttribute('aria-pressed',String(dark));}
+let darkAppearance=false;try{darkAppearance=localStorage.getItem('wordclock-appearance')==='dark';}catch(e){}
+setAppearance(darkAppearance);
+appearanceToggle.addEventListener('click',()=>{darkAppearance=!darkAppearance;setAppearance(darkAppearance);try{localStorage.setItem('wordclock-appearance',darkAppearance?'dark':'light');}catch(e){}});

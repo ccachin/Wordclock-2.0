@@ -25,6 +25,8 @@ namespace PreviewManager {
     ThemeManager::Theme renderTheme() {
         auto result = active() ? temporary : ThemeManager::getTheme();
         result.brightness = ThemeManager::getTheme().brightness;
+        result.frontBrightness = ThemeManager::getTheme().frontBrightness;
+        result.rearBrightness = ThemeManager::getTheme().rearBrightness;
         return result;
     }
 }
