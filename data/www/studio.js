@@ -7,6 +7,7 @@
     const studio = byId('studioView');
     const communityTab = byId('communityTab'), community = byId('communityView');
     function showStudio(active, online=false) {
+        if(!online){communityPreview=null; document.dispatchEvent(new Event("wordclock:community-close"));}
         library.hidden = active || online;
         community.hidden = !online;
         communityTab.setAttribute('aria-pressed', String(online));
@@ -98,12 +99,15 @@
     controls.forEach(c=>{for(const el of [c.effect,c.speed]) el.addEventListener('input',()=>{c.start=performance.now();sync(c);updatePreview();});sync(c);});
     for(const id of ['studioFrontColor','studioRearColor','studioHarmony']) byId(id).addEventListener('input',updatePreview);
     const liveStatus = byId('studioLiveStatus');
+    let communityPreview=null;
     let live = false, busy = false, pending = false, stopping = false, token = '', lastSent = 0;
     function displayLive(message) {
         liveStatus.textContent = message;
+        if(!community.hidden)byId('communityPreviewStatus').textContent=message;
     }
     function payload(action) {
         const p = new URLSearchParams({action, token});
+        if(action === 'set' && !community.hidden && communityPreview){for(const key of ['front','rear','harmony','frontEffect','rearEffect','frontSpeed','rearSpeed'])p.set(key,communityPreview[key]);return p;}
         if(action === 'set') for(const [key,id] of Object.entries({front:'FrontColor',rear:'RearColor',harmony:'Harmony',frontEffect:'FrontEffect',rearEffect:'RearEffect',frontSpeed:'FrontSpeed',rearSpeed:'RearSpeed'})) p.set(key,byId('studio'+id).value);
         return p;
     }
@@ -142,7 +146,7 @@
     }
     let previewWanted=false, retryAt=0;
     function startLive(){
-        if(!previewWanted||studio.hidden||document.hidden||working||live||busy||stopping||performance.now()<retryAt)return;
+        if(!previewWanted||(studio.hidden&&(community.hidden||!communityPreview))||document.hidden||working||live||busy||stopping||performance.now()<retryAt)return;
         token=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
         live=true;pending=true;lastSent=-1000;displayLive('Connexion…');flush();
     }
@@ -397,6 +401,49 @@
         if(editing===id&&!confirmDiscard())return;
         operation(async()=>{const result=await api('DELETE',id);if(!result.ok)throw new Error('Suppression non confirmée');if(editing===id){disableLive();resetDraft();}const refreshed=await refreshSources();status.textContent=refreshed?'Thème supprimé.':'Thème supprimé, actualisation impossible.';});
     });
+    // Shared preview transport: one token and heartbeat for both views.
+    window.wordclockCommunity = {
+        validate: validateImport,
+        async inspect(raw){
+            const theme=validateImport(raw);
+            await refreshThemeLibrary();
+            const match=themes.find(t=>fingerprint(t)===fingerprint(theme));
+            return {theme,existing:match||null};
+        },
+        preview(raw){
+            if(community.hidden||working)return;
+            communityPreview=validateImport(raw);previewWanted=true;pending=true;startLive();
+        },
+        clear(){previewWanted=false;disableLive();communityPreview=null;},
+        async add(raw){
+            if(working||community.hidden)throw new Error('Opération indisponible.');
+            working=true;buttons();
+            try{
+                const theme=validateImport(raw);
+                if(!await refreshSources())throw new Error('Bibliothèque indisponible.');
+                const match=catalog.find(t=>fingerprint(t)===fingerprint(theme));
+                const planned=match?null:planImport(theme,catalog);
+                if(!match&&catalog.filter(t=>t.id.startsWith('custom-')).length>=30)throw new Error('Bibliothèque pleine (30 thèmes personnels).');
+                previewWanted=false;disableLive();while(busy||stopping)await new Promise(r=>setTimeout(r,50));
+                const saved=match||await api('POST','',planned);
+                if(!saved.id)throw new Error('Réponse inattendue : vérifiez la bibliothèque.');
+                const refreshed=await refreshSources();
+                const applied=await applyTheme(saved.id);
+                return (match?'Déjà présent : ':'Enregistré : ')+saved.name+(applied?' — appliqué.':' — application non confirmée.')+(refreshed?'':' Bibliothèque non actualisée.');
+            }finally{working=false;buttons();}
+        },
+        async edit(raw){
+            if(working||community.hidden)throw new Error('Opération indisponible.');
+            working=true;buttons();
+            try{
+                const theme=validateImport(raw);
+                if(!await refreshSources())throw new Error('Bibliothèque indisponible.');
+                previewWanted=false;disableLive();
+                showStudio(true);loadDraft({...theme,name:uniqueName(theme.name,catalog)});source.value='';imported=true;fromFile=true;previewWanted=true;
+                status.textContent='Thème communautaire chargé dans le Studio.';
+            }finally{working=false;buttons();}
+        }
+    };
     window.addEventListener('beforeunload',e=>{if(dirty()||working){e.preventDefault();e.returnValue='';}});
     buttons();
     updatePreview();requestAnimationFrame(frame);

@@ -245,8 +245,10 @@
         <section class="panel" id="communityView" hidden>
             <h2>Communauté</h2>
             <p class="muted" id="communityStatus" role="status"></p>
-            <button type="button" id="communityReload">Actualiser</button>
+            <div class="community-toolbar night-actions"><input type="search" id="communitySearch" placeholder="Rechercher un thème…" aria-label="Rechercher un thème"><button type="button" id="communityReload">Actualiser</button></div>
             <div id="communityList" class="community-list"></div>
+            <div id="communityDetails" hidden><h3 id="communityName"></h3><p id="communityDescription"></p><p id="communityExisting" class="muted"></p><div class="night-actions"><button id="communityAdd" type="button">Ajouter à ma bibliothèque</button><button id="communityEdit" type="button">Modifier dans le Studio</button></div></div>
+            <p id="communityPreviewStatus" class="muted" role="status"></p><p id="communityActionStatus" role="status"></p>
         </section>
         <footer>
             Wordclock 3.0

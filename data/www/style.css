@@ -595,3 +595,9 @@ footer {
 .community-card p { margin:0; font-size:.9rem; color:var(--muted); }
 .community-colors { display:flex; gap:8px; }
 .community-colors span { width:24px; height:24px; border-radius:50%; }
+.community-toolbar { align-items:center; }
+.community-toolbar input { flex:1; min-width:0; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--panel); color:var(--text); font:inherit; }
+.community-card { align-items:center; color:var(--text); background:var(--panel); cursor:pointer; font:inherit; }
+.community-card[aria-pressed="true"] { border-color:var(--accent); }
+.community-card .theme-preview { margin:8px; }
+#communityDetails { margin-top:24px; border-top:1px solid var(--border); padding-top:16px; }
