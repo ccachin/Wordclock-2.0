@@ -637,7 +637,9 @@ namespace WebServer
                name == "studio.js" ||
                name == "theme-rules.js" ||
                name == "studio-visual.js" ||
-               name == "community.js";
+               name == "community.js" ||
+               name == "icon.svg" ||
+               name == "manifest.json";
     }
 
     // ==================================================
@@ -777,6 +779,13 @@ namespace WebServer
                     "/www/app.js",
                     "application/javascript; charset=utf-8");
             });
+
+        server.on("/icon.svg", HTTP_GET, []() {
+            serveFile("/www/icon.svg", "image/svg+xml");
+        });
+        server.on("/manifest.json", HTTP_GET, []() {
+            serveFile("/www/manifest.json", "application/manifest+json");
+        });
 
         server.on("/night.js", HTTP_GET, []() {
             serveFile("/www/night.js", "application/javascript; charset=utf-8");

@@ -958,3 +958,34 @@ appearanceToggle.addEventListener('click',()=>{darkAppearance=!darkAppearance;se
         refresh();
     });
 })();
+
+// Local access and browser shortcut guidance (works on plain HTTP).
+document.addEventListener('DOMContentLoaded', () => {
+    const el = id => document.getElementById(id);
+    const host = el('accessHost'), ip = el('accessIp'), message = el('accessMessage');
+    if (!host || !ip || !message) return;
+    async function copy(field) {
+        if (!field.value) return;
+        try {
+            if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(field.value);
+            else { field.focus(); field.select(); field.setSelectionRange(0, field.value.length); if (!document.execCommand('copy')) throw new Error('copy'); }
+            message.textContent = 'Adresse copiée.';
+        } catch (_) { field.focus(); field.select(); message.textContent = 'Adresse sélectionnée : copiez-la manuellement.'; }
+    }
+    el('copyHost').addEventListener('click', () => copy(host));
+    el('copyIp').addEventListener('click', () => copy(ip));
+    async function refreshAccess() {
+        try {
+            const data = await request('/api/wifi');
+            ip.value = data.connected && /^\d{1,3}(\.\d{1,3}){3}$/.test(data.ip) ? 'http://' + data.ip + '/' : '';
+        } catch (_) { ip.value = ''; }
+        el('copyIp').disabled = !ip.value;
+    }
+    const platform = el('accessPlatform');
+    const help = {android: 'Dans Chrome, ouvrez le menu ⋮ puis Ajouter à l’écran d’accueil (ou Créer un raccourci), et confirmez.',ios: 'Dans Safari, ouvrez Partager, puis Sur l’écran d’accueil et confirmez.',windows: 'Dans Chrome, recherchez Créer un raccourci dans le menu. Sinon, sur le bureau Windows, clic droit > Nouveau > Raccourci et saisissez http://wordclock.local/.'};
+    platform.value = /Android/i.test(navigator.userAgent) ? 'android' : /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ? 'ios' : 'windows';
+    function updateHelp() { el('accessHelp').textContent = help[platform.value]; }
+    platform.addEventListener('change', updateHelp); updateHelp();
+    el('settingsTab').addEventListener('click', refreshAccess);
+    refreshAccess();
+});

@@ -645,3 +645,9 @@ select{background:var(--control)}.community-card{border-radius:6px}.studio-nav b
 .face-presets button{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;padding:8px;}
 .face-presets button[aria-pressed=true]{outline:2px solid var(--text);outline-offset:-2px;}
 .face-swatch{width:28px;height:28px;border-radius:50%;border:1px solid #888;}
+
+#accessPanel input,#accessPanel select{display:block;width:100%;padding:10px;margin:6px 0 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);font:inherit}
+#accessPanel label{display:block;margin-top:12px}
+.access-brand{display:flex;align-items:center;gap:16px;margin:18px 0}
+.access-brand img{flex:none;border-radius:12px}
+#accessPanel a{color:inherit;text-decoration:underline}

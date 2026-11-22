@@ -8,6 +8,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <title>Wordclock</title>
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <link rel="manifest" href="/manifest.json">
 
     <link rel="stylesheet" href="/style.css">
 
@@ -207,6 +209,24 @@
         </section>
         </div>
         <div id="settingsView" hidden>
+        <section class="panel" id="accessPanel">
+            <h2>Accéder à mon horloge</h2>
+            <p class="muted">Utilisez cette adresse depuis votre réseau domestique. L’adresse IP peut changer.</p>
+            <label for="accessHost">Adresse locale recommandée</label>
+            <input id="accessHost" type="text" readonly value="http://wordclock.local/">
+            <button type="button" id="copyHost">Copier l’adresse locale</button>
+            <label for="accessIp">Adresse IP actuelle (secours)</label>
+            <input id="accessIp" type="text" readonly placeholder="Indisponible">
+            <button type="button" id="copyIp" disabled>Copier l’adresse IP</button>
+            <p id="accessMessage" class="muted" role="status"></p>
+            <div class="access-brand"><img src="/icon.svg" alt="" width="64" height="64"><div><strong>Ma Wordclock</strong><p class="muted">Ajoutez un raccourci pour retrouver votre horloge.</p></div></div>
+            <p><a href="http://wordclock.local/">Ouvrir l’adresse locale recommandée</a> avant de créer le raccourci.</p>
+            <label for="accessPlatform">Votre appareil</label>
+            <select id="accessPlatform"><option value="android">Android</option><option value="ios">iPhone / iPad</option><option value="windows">Windows</option></select>
+            <p id="accessHelp"></p>
+            <p class="muted">Le raccourci doit être ajouté manuellement dans votre navigateur. Les options et l’icône dépendent du navigateur.</p>
+        </section>
+
         <section class="panel">
             <h2>Connexion Wi-Fi</h2>
             <div class="setting"><span>Réseau actuel</span><strong id="wifiSsid">—</strong></div>
