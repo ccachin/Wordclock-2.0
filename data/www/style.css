@@ -576,3 +576,10 @@ footer {
 .studio-fields { display:flex; flex-direction:column; gap:10px; }
 .studio-fields input[type=text],.studio-fields textarea { width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--background); color:var(--text); font:inherit; }
 .studio-fields .setting { margin:4px 0; }
+
+/* Studio dynamic preview */
+.studio-rear-frame { width:100%; height:100%; overflow:visible; }
+.studio-rear-frame path { stroke-width:.35; stroke-linejoin:round; }
+.studio-fields [hidden] { display:none !important; }
+.studio-fields input[type=range] { width:100%; }
+.studio-fields select { width:100%; }

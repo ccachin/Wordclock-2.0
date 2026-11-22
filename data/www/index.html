@@ -215,7 +215,7 @@
             <p class="muted">Créez votre ambiance lumineuse.</p>
             <div class="studio-previews">
                 <div><div id="studioFrontPreview" class="studio-front" aria-label="Face avant"></div><p>Face avant</p></div>
-                <div><div id="studioRearPreview" class="studio-rear" aria-label="Face arrière"><div class="studio-rear-center"></div></div><p>Face arrière</p></div>
+                <div><div id="studioRearPreview" class="studio-rear" aria-label="Face arrière"><svg viewBox="0 0 100 100" class="studio-rear-frame" aria-hidden="true"></svg></div><p>Face arrière</p></div>
             </div>
             <div class="studio-fields">
                 <label for="studioName">Nom du thème</label><input id="studioName" type="text" maxlength="48" placeholder="Nouveau thème">
@@ -224,10 +224,12 @@
                 <div class="separator"></div>
                 <h2>Couleurs</h2>
                 <div class="setting"><label for="studioFrontColor">Face avant</label><input id="studioFrontColor" type="color" value="#ffe1b4"></div>
-                <div class="setting"><label for="studioRearColor">Face arrière</label><input id="studioRearColor" type="color" value="#0055ff"></div>
+                <label for="studioHarmony">Harmonie des couleurs</label>
+                <select id="studioHarmony"><option value="manual">Indépendante</option><option value="identical">Identique</option><option value="complementary">Complémentaire</option><option value="analogous-plus">Analogique +30°</option><option value="analogous-minus">Analogique -30°</option><option value="triadic">Triadique</option></select>
+                <div class="setting" id="studioManualRear"><label for="studioRearColor">Face arrière</label><input id="studioRearColor" type="color" value="#0055ff"></div>
+                <div class="setting" id="studioAutoRear" hidden><span>Couleur arrière calculée</span><div class="color-preview" id="studioEffectiveRear"></div></div>
                 <div class="separator"></div>
-                <h2>Harmonies et animations</h2>
-                <p class="muted">Disponibles à la prochaine étape.</p>
+                <h2>Animations</h2><div class="animation-setting"><label for="studioFrontEffect">Face avant</label><select id="studioFrontEffect"><option value="solid">Fixe</option><option value="breathing">Respiration</option><option value="color-cycle">Cycle de couleurs</option></select><div id="studioFrontSpeedRow" hidden><div class="setting"><label for="studioFrontSpeed">Vitesse</label><output id="studioFrontSpeedValue">50 %</output></div><input type="range" id="studioFrontSpeed" min="0" max="100" value="50"><p class="muted" id="studioFrontPeriod"></p></div></div><div class="animation-setting"><label for="studioRearEffect">Face arrière</label><select id="studioRearEffect"><option value="solid">Fixe</option><option value="breathing">Respiration</option><option value="color-cycle">Cycle de couleurs</option><option value="rainbow">Arc-en-ciel</option><option value="chase">Chenillard</option></select><div id="studioRearSpeedRow" hidden><div class="setting"><label for="studioRearSpeed">Vitesse</label><output id="studioRearSpeedValue">50 %</output></div><input type="range" id="studioRearSpeed" min="0" max="100" value="50"><p class="muted" id="studioRearPeriod"></p></div></div>
                 <p class="muted" role="status">Les changements restent dans cet aperçu. Aucun réglage de l’horloge n’est modifié.</p>
             </div>
         </section>
