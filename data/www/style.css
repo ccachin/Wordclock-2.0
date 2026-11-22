@@ -635,3 +635,13 @@ select{background:var(--control)}.community-card{border-radius:6px}.studio-nav b
 .home-preview.matrix-preview svg text {fill:#393939;font-weight:500;}
 .home-preview.matrix-preview svg text.lit {fill:var(--front);font-weight:600;}
 .home-preview.matrix-preview.front-off svg text.lit {fill:#393939;font-weight:500;}
+
+/* Physical face appearance, independent of light themes. */
+.home-preview,.theme-preview,.studio-front{background:var(--face-color,#151515);}
+.matrix-preview svg text,.home-preview.matrix-preview svg text,.home-preview.matrix-preview.front-off svg text.lit{fill:var(--face-unlit,#393939);}
+.matrix-preview svg text.lit,.home-preview.matrix-preview svg text.lit{fill:var(--front);}
+.studio-front{color:var(--face-unlit,#393939);}
+.face-presets{display:grid;grid-template-columns:repeat(auto-fit,minmax(75px,1fr));gap:8px;margin:16px 0;}
+.face-presets button{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;padding:8px;}
+.face-presets button[aria-pressed=true]{outline:2px solid var(--text);outline-offset:-2px;}
+.face-swatch{width:28px;height:28px;border-radius:50%;border:1px solid #888;}

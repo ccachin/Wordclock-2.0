@@ -28,10 +28,14 @@ namespace SettingsManager
     constexpr char BACKUP_PATH[] =
         "/config/settings.bak";
 
-    constexpr int SETTINGS_VERSION = 6;
+    constexpr int SETTINGS_VERSION = 7;
 
     constexpr uint32_t SAVE_DELAY = 3000;
     constexpr uint32_t RETRY_DELAY = 10000;
+
+    static uint32_t faceRgb = 0x151515;
+    uint32_t faceColor() { return faceRgb; }
+    void setFaceColor(uint32_t rgb) { if (rgb <= 0xFFFFFF && rgb != faceRgb) { faceRgb = rgb; markChanged(); } }
 
     static bool dirty = false;
     static bool initialized = false;
@@ -101,7 +105,7 @@ namespace SettingsManager
     static bool readSettingsFile(
         const char *path,
         ThemeManager::Theme &theme,
-        int *loadedVersion = nullptr, uint16_t *transitionDuration = nullptr, NightManager::Settings *nightOut = nullptr)
+        int *loadedVersion = nullptr, uint16_t *transitionDuration = nullptr, NightManager::Settings *nightOut = nullptr, uint32_t *faceOut = nullptr)
     {
 
         File file = LittleFS.open(path, "r");
@@ -140,7 +144,7 @@ namespace SettingsManager
 
         int version = doc["version"].as<int>();
 
-        if (version != 1 && version != 2 && version != 3 && version != 4 && version != 5 && version != 6)
+        if (version != 1 && version != 2 && version != 3 && version != 4 && version != 5 && version != 6 && version != 7)
         {
 
             Serial.println(
@@ -245,6 +249,9 @@ namespace SettingsManager
             night.startMinute = start; night.endMinute = end; night.brightness = bright;
             night.mode = static_cast<NightManager::Mode>(mode);
         }
+        CRGB face(0x15, 0x15, 0x15);
+        if (version >= 7 && !parseColor(doc["faceColor"].as<const char *>(), face)) return false;
+        if (faceOut) *faceOut = (uint32_t(face.r)<<16) | (uint32_t(face.g)<<8) | face.b;
         if (nightOut) *nightOut = night;
         if (transitionDuration) *transitionDuration = duration;
 
@@ -278,7 +285,7 @@ namespace SettingsManager
         if (readSettingsFile(
                 SETTINGS_PATH,
                 theme,
-                &version, &duration, &night))
+                &version, &duration, &night, &faceRgb))
         {
 
             ThemeManager::setTheme(theme);
@@ -298,7 +305,7 @@ namespace SettingsManager
         if (readSettingsFile(
                 TEMP_PATH,
                 theme,
-                &version, &duration, &night))
+                &version, &duration, &night, &faceRgb))
         {
 
             ThemeManager::setTheme(theme);
@@ -330,7 +337,7 @@ namespace SettingsManager
         if (readSettingsFile(
                 BACKUP_PATH,
                 theme,
-                &version, &duration, &night))
+                &version, &duration, &night, &faceRgb))
         {
 
             ThemeManager::setTheme(theme);
@@ -393,6 +400,9 @@ namespace SettingsManager
 
         StaticJsonDocument<1024> doc;
 
+        char face[8];
+        snprintf(face, sizeof(face), "#%06lX", static_cast<unsigned long>(faceRgb));
+        doc["faceColor"] = face;
         doc["version"] = SETTINGS_VERSION;
         const auto night = NightManager::getSettings();
         doc["nightEnabled"] = night.enabled;
@@ -450,10 +460,11 @@ namespace SettingsManager
         ThemeManager::Theme verified;
         uint16_t verifiedDuration = 0;
         NightManager::Settings verifiedNight;
+        uint32_t verifiedFace = 0;
 
         if (!readSettingsFile(
                 TEMP_PATH,
-                verified, nullptr, &verifiedDuration, &verifiedNight))
+                verified, nullptr, &verifiedDuration, &verifiedNight, &verifiedFace))
         {
 
             Serial.println(
@@ -465,6 +476,7 @@ namespace SettingsManager
         }
 
         if (
+            verifiedFace != faceRgb ||
             !NightManager::equals(night, verifiedNight) ||
             verifiedDuration != TransitionManager::getDuration() ||
             verified.frontColor != theme.frontColor ||

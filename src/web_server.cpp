@@ -20,6 +20,7 @@
 #include "night_manager.h"
 #include "custom_theme_store.h"
 #include "preview_manager.h"
+#include "settings_manager.h"
 
 namespace WebServer
 {
@@ -290,6 +291,18 @@ namespace WebServer
         if (duration > TransitionManager::MAX_DURATION) { sendJson(400, "{\"error\":\"Invalid duration\"}"); return; }
         TransitionManager::setDuration(static_cast<uint16_t>(duration));
         handleGetTransitions();
+    }
+
+    static void handleGetAppearance() {
+        char json[40];
+        snprintf(json, sizeof(json), "{\"faceColor\":\"#%06lX\"}", static_cast<unsigned long>(SettingsManager::faceColor()));
+        sendJson(200, json);
+    }
+    static void handleSetAppearance() {
+        CRGB color;
+        if (!parseColor(server.arg("faceColor"), color)) { sendJson(400, "{\"error\":\"Invalid face color\"}"); return; }
+        SettingsManager::setFaceColor((uint32_t(color.r)<<16) | (uint32_t(color.g)<<8) | color.b);
+        handleGetAppearance();
     }
 
     static void handleGetTheme()
@@ -754,6 +767,9 @@ namespace WebServer
             "/api/status",
             HTTP_GET,
             handleStatus);
+
+        server.on("/api/appearance", HTTP_GET, handleGetAppearance);
+        server.on("/api/appearance", HTTP_POST, handleSetAppearance);
 
         server.on(
             "/api/theme",

@@ -208,6 +208,17 @@
         </div>
         <div id="settingsView" hidden>
         <section class="panel">
+            <h2>Apparence de l’horloge</h2>
+            <p class="muted">Adapte les aperçus à la couleur réelle de la façade. Les LED restent inchangées.</p>
+            <div id="faceSample" class="theme-preview" style="--front:#FFE1B4;--rear:transparent;margin:24px auto;width:140px;height:140px"></div>
+            <fieldset id="faceFields" disabled>
+                <div id="facePresets" class="face-presets"></div>
+                <div class="setting"><label for="facePicker">Couleur personnalisée</label><input type="color" id="facePicker" value="#151515"></div>
+                <button type="button" id="faceSave">Appliquer</button>
+            </fieldset>
+            <p id="faceMessage" class="muted" role="status"></p>
+        </section>
+        <section class="panel">
             <h2>Transitions entre les thèmes</h2>
             <div class="setting"><label for="transitionEnabled">Activer les transitions</label><input type="checkbox" id="transitionEnabled" disabled></div>
             <div class="setting"><label for="transitionDuration">Durée du fondu</label><span id="transitionValue">1,5 s</span></div>
