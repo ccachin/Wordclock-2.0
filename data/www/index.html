@@ -208,6 +208,18 @@
         </div>
         <div id="settingsView" hidden>
         <section class="panel">
+            <h2>Connexion Wi-Fi</h2>
+            <div class="setting"><span>Réseau actuel</span><strong id="wifiSsid">—</strong></div>
+            <div class="setting"><span>Adresse IP</span><span id="wifiIp">—</span></div>
+            <div class="setting"><span>Adresse locale</span><span id="wifiHost">—</span></div>
+            <div class="setting"><span>État</span><span id="wifiState">Chargement…</span></div>
+            <button type="button" id="wifiChange" disabled>Changer de réseau Wi-Fi</button>
+            <p class="muted">Ouvre le portail de configuration sans effacer volontairement les identifiants actuels.</p>
+            <button type="button" id="wifiForget" disabled>Oublier le réseau Wi-Fi</button>
+            <p class="muted">Efface les identifiants Wi-Fi et redémarre. Les thèmes et réglages sont conservés.</p>
+            <p id="wifiMessage" class="muted" role="status"></p>
+        </section>
+        <section class="panel">
             <h2>Apparence de l’horloge</h2>
             <p class="muted">Adapte les aperçus à la couleur réelle de la façade. Les LED restent inchangées.</p>
             <div id="faceSample" class="theme-preview" style="--front:#FFE1B4;--rear:transparent;margin:24px auto;width:140px;height:140px"></div>

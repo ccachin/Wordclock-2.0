@@ -29,6 +29,8 @@ namespace WebServer
 
     static bool running = false;
     static bool mdnsRunning = false;
+    static uint8_t wifiAction = 0;
+    static uint32_t wifiActionAt = 0;
 
     // ==================================================
     // JSON responses
@@ -587,6 +589,39 @@ namespace WebServer
         return true;
     }
 
+    static void handleWifiInfo()
+    {
+        DynamicJsonDocument doc(512);
+        doc["ssid"] = WiFi.SSID();
+        doc["connected"] = WifiManager::isConnected();
+        doc["ip"] = WiFi.localIP().toString();
+        doc["hostname"] = "wordclock.local";
+        String json;
+        serializeJson(doc, json);
+        sendJson(200, json);
+    }
+
+    static void handleWifiAction()
+    {
+        // Custom header prevents cross-origin HTML form submissions.
+        if (server.header("X-Wordclock-Action") != "wifi") {
+            sendJson(403, "{\"error\":\"Missing action header\"}");
+            return;
+        }
+        if (!authorizeWebUpdate()) return;
+        if (wifiAction) { sendJson(409, "{\"error\":\"Action pending\"}"); return; }
+        const String action = server.arg("action");
+        if (action != "change" && action != "forget") {
+            sendJson(400, "{\"error\":\"Invalid action\"}"); return;
+        }
+        if (!SettingsManager::save()) {
+            sendJson(503, "{\"error\":\"Settings save failed\"}"); return;
+        }
+        wifiAction = action == "forget" ? 2 : 1;
+        wifiActionAt = millis();
+        sendJson(200, "{\"ok\":true}");
+    }
+
     // ==================================================
     // Web update - Allowed files
     // ==================================================
@@ -873,6 +908,9 @@ namespace WebServer
                 handleWebUpdate);
         }
 
+        server.on("/api/wifi", HTTP_GET, handleWifiInfo);
+        server.on("/api/wifi", HTTP_POST, handleWifiAction);
+        server.collectHeaders("X-Wordclock-Action");
         server.onNotFound(handleNotFound);
     }
 
@@ -882,6 +920,13 @@ namespace WebServer
 
     void update()
     {
+
+        if (wifiAction && millis() - wifiActionAt >= 1200) {
+            const uint8_t action = wifiAction;
+            wifiAction = 0;
+            if (action == 2) WifiManager::forgetNetwork();
+            else WifiManager::startConfigPortal();
+        }
 
         bool available =
             WifiManager::isConnected() &&

@@ -55,6 +55,12 @@ namespace WifiManager
         openPortal(true);
     }
 
+    void forgetNetwork()
+    {
+        manager.resetSettings();
+        ESP.restart();
+    }
+
     void update()
     {
         manager.process();

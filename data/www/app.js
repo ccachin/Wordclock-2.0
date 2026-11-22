@@ -913,5 +913,48 @@ appearanceToggle.addEventListener('click',()=>{darkAppearance=!darkAppearance;se
  picker.addEventListener('input',()=>draft(picker.value));
  async function load(){try{const data=await request('/api/appearance');if(!/^#[0-9a-f]{6}$/i.test(data.faceColor))throw Error('Invalid color');apply(data.faceColor);fields.disabled=false;msg.textContent='';}catch(e){msg.textContent='Apparence indisponible. Nouvelle tentative…';setTimeout(load,3000);}}
  document.getElementById('faceSave').addEventListener('click',async()=>{if(busy)return;busy=true;fields.disabled=true;try{const data=await request('/api/appearance',{method:'POST',body:new URLSearchParams({faceColor:picker.value})});apply(data.faceColor);msg.textContent='Couleur appliquée';}catch(e){draft(saved);msg.textContent='Échec de la modification';}finally{busy=false;fields.disabled=false;}});
- function init(){window.WordclockStudioVisual.matrixPreview(sample);load();}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+ function init(){
+    try { window.WordclockStudioVisual.matrixPreview(sample); }
+    catch (error) { console.error('Face preview initialization failed', error); }
+    load();
+ }
+ // Deferred scripts execute while readyState is interactive, before DOMContentLoaded.
+ document.addEventListener('DOMContentLoaded', init, {once:true});
+})();
+
+
+(() => {
+    document.addEventListener("DOMContentLoaded", () => {
+        const el = id => document.getElementById(id);
+        const change = el("wifiChange"), forget = el("wifiForget"), message = el("wifiMessage");
+        let busy = false;
+        function enable(value) { change.disabled = forget.disabled = !value; }
+        async function refresh() {
+            if (busy) return;
+            try {
+                const data = await request("/api/wifi");
+                el("wifiSsid").textContent = data.ssid || "—";
+                el("wifiIp").textContent = data.ip;
+                el("wifiHost").textContent = data.hostname;
+                el("wifiState").textContent = data.connected ? "Connectée" : "Déconnectée";
+                enable(data.connected);
+            } catch (_) { el("wifiState").textContent = "Indisponible"; enable(false); }
+        }
+        async function act(action) {
+            if (busy || !confirm(action === "forget" ? "Effacer les identifiants Wi-Fi et redémarrer ? Les thèmes sont conservés." : "Ouvrir le portail Wi-Fi ? Cette interface sera temporairement inaccessible.")) return;
+            busy = true; enable(false);
+            message.textContent = "Authentification administrateur requise…";
+            try {
+                await request("/api/wifi", {method:"POST", headers:{"X-Wordclock-Action":"wifi"}, body:new URLSearchParams({action})});
+                message.textContent = "Commande acceptée. Connecte-toi à Wordclock-Setup (mot de passe : Wordclock123), puis ouvre http://192.168.4.1. Après configuration, recharge cette page.";
+            } catch (err) {
+                message.textContent = "Commande non confirmée : " + err.message + ". Vérifie si le portail est apparu avant de réessayer.";
+                busy = false; refresh();
+            }
+        }
+        change.addEventListener("click", () => act("change"));
+        forget.addEventListener("click", () => act("forget"));
+        el("settingsTab").addEventListener("click", refresh);
+        refresh();
+    });
 })();

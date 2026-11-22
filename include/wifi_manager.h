@@ -12,6 +12,7 @@ namespace WifiManager
     bool isPortalActive();
 
     void startConfigPortal();
+    void forgetNetwork();
 
     String getIPAddress();
 
