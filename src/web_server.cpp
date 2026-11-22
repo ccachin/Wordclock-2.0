@@ -910,6 +910,21 @@ namespace WebServer
 
         server.on("/api/wifi", HTTP_GET, handleWifiInfo);
         server.on("/api/wifi", HTTP_POST, handleWifiAction);
+        // Read-only handoff probe; only the setup portal gets cross-origin access.
+        server.on("/api/handoff-ready", HTTP_GET, []() {
+            server.sendHeader("Access-Control-Allow-Origin", "http://192.168.4.1");
+            if (!WifiManager::isConnected() || WifiManager::isPortalActive()) {
+                sendJson(503, "{\"ready\":false}");
+                return;
+            }
+            sendJson(200, String("{\"ready\":true,\"device\":\"") + String(ESP.getChipId(), HEX) + "\"}");
+        });
+        server.on("/api/handoff-ready", HTTP_OPTIONS, []() {
+            server.sendHeader("Access-Control-Allow-Origin", "http://192.168.4.1");
+            server.sendHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+            server.sendHeader("Access-Control-Allow-Private-Network", "true");
+            server.send(204, "text/plain", "");
+        });
         server.collectHeaders("X-Wordclock-Action");
         server.onNotFound(handleNotFound);
     }
