@@ -31,6 +31,8 @@ namespace WebServer
     static bool mdnsRunning = false;
     static uint8_t wifiAction = 0;
     static uint32_t wifiActionAt = 0;
+    static bool restartPending = false;
+    static uint32_t restartAt = 0;
 
     // ==================================================
     // JSON responses
@@ -629,6 +631,46 @@ namespace WebServer
         sendJson(200, json);
     }
 
+    static void handleSystemInfo()
+    {
+        DynamicJsonDocument doc(768);
+        doc["firmware"] = "3.0.0-dev";
+        doc["hostname"] = "wordclock.local";
+        doc["ip"] = WiFi.localIP().toString();
+        doc["rssi"] = WiFi.RSSI();
+        doc["uptime"] = millis() / 1000;
+        doc["freeHeap"] = ESP.getFreeHeap();
+        doc["flashBytes"] = ESP.getFlashChipRealSize();
+        doc["storageReady"] = Storage::isReady();
+        FSInfo info;
+        if (Storage::isReady() && LittleFS.info(info)) {
+            doc["storageTotal"] = info.totalBytes;
+            doc["storageUsed"] = info.usedBytes;
+        }
+        doc["savePending"] = SettingsManager::savePending();
+        doc["saveFailed"] = SettingsManager::saveFailed();
+        doc["restartPending"] = restartPending;
+        if (doc.overflowed()) { sendJson(503, "{\"error\":\"Insufficient memory\"}"); return; }
+        String json;
+        serializeJson(doc, json);
+        sendJson(200, json);
+    }
+
+    static void handleRestart()
+    {
+        if (server.header("X-Wordclock-Action") != "restart") {
+            sendJson(403, "{\"error\":\"Missing action header\"}"); return;
+        }
+        if (!authorizeWebUpdate()) return;
+        if (restartPending || wifiAction || SettingsManager::savePending() || SettingsManager::saveFailed()) {
+            sendJson(409, "{\"error\":\"Action or settings save pending\"}"); return;
+        }
+        if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
+        restartPending = true;
+        restartAt = millis();
+        sendJson(202, "{\"ok\":true,\"restartPending\":true}");
+    }
+
     static void handleWifiAction()
     {
         // Custom header prevents cross-origin HTML form submissions.
@@ -637,7 +679,7 @@ namespace WebServer
             return;
         }
         if (!authorizeWebUpdate()) return;
-        if (wifiAction) { sendJson(409, "{\"error\":\"Action pending\"}"); return; }
+        if (wifiAction || restartPending) { sendJson(409, "{\"error\":\"Action pending\"}"); return; }
         const String action = server.arg("action");
         if (action != "change" && action != "forget") {
             sendJson(400, "{\"error\":\"Invalid action\"}"); return;
@@ -951,6 +993,8 @@ namespace WebServer
                 handleWebUpdate);
         }
 
+        server.on("/api/system", HTTP_GET, handleSystemInfo);
+        server.on("/api/system/restart", HTTP_POST, handleRestart);
         server.on("/api/wifi", HTTP_GET, handleWifiInfo);
         server.on("/api/wifi", HTTP_POST, handleWifiAction);
         // Read-only handoff probe; only the setup portal gets cross-origin access.
@@ -979,6 +1023,18 @@ namespace WebServer
     void update()
     {
 
+        if (restartPending) {
+            if (millis() - restartAt >= 1500) {
+                if (!SettingsManager::savePending() && !SettingsManager::saveFailed()) {
+                    Serial.println("Maintenance restart");
+                    ESP.restart();
+                    return;
+                }
+                restartPending = false;
+                Serial.println("Maintenance restart cancelled: settings pending");
+            }
+            return;
+        }
         if (wifiAction && millis() - wifiActionAt >= 1200) {
             const uint8_t action = wifiAction;
             wifiAction = 0;
