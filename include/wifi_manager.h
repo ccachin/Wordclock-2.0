@@ -13,6 +13,7 @@ namespace WifiManager
 
     void startConfigPortal();
     void forgetNetwork();
+    bool clearSavedNetwork();
 
     String getIPAddress();
 

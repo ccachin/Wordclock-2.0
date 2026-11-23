@@ -283,6 +283,12 @@ window.addEventListener('DOMContentLoaded', function () {
         openPortal(true);
     }
 
+    bool clearSavedNetwork()
+    {
+        manager.resetSettings();
+        return !manager.getWiFiIsSaved();
+    }
+
     void forgetNetwork()
     {
         manager.resetSettings();

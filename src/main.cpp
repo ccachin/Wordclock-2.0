@@ -32,6 +32,18 @@ void setup()
 
     Storage::begin();
 
+    // Complete an interrupted or requested reset before loading any user data.
+    if (Storage::factoryResetPending()) {
+        Serial.println("Factory reset: recovery started");
+        while (!Storage::clearFactoryUserData() || !WifiManager::clearSavedNetwork() || !Storage::finishFactoryReset()) {
+            Serial.println("Factory reset incomplete; retrying in 5 seconds");
+            delay(5000);
+        }
+        Serial.println("Factory reset completed");
+        ESP.restart();
+        return;
+    }
+
     TimeManager::begin();
 
     StatusManager::begin();

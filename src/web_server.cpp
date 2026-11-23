@@ -33,6 +33,7 @@ namespace WebServer
     static uint32_t wifiActionAt = 0;
     static bool restartPending = false;
     static uint32_t restartAt = 0;
+    static bool factoryResetScheduled = false;
 
     // ==================================================
     // JSON responses
@@ -690,6 +691,28 @@ namespace WebServer
         sendJson(202, "{\"ok\":true,\"savePending\":true,\"saveFailed\":false}");
     }
 
+    static void handleFactoryReset()
+    {
+        if (server.header("X-Wordclock-Action") != "factory-reset") {
+            sendJson(403, "{\"error\":\"Missing action header\"}"); return;
+        }
+        if (!authorizeWebUpdate()) return;
+        if (server.arg("confirm") != "ERASE") {
+            sendJson(400, "{\"error\":\"Explicit confirmation required\"}"); return;
+        }
+        if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
+        if (restartPending || wifiAction || PreviewManager::active() || SettingsManager::savePending() || SettingsManager::saveFailed()) {
+            sendJson(409, "{\"error\":\"Action, preview or settings save pending\"}"); return;
+        }
+        if (!Storage::requestFactoryReset()) {
+            sendJson(503, "{\"error\":\"Cannot record reset request\"}"); return;
+        }
+        factoryResetScheduled = true;
+        restartPending = true;
+        restartAt = millis();
+        sendJson(202, "{\"ok\":true,\"factoryResetPending\":true}");
+    }
+
     static void handleWifiAction()
     {
         // Custom header prevents cross-origin HTML form submissions.
@@ -1015,6 +1038,7 @@ namespace WebServer
         server.on("/api/system", HTTP_GET, handleSystemInfo);
         server.on("/api/system/restart", HTTP_POST, handleRestart);
         server.on("/api/system/reset-settings", HTTP_POST, handleResetSettings);
+        server.on("/api/system/factory-reset", HTTP_POST, handleFactoryReset);
         server.on("/api/wifi", HTTP_GET, handleWifiInfo);
         server.on("/api/wifi", HTTP_POST, handleWifiAction);
         // Read-only handoff probe; only the setup portal gets cross-origin access.
@@ -1045,7 +1069,7 @@ namespace WebServer
 
         if (restartPending) {
             if (millis() - restartAt >= 1500) {
-                if (!SettingsManager::savePending() && !SettingsManager::saveFailed()) {
+                if (factoryResetScheduled || (!SettingsManager::savePending() && !SettingsManager::saveFailed())) {
                     Serial.println("Maintenance restart");
                     ESP.restart();
                     return;
