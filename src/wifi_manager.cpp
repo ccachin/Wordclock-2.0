@@ -1,4 +1,6 @@
 #include "wifi_manager.h"
+#include "web_server.h"
+#include "ota_manager.h"
 #include <ESP8266WiFi.h>
 #include <WiFiManager.h>
 
@@ -23,16 +25,32 @@ a[data-ssid]{display:inline-block;max-width:75%;overflow-wrap:anywhere;padding:8
 .msg{background:white;border-radius:12px;overflow-wrap:anywhere}
 </style>)WCSTYLE";
 
+    // Render the waiting face without requesting another resource from the ESP.
     static const char SAVE_WAIT_STYLE[] = R"WCWAIT(<style>
-.msg:not(.wc-managed){text-align:center}
-.msg:not(.wc-managed)::before{content:'CONNEXION\A AU RESEAU\A EN COURS';display:block;white-space:pre;box-sizing:border-box;max-width:310px;margin:0 auto;background:#191919;color:#fff5df;border-radius:9px;padding:24px 8px 8px;font:500 clamp(12px,4vw,16px)/2 monospace;letter-spacing:.2em;text-shadow:0 0 6px #ffe8b688}
-.msg:not(.wc-managed)::after{content:'*';display:block;box-sizing:border-box;max-width:310px;margin:12px auto 0;background:#191919;color:#fff5df;border-radius:9px;padding:0 8px 18px;font:500 18px/2 monospace;letter-spacing:.35em;animation:wc-wait 1.6s steps(1,end) infinite}
-@keyframes wc-wait{0%{content:'*'}25%{content:'**'}50%{content:'***'}75%{content:'****'}}
-@media(prefers-reduced-motion:reduce){.msg:not(.wc-managed)::after{animation:none;content:'****'}}
-</style>)WCWAIT";
+.msg:not(.wc-managed){text-align:center;font-size:0}
+.msg:not(.wc-managed) .wc-face{font-size:clamp(9px,3vw,14px)}
+.wc-face{display:grid;grid-template-columns:repeat(11,minmax(0,1fr));aspect-ratio:1;align-items:center;text-align:center;background:#191919;border-radius:9px;padding:12px;margin:0 auto 20px;max-width:310px;color:#555;font:500 clamp(9px,3vw,14px) monospace}
+.wc-face .lit{color:#fff5df;text-shadow:0 0 6px #ffe8b688}
+.wc-face .star{animation:wcboot 2s steps(1,end) infinite}
+@keyframes wcboot{0%,90%,100%{color:#555}25%{color:#fff5df;text-shadow:0 0 6px #ffe8b688}}
+@media(prefers-reduced-motion:reduce){.wc-face .star{animation:none;color:#fff5df}}
+</style><script>
+document.addEventListener('DOMContentLoaded',function(){
+ var msg=document.querySelector('.msg');if(!msg)return;
+ var face=document.createElement('div');face.className='wc-face';face.setAttribute('aria-hidden','true');
+ var cells=('ILAESTBDEUXQUATREDCINQSIXNEUFONZEUNEHSEPTDIXHUITFTROISZUMIDIHEURESMINUITSETFAMOINSOVINGTDIXTLESDEMIQUARTUCINQOWGBSDLO****').split('');
+ var lit={};['CONNEXION','AU RESEAU','EN COURS'].forEach(function(line,j){var start=(3+j)*11+Math.floor((11-line.length)/2);line.split('').forEach(function(c,k){if(c!==' '){cells[start+k]=c;lit[start+k]=true;}});});
+ for(var i=0;i<cells.length;i++){var el=document.createElement('span');el.textContent=cells[i];if(lit[i])el.className='lit';if(i>=117){el.className='star';el.style.animationDelay=((i-117)*200)+'ms';}face.appendChild(el);}
+ msg.textContent='';msg.appendChild(face);
+ var note=document.createElement('p');note.style.fontSize='1rem';note.setAttribute('role','status');note.textContent='Connexion au réseau Wi-Fi en cours…';msg.appendChild(note);
+ var started=Date.now();
+ function load(){if(Date.now()-started>45000){note.textContent='Résultat non confirmé. Vérifiez votre connexion Wi-Fi ou reconnectez-vous à Wordclock-Setup.';return;}var script=document.createElement('script');script.src='/wc-save.js?t='+Date.now();script.onerror=function(){script.remove();setTimeout(load,1000);};document.head.appendChild(script);}
+ load();
+});
+</script>)WCWAIT";
 
     static const char SAVE_SCRIPT[] PROGMEM = R"WCSCRIPT(
-window.addEventListener('DOMContentLoaded', function () {
+(function () {
   const msg = document.querySelector('.msg');
   if (!msg) return;
   const status = document.createElement('p');
@@ -169,7 +187,7 @@ window.addEventListener('DOMContentLoaded', function () {
     setTimeout(poll, 1000);
   }
   setTimeout(poll, 1000);
-});
+})();
 )WCSCRIPT";
 
     // Keep the captive portal available briefly after a verified save.
@@ -202,6 +220,9 @@ window.addEventListener('DOMContentLoaded', function () {
         finishRequested = false;
         portalAttempted = true;
         manualPortal = manual;
+        // Release application listeners before WiFiManager binds port 80.
+        OTAManager::stop();
+        WebServer::stop();
         Serial.println("Starting Wi-Fi setup portal");
         manager.startConfigPortal(AP_NAME, AP_PASSWORD);
         lastPortalAttempt = millis();
@@ -230,7 +251,7 @@ window.addEventListener('DOMContentLoaded', function () {
         manager.setConnectRetries(1);
         manager.setPreSaveConfigCallback([]() {
             // Only the native save response receives the status script.
-            static const String saveHead = String(PORTAL_STYLE) + SAVE_WAIT_STYLE + "<script defer src=\"/wc-save.js\"></script>";
+            static const String saveHead = String(PORTAL_STYLE) + SAVE_WAIT_STYLE;
             manager.setCustomHeadElement(saveHead.c_str());
             savePending = true;
             saveSucceeded = false;

@@ -1068,6 +1068,20 @@ namespace WebServer
     // Server update
     // ==================================================
 
+    void stop()
+    {
+        if (running) {
+            server.stop();
+            running = false;
+            Serial.println("Web server stopped");
+        }
+        if (mdnsRunning) {
+            MDNS.close();
+            mdnsRunning = false;
+            Serial.println("mDNS stopped");
+        }
+    }
+
     void update()
     {
 
@@ -1097,17 +1111,7 @@ namespace WebServer
         if (!available)
         {
 
-            if (running)
-            {
-                server.stop();
-                running = false;
-            }
-
-            if (mdnsRunning)
-            {
-                MDNS.close();
-                mdnsRunning = false;
-            }
+            stop();
 
             return;
         }

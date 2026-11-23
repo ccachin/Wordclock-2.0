@@ -160,6 +160,15 @@ namespace OTAManager
     // OTA service
     // ==================================================
 
+    void stop()
+    {
+        if (started) {
+            ArduinoOTA.end();
+            started = false;
+            Serial.println("OTA stopped");
+        }
+    }
+
     void update()
     {
         if (!configured)
@@ -173,14 +182,7 @@ namespace OTAManager
 
         if (!available)
         {
-            if (started)
-            {
-                ArduinoOTA.end();
-
-                started = false;
-
-                Serial.println("OTA stopped");
-            }
+            stop();
 
             return;
         }

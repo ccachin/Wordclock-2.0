@@ -5,5 +5,6 @@ namespace WebServer
 
     void begin();
     void update();
+    void stop();
 
 }
