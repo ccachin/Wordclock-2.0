@@ -295,6 +295,34 @@ namespace WebServer
         handleGetTransitions();
     }
 
+    static void handleGetDevice() {
+        const auto value = SettingsManager::deviceSettings();
+        StaticJsonDocument<512> doc;
+        doc["name"] = value.name;
+        doc["timezone"] = value.timezone;
+        doc["setupComplete"] = value.setupComplete;
+        doc["savePending"] = SettingsManager::savePending();
+        doc["saveFailed"] = SettingsManager::saveFailed();
+        String json; serializeJson(doc, json);
+        sendJson(200, json);
+    }
+    static void handleSetDevice() {
+        auto value = SettingsManager::deviceSettings();
+        if (!server.hasArg("name") && !server.hasArg("timezone") && !server.hasArg("setupComplete")) { sendJson(400, "{\"error\":\"Missing device settings\"}"); return; }
+        if (server.hasArg("name")) { value.name = server.arg("name"); value.name.trim(); }
+        if (server.hasArg("timezone")) value.timezone = server.arg("timezone");
+        if (server.hasArg("setupComplete")) {
+            const String flag = server.arg("setupComplete");
+            if (flag != "true" && flag != "false") { sendJson(400, "{\"error\":\"Invalid setupComplete\"}"); return; }
+            value.setupComplete = flag == "true";
+        }
+        if (!SettingsManager::validDeviceSettings(value)) { sendJson(400, "{\"error\":\"Invalid device settings\"}"); return; }
+        if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
+        if (!SettingsManager::setDeviceSettings(value)) { sendJson(400, "{\"error\":\"Invalid device settings\"}"); return; }
+        Serial.printf("Device settings accepted; pending=%d, heap=%u\n", SettingsManager::savePending(), static_cast<unsigned>(ESP.getFreeHeap()));
+        handleGetDevice();
+    }
+
     static void handleGetAppearance() {
         char json[40];
         snprintf(json, sizeof(json), "{\"faceColor\":\"#%06lX\"}", static_cast<unsigned long>(SettingsManager::faceColor()));
@@ -812,6 +840,8 @@ namespace WebServer
             HTTP_GET,
             handleStatus);
 
+        server.on("/api/device", HTTP_GET, handleGetDevice);
+        server.on("/api/device", HTTP_POST, handleSetDevice);
         server.on("/api/appearance", HTTP_GET, handleGetAppearance);
         server.on("/api/appearance", HTTP_POST, handleSetAppearance);
 

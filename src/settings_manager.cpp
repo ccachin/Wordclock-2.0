@@ -12,6 +12,7 @@
 #include "color_manager.h"
 #include "transition_manager.h"
 #include "night_manager.h"
+#include "time_manager.h"
 
 namespace SettingsManager
 {
@@ -28,11 +29,31 @@ namespace SettingsManager
     constexpr char BACKUP_PATH[] =
         "/config/settings.bak";
 
-    constexpr int SETTINGS_VERSION = 7;
+    constexpr int SETTINGS_VERSION = 8;
 
     constexpr uint32_t SAVE_DELAY = 3000;
     constexpr uint32_t RETRY_DELAY = 10000;
 
+    static DeviceSettings device;
+    DeviceSettings deviceSettings() { return device; }
+    bool validDeviceSettings(const DeviceSettings &value) {
+        if (!value.name.length() || value.name.length() > 48 || !TimeManager::supportsTimezone(value.timezone)) return false;
+        for (unsigned i = 0; i < value.name.length(); ++i) {
+            unsigned char c = value.name[i];
+            if (c < 32 || c == 127) return false;
+        }
+        String trimmed = value.name; trimmed.trim();
+        return trimmed.length() != 0;
+    }
+    bool setDeviceSettings(const DeviceSettings &value) {
+        if (!validDeviceSettings(value)) return false;
+        if (device.name == value.name && device.timezone == value.timezone && device.setupComplete == value.setupComplete) return true;
+        const bool timezoneChanged = device.timezone != value.timezone;
+        device = value;
+        if (timezoneChanged) TimeManager::setTimezone(device.timezone);
+        markChanged();
+        return true;
+    }
     static uint32_t faceRgb = 0x151515;
     uint32_t faceColor() { return faceRgb; }
     void setFaceColor(uint32_t rgb) { if (rgb <= 0xFFFFFF && rgb != faceRgb) { faceRgb = rgb; markChanged(); } }
@@ -41,6 +62,9 @@ namespace SettingsManager
     static bool initialized = false;
     static bool retryPending = false;
     static bool migrationNeeded = false;
+
+    bool savePending() { return dirty; }
+    bool saveFailed() { return retryPending; }
 
     static uint32_t lastChangeAt = 0;
     static uint32_t lastAttemptAt = 0;
@@ -105,7 +129,7 @@ namespace SettingsManager
     static bool readSettingsFile(
         const char *path,
         ThemeManager::Theme &theme,
-        int *loadedVersion = nullptr, uint16_t *transitionDuration = nullptr, NightManager::Settings *nightOut = nullptr, uint32_t *faceOut = nullptr)
+        int *loadedVersion = nullptr, uint16_t *transitionDuration = nullptr, NightManager::Settings *nightOut = nullptr, uint32_t *faceOut = nullptr, DeviceSettings *deviceOut = nullptr)
     {
 
         File file = LittleFS.open(path, "r");
@@ -115,13 +139,17 @@ namespace SettingsManager
             return false;
         }
 
-        if (file.size() > 1024)
+        if (file.size() > 1536)
         {
             file.close();
             return false;
         }
 
-        StaticJsonDocument<1024> doc;
+        DynamicJsonDocument doc(1536);
+        if (doc.capacity() < 1536) {
+            Serial.println("Settings JSON allocation failed");
+            return false;
+        }
 
         DeserializationError error =
             deserializeJson(doc, file);
@@ -144,7 +172,7 @@ namespace SettingsManager
 
         int version = doc["version"].as<int>();
 
-        if (version != 1 && version != 2 && version != 3 && version != 4 && version != 5 && version != 6 && version != 7)
+        if (version != 1 && version != 2 && version != 3 && version != 4 && version != 5 && version != 6 && version != 7 && version != 8)
         {
 
             Serial.println(
@@ -251,6 +279,16 @@ namespace SettingsManager
         }
         CRGB face(0x15, 0x15, 0x15);
         if (version >= 7 && !parseColor(doc["faceColor"].as<const char *>(), face)) return false;
+        DeviceSettings loadedDevice;
+        loadedDevice.setupComplete = true; // Existing versions are already configured.
+        if (version >= 8) {
+            if (!doc["deviceName"].is<const char*>() || !doc["timezone"].is<const char*>() || !doc["setupComplete"].is<bool>()) return false;
+            loadedDevice.name = doc["deviceName"].as<String>();
+            loadedDevice.timezone = doc["timezone"].as<String>();
+            loadedDevice.setupComplete = doc["setupComplete"].as<bool>();
+            if (!validDeviceSettings(loadedDevice)) return false;
+        }
+        if (deviceOut) *deviceOut = loadedDevice;
         if (faceOut) *faceOut = (uint32_t(face.r)<<16) | (uint32_t(face.g)<<8) | face.b;
         if (nightOut) *nightOut = night;
         if (transitionDuration) *transitionDuration = duration;
@@ -285,7 +323,7 @@ namespace SettingsManager
         if (readSettingsFile(
                 SETTINGS_PATH,
                 theme,
-                &version, &duration, &night, &faceRgb))
+                &version, &duration, &night, &faceRgb, &device))
         {
 
             ThemeManager::setTheme(theme);
@@ -305,7 +343,7 @@ namespace SettingsManager
         if (readSettingsFile(
                 TEMP_PATH,
                 theme,
-                &version, &duration, &night, &faceRgb))
+                &version, &duration, &night, &faceRgb, &device))
         {
 
             ThemeManager::setTheme(theme);
@@ -337,7 +375,7 @@ namespace SettingsManager
         if (readSettingsFile(
                 BACKUP_PATH,
                 theme,
-                &version, &duration, &night, &faceRgb))
+                &version, &duration, &night, &faceRgb, &device))
         {
 
             ThemeManager::setTheme(theme);
@@ -398,12 +436,19 @@ namespace SettingsManager
             rear,
             sizeof(rear));
 
-        StaticJsonDocument<1024> doc;
+        DynamicJsonDocument doc(1536);
+        if (doc.capacity() < 1536) {
+            Serial.println("Settings JSON allocation failed");
+            return false;
+        }
 
         char face[8];
         snprintf(face, sizeof(face), "#%06lX", static_cast<unsigned long>(faceRgb));
         doc["faceColor"] = face;
         doc["version"] = SETTINGS_VERSION;
+        doc["deviceName"] = device.name;
+        doc["timezone"] = device.timezone;
+        doc["setupComplete"] = device.setupComplete;
         const auto night = NightManager::getSettings();
         doc["nightEnabled"] = night.enabled;
         doc["nightStart"] = night.startMinute;
@@ -425,6 +470,7 @@ namespace SettingsManager
         doc["rearEffect"] = AnimationManager::effectToString(theme.rearAnimation.effect);
         doc["frontSpeed"] = theme.frontAnimation.speed;
         doc["rearSpeed"] = theme.rearAnimation.speed;
+        if (doc.overflowed()) return false;
         File file =
             LittleFS.open(TEMP_PATH, "w");
 
@@ -461,10 +507,11 @@ namespace SettingsManager
         uint16_t verifiedDuration = 0;
         NightManager::Settings verifiedNight;
         uint32_t verifiedFace = 0;
+        DeviceSettings verifiedDevice;
 
         if (!readSettingsFile(
                 TEMP_PATH,
-                verified, nullptr, &verifiedDuration, &verifiedNight, &verifiedFace))
+                verified, nullptr, &verifiedDuration, &verifiedNight, &verifiedFace, &verifiedDevice))
         {
 
             Serial.println(
@@ -476,6 +523,7 @@ namespace SettingsManager
         }
 
         if (
+            verifiedDevice.name != device.name || verifiedDevice.timezone != device.timezone || verifiedDevice.setupComplete != device.setupComplete ||
             verifiedFace != faceRgb ||
             !NightManager::equals(night, verifiedNight) ||
             verifiedDuration != TransitionManager::getDuration() ||
@@ -584,7 +632,11 @@ namespace SettingsManager
             return;
         }
 
+        device = DeviceSettings();
         bool loaded = load();
+        // Do not treat damaged existing files as a genuine new installation.
+        if (!loaded && (LittleFS.exists(SETTINGS_PATH) || LittleFS.exists(TEMP_PATH) || LittleFS.exists(BACKUP_PATH))) device.setupComplete = true;
+        TimeManager::setTimezone(device.timezone);
 
         initialized = true;
 

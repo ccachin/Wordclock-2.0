@@ -5,9 +5,34 @@
 namespace TimeManager
 {
 
-    // Swiss timezone with automatic daylight saving
-    constexpr char TIMEZONE[] =
-        "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00";
+    struct Zone { const char *name; const char *rule; };
+    static const Zone zones[] = {
+        {"Europe/Zurich", "CET-1CEST-2,M3.5.0/2,M10.5.0/3"},
+        {"Europe/Paris", "CET-1CEST-2,M3.5.0/2,M10.5.0/3"},
+        {"Europe/Berlin", "CET-1CEST-2,M3.5.0/2,M10.5.0/3"},
+        {"Europe/London", "GMT0BST,M3.5.0/1,M10.5.0/2"},
+        {"Europe/Lisbon", "WET0WEST,M3.5.0/1,M10.5.0/2"},
+        {"Europe/Athens", "EET-2EEST,M3.5.0/3,M10.5.0/4"},
+        {"Etc/UTC", "UTC0"},
+        {"America/New_York", "EST5EDT,M3.2.0/2,M11.1.0/2"},
+        {"America/Toronto", "EST5EDT,M3.2.0/2,M11.1.0/2"},
+        {"America/Los_Angeles", "PST8PDT,M3.2.0/2,M11.1.0/2"},
+        {"Asia/Tokyo", "JST-9"}
+    };
+    static const char *activeRule = zones[0].rule;
+    bool supportsTimezone(const String &zone) {
+        for (const auto &entry : zones) if (zone == entry.name) return true;
+        return false;
+    }
+    bool setTimezone(const String &zone) {
+        for (const auto &entry : zones) if (zone == entry.name) {
+            activeRule = entry.rule;
+            setenv("TZ", activeRule, 1);
+            tzset();
+            return true;
+        }
+        return false;
+    }
 
     constexpr char NTP_SERVER_1[] = "ch.pool.ntp.org";
     constexpr char NTP_SERVER_2[] = "pool.ntp.org";
@@ -18,7 +43,7 @@ namespace TimeManager
     void begin()
     {
 
-        setenv("TZ", TIMEZONE, 1);
+        setenv("TZ", activeRule, 1);
         tzset();
     }
 
@@ -26,7 +51,7 @@ namespace TimeManager
     {
 
         configTime(
-            TIMEZONE,
+            activeRule,
             NTP_SERVER_1,
             NTP_SERVER_2);
     }

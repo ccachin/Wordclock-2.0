@@ -14,6 +14,8 @@ namespace TimeManager
 
     void begin();
     void startNtp();
+    bool supportsTimezone(const String &zone);
+    bool setTimezone(const String &zone);
 
     bool isValid();
 
