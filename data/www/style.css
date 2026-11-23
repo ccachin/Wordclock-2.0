@@ -651,3 +651,10 @@ select{background:var(--control)}.community-card{border-radius:6px}.studio-nav b
 .access-brand{display:flex;align-items:center;gap:16px;margin:18px 0}
 .access-brand img{flex:none;border-radius:12px}
 #accessPanel a{color:inherit;text-decoration:underline}
+
+#setupDialog{color:var(--text);background:var(--panel);border:1px solid var(--border);border-radius:12px;width:min(460px,calc(100% - 24px));max-height:90dvh;box-sizing:border-box;padding:0;overflow:auto}#setupDialog::backdrop{background:#0009}.setup-inner{padding:24px}.setup-inner progress{width:100%;height:5px;accent-color:var(--accent)}.setup-inner h2{font-size:26px;margin:24px 0 16px}.setup-inner input[type=text],.setup-inner select{width:100%;box-sizing:border-box;padding:12px;border:1px solid var(--border);border-radius:6px;background:var(--control);color:var(--text);font:inherit}.setup-actions{display:flex;gap:10px;margin-top:20px}.setup-actions button{flex:1}#setupSkip{margin-top:10px;width:100%}#setupMessage{overflow-wrap:anywhere}#setupDialog [hidden]{display:none!important}
+
+/* Settings hierarchy */
+#settingsView > .settings-group-title {font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:28px 0 10px;line-height:1.4}
+#settingsView > .settings-group-title:first-child {margin-top:0}
+#settingsView > .panel {margin-bottom:12px}
