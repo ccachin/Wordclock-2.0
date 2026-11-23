@@ -751,6 +751,7 @@ namespace WebServer
                name == "studio-visual.js" ||
                name == "community.js" ||
                name == "setup.js" ||
+               name == "maintenance.js" ||
                name == "icon.svg" ||
                name == "manifest.json";
     }
@@ -916,6 +917,9 @@ namespace WebServer
             serveFile("/www/studio.js", "application/javascript; charset=utf-8");
         });
 
+        server.on("/maintenance.js", HTTP_GET, []() {
+            serveFile("/www/maintenance.js", "application/javascript; charset=utf-8");
+        });
         server.on("/setup.js", HTTP_GET, []() {
             serveFile("/www/setup.js", "application/javascript; charset=utf-8");
         });
