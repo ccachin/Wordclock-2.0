@@ -671,6 +671,25 @@ namespace WebServer
         sendJson(202, "{\"ok\":true,\"restartPending\":true}");
     }
 
+    static void handleResetSettings()
+    {
+        if (server.header("X-Wordclock-Action") != "reset-settings") {
+            sendJson(403, "{\"error\":\"Missing action header\"}"); return;
+        }
+        if (!authorizeWebUpdate()) return;
+        if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
+        if (restartPending || wifiAction || PreviewManager::active() || SettingsManager::savePending() || SettingsManager::saveFailed()) {
+            sendJson(409, "{\"error\":\"Action, preview or settings save pending\"}"); return;
+        }
+        TransitionManager::cancel();
+        ThemeManager::begin();
+        NightManager::setSettings(NightManager::Settings());
+        TransitionManager::setDuration(TransitionManager::DEFAULT_DURATION);
+        SettingsManager::markChanged();
+        Serial.println("Maintenance: settings reset accepted; save pending");
+        sendJson(202, "{\"ok\":true,\"savePending\":true,\"saveFailed\":false}");
+    }
+
     static void handleWifiAction()
     {
         // Custom header prevents cross-origin HTML form submissions.
@@ -995,6 +1014,7 @@ namespace WebServer
 
         server.on("/api/system", HTTP_GET, handleSystemInfo);
         server.on("/api/system/restart", HTTP_POST, handleRestart);
+        server.on("/api/system/reset-settings", HTTP_POST, handleResetSettings);
         server.on("/api/wifi", HTTP_GET, handleWifiInfo);
         server.on("/api/wifi", HTTP_POST, handleWifiAction);
         // Read-only handoff probe; only the setup portal gets cross-origin access.
