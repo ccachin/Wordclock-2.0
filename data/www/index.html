@@ -224,7 +224,7 @@
                     <div class="animation-setting"><label for="nightMode">Comportement nocturne</label><select id="nightMode"><option value="0">Luminosité réduite</option><option value="1">Heure uniquement</option><option value="2">Extinction complète</option></select></div>
                     <div id="nightBrightnessRow"><div class="setting"><label for="nightBrightness">Luminosité maximale</label><span id="nightBrightnessValue">5 %</span></div><input type="range" id="nightBrightness" min="1" max="255" value="13"></div>
                     <p class="muted" id="nightHint"></p>
-                    <div class="night-actions"><button type="submit">Appliquer</button><button type="button" id="nightReset">Valeurs par défaut</button></div>
+                    <div class="night-actions"><button type="submit" class="action-button action-primary">Appliquer</button><button type="button" id="nightReset" class="action-button">Valeurs par défaut</button></div>
                 </fieldset>
             </form>
             <p id="nightMessage" class="muted" role="status"></p>
@@ -238,7 +238,7 @@
             <fieldset id="faceFields" disabled>
                 <div id="facePresets" class="face-presets"></div>
                 <div class="setting"><label for="facePicker">Couleur personnalisée</label><input type="color" id="facePicker" value="#151515"></div>
-                <button type="button" id="faceSave">Appliquer</button>
+                <button type="button" id="faceSave" class="action-button action-primary">Appliquer</button>
             </fieldset>
             <p id="faceMessage" class="muted" role="status"></p>
         </section>
@@ -248,12 +248,12 @@
             <div class="setting"><label for="transitionEnabled">Activer les transitions</label><input type="checkbox" id="transitionEnabled" disabled></div>
             <div class="setting"><label for="transitionDuration">Durée du fondu</label><span id="transitionValue">1,5 s</span></div>
             <input type="range" id="transitionDuration" min="100" max="5000" step="100" value="1500" disabled>
-            <button type="button" id="transitionReset" disabled>Rétablir les valeurs par défaut</button>
+            <button type="button" id="transitionReset" disabled class="action-button">Rétablir les valeurs par défaut</button>
             <p class="muted" id="transitionMessage" role="status"></p>
         </section>
 
         <h2 class="settings-group-title">Configuration</h2>
-        <section class="panel" id="devicePanel"><h2>Mon horloge</h2><p id="deviceSummary" role="status">Chargement…</p><button type="button" id="setupOpen" disabled>Relancer la configuration</button></section>
+        <section class="panel" id="devicePanel"><h2>Mon horloge</h2><p id="deviceSummary" role="status">Chargement…</p><button type="button" id="setupOpen" disabled class="action-button">Relancer la configuration</button></section>
 
         <section class="panel">
             <h2>Connexion Wi-Fi</h2>
@@ -261,9 +261,9 @@
             <div class="setting"><span>Adresse IP</span><span id="wifiIp">—</span></div>
             <div class="setting"><span>Adresse locale</span><span id="wifiHost">—</span></div>
             <div class="setting"><span>État</span><span id="wifiState">Chargement…</span></div>
-            <button type="button" id="wifiChange" disabled>Changer de réseau Wi-Fi</button>
+            <button type="button" id="wifiChange" disabled class="action-button">Changer de réseau Wi-Fi</button>
             <p class="muted">Ouvre le portail de configuration sans effacer volontairement les identifiants actuels.</p>
-            <button type="button" id="wifiForget" disabled>Oublier le réseau Wi-Fi</button>
+            <button type="button" id="wifiForget" disabled class="action-button action-danger">Oublier le réseau Wi-Fi</button>
             <p class="muted">Efface les identifiants Wi-Fi et redémarre. Les thèmes et réglages sont conservés.</p>
             <p id="wifiMessage" class="muted" role="status"></p>
         </section>
@@ -273,10 +273,10 @@
             <p class="muted">Utilisez cette adresse depuis votre réseau domestique. L’adresse IP peut changer.</p>
             <label for="accessHost">Adresse locale recommandée</label>
             <input id="accessHost" type="text" readonly value="http://wordclock.local/">
-            <button type="button" id="copyHost">Copier l’adresse locale</button>
+            <button type="button" id="copyHost" class="action-button">Copier l’adresse locale</button>
             <label for="accessIp">Adresse IP actuelle (secours)</label>
             <input id="accessIp" type="text" readonly placeholder="Indisponible">
-            <button type="button" id="copyIp" disabled>Copier l’adresse IP</button>
+            <button type="button" id="copyIp" disabled class="action-button">Copier l’adresse IP</button>
             <p id="accessMessage" class="muted" role="status"></p>
             <div class="access-brand"><img src="/icon.svg" alt="" width="64" height="64"><div><strong>Ma Wordclock</strong><p class="muted">Ajoutez un raccourci pour retrouver votre horloge.</p></div></div>
             <p><a href="http://wordclock.local/">Ouvrir l’adresse locale recommandée</a> avant de créer le raccourci.</p>
@@ -359,21 +359,21 @@
  <section data-setup-step="2" hidden><p>Choisissez la couleur réelle de votre façade.</p><div id="setupFace" class="theme-preview" style="--front:#FFE1B4;--rear:transparent;width:200px;height:200px;margin:24px auto"></div><div id="setupPresets" class="face-presets"></div><label for="setupColor">Couleur personnalisée</label><input id="setupColor" type="color"><p class="muted">Cette couleur modifie uniquement les aperçus.</p></section>
  <section data-setup-step="3" hidden><p id="setupSummary"></p><p class="muted">Adresse : wordclock.local</p><p>Les paramètres restent modifiables dans les réglages.</p></section>
  <p id="setupMessage" role="status" aria-live="polite"></p>
- <div class="setup-actions"><button type="button" id="setupBack">Retour</button><button type="button" id="setupNext">Continuer</button></div>
- <button type="button" id="setupSkip">Passer la configuration</button>
+ <div class="setup-actions"><button type="button" id="setupBack" class="action-button">Retour</button><button type="button" id="setupNext" class="action-button action-primary">Continuer</button></div>
+ <button type="button" id="setupSkip" class="action-button">Passer la configuration</button>
  </div></dialog>
 <dialog id="maintenanceDialog" aria-labelledby="maintenanceTitle">
  <div class="setup-inner">
  <h2 id="maintenanceTitle">Maintenance</h2>
  <p id="maintenanceDescription"></p>
- <div id="maintenanceInfo" hidden><dl id="maintenanceValues"></dl><progress id="maintenanceStorage" max="100" value="0"></progress><button id="maintenanceCopy" type="button">Copier le diagnostic</button><button id="maintenanceRefresh" type="button">Actualiser</button></div>
+ <div id="maintenanceInfo" hidden><dl id="maintenanceValues"></dl><progress id="maintenanceStorage" max="100" value="0"></progress><button id="maintenanceCopy" type="button" class="action-button">Copier le diagnostic</button><button id="maintenanceRefresh" type="button" class="action-button">Actualiser</button></div>
  <form id="maintenanceForm" hidden autocomplete="off">
  <label for="maintenancePassword">Mot de passe administrateur</label><input id="maintenancePassword" type="password" autocomplete="off" required>
  <div id="maintenanceConfirmWrap" hidden><label for="maintenanceConfirm">Saisissez EFFACER pour confirmer</label><input id="maintenanceConfirm" type="text" autocomplete="off" spellcheck="false"></div>
- <button id="maintenanceSubmit" type="submit">Confirmer</button>
+ <button id="maintenanceSubmit" type="submit" class="action-button action-primary">Confirmer</button>
  </form>
  <p id="maintenanceMessage" role="status" aria-live="polite"></p>
- <button id="maintenanceClose" type="button">Fermer</button>
+ <button id="maintenanceClose" type="button" class="action-button">Fermer</button>
  </div>
 </dialog>
 </body>
