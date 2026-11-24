@@ -1,6 +1,7 @@
 
 #include <Arduino.h>
 #include <ArduinoOTA.h>
+#include <Updater.h>
 #include <ESP8266WiFi.h>
 
 #include "ota_manager.h"
@@ -16,6 +17,7 @@ namespace OTAManager
     static bool updating = false;
     static bool configured = false;
     static bool waitingForStorage = false;
+    static bool recoveryPending = false;
     static unsigned int lastProgress = 101;
 
     // ==================================================
@@ -145,16 +147,23 @@ namespace OTAManager
                     break;
             }
 
-            // Restore normal operation after
-            // a failed update.
-
-            if (updating)
+            // Keep the existing emergency restart for receive errors:
+            // ArduinoOTA may continue its receive loop after this callback.
+            if (error == OTA_RECEIVE_ERROR && updating)
             {
+                Serial.println("OTA receive recovery: restarting");
+                Serial.flush();
                 delay(100);
                 ESP.restart();
+                return;
             }
 
-            updating = false; });
+            // Authentication errors do not involve Updater.
+            // Recover outside the library callback for other errors.
+            if (error != OTA_AUTH_ERROR)
+            {
+                recoveryPending = true;
+            } });
 
         configured = true;
     }
@@ -241,6 +250,34 @@ namespace OTAManager
         }
 
         ArduinoOTA.handle();
+
+        if (recoveryPending)
+        {
+            recoveryPending = false;
+            Serial.printf("OTA recovery: updater error %u, running=%u\n",
+                          static_cast<unsigned>(Update.getError()),
+                          static_cast<unsigned>(Update.isRunning()));
+            if (Update.hasError())
+            {
+                Update.printError(Serial);
+            }
+
+            // Do not call Update.end() again: a complete image could be
+            // scheduled for installation. Restart if state is uncertain.
+            if (Update.isRunning())
+            {
+                Serial.println("OTA recovery: updater still active, restarting");
+                Serial.flush();
+                ESP.restart();
+                return;
+            }
+
+            updating = false;
+            Update.clearError();
+            stop();
+            Serial.println("OTA recovery: normal operation resumed");
+            // The next loop starts the listener again when safe.
+        }
     }
 
     // ==================================================
