@@ -101,6 +101,8 @@
 
             </div>
 
+            <button id="libraryCreate" class="library-action primary" type="button">Créer un thème</button>
+            <p id="libraryMessage" role="status" class="muted"></p>
             <div id="themeList">
 
                 <p class="muted">
@@ -351,6 +353,10 @@
 
     </main>
 
+<dialog id="libraryDialog" aria-labelledby="libraryTitle"><div class="setup-inner">
+<h2 id="libraryTitle"></h2><div id="libraryActions"></div>
+<section id="libraryShare" hidden><p id="libraryShareInfo"></p><label><input type="checkbox" id="libraryConsent"> Je suis autorisé à partager ce thème et j’accepte sa publication sous licence CC0 1.0.</label><p class="muted">La demande sera publique sur GitHub, où un compte est requis.</p><p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer">Consulter la licence CC0 1.0</a></p><button class="library-action primary" id="librarySubmit" type="button" disabled>Ouvrir la demande GitHub</button></section>
+<p id="libraryDialogMessage" role="status"></p><button class="library-action" id="libraryClose" type="button">Fermer</button></div></dialog>
 <dialog id="setupDialog" aria-labelledby="setupTitle">
  <div class="setup-inner">
  <p class="muted" id="setupProgress"></p><progress id="setupBar" max="4" value="1"></progress>

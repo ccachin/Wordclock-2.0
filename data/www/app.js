@@ -487,7 +487,10 @@ function renderThemeLibrary() {
             () => applyTheme(theme.id)
         );
 
-        themeList.appendChild(button);
+        const tile=document.createElement('div');tile.className='library-tile';
+        const more=document.createElement('button');more.type='button';more.className='library-action library-more';more.textContent='Options';more.setAttribute('aria-label','Options : '+theme.name);
+        more.addEventListener('click',()=>window.wordclockLibrary.open(theme.id));
+        tile.append(button,more);themeList.appendChild(tile);
     }
 
     updateActiveTheme();

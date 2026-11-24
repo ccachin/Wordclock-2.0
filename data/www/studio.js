@@ -311,6 +311,46 @@
         if(editing===id&&!confirmDiscard())return;
         operation(async()=>{const result=await api('DELETE',id);if(!result.ok)throw new Error('Suppression non confirmée');if(editing===id){disableLive();resetDraft();}const refreshed=await refreshSources();status.textContent=refreshed?'Thème supprimé.':'Thème supprimé, actualisation impossible.';});
     });
+    // Library actions operate on persisted themes, never on a Studio draft.
+    const libDialog=byId('libraryDialog'), libActions=byId('libraryActions'), libMsg=byId('libraryDialogMessage');
+    let libShare=null, libBusy=false;
+    function libLock(value){libBusy=value;for(const el of libActions.querySelectorAll('button'))el.disabled=value;byId('libraryClose').disabled=value;}
+    function libResult(message){byId('libraryMessage').textContent=message;}
+    function libClose(){libDialog.close();}
+    async function libRun(fn){if(libBusy||working)return;libLock(true);libMsg.textContent='';try{await fn();}catch(e){libMsg.textContent='Erreur : '+e.message;}finally{libLock(false);}}
+    async function libEdit(id,copy=false){
+        if(!confirmDiscard())return;
+        if(!await refreshSources())throw new Error('Bibliothèque indisponible.');
+        const t=catalog.find(t=>t.id===id);if(!t)throw new Error('Thème indisponible.');
+        previewWanted=false;disableLive();showStudio(true);
+        if(copy||!id.startsWith('custom-')){loadDraft({...t,name:uniqueName(t.name,catalog)});source.value='';imported=true;buttons();}else selectTheme(t);
+        previewWanted=true;libClose();
+    }
+    byId('libraryCreate').addEventListener('click',()=>{if(working||!confirmDiscard())return;previewWanted=false;disableLive();resetDraft();showStudio(true);previewWanted=true;operation(async()=>{await refreshSources();});});
+    byId('libraryClose').addEventListener('click',libClose);
+    libDialog.addEventListener('cancel',e=>{if(libBusy)e.preventDefault();});
+    libDialog.addEventListener('close',()=>{libShare=null;byId('libraryShare').hidden=true;byId('libraryConsent').checked=false;byId('librarySubmit').disabled=true;});
+    byId('libraryConsent').addEventListener('change',()=>{byId('librarySubmit').disabled=!libShare||!byId('libraryConsent').checked;});
+    byId('librarySubmit').addEventListener('click',()=>{if(!libShare||!byId('libraryConsent').checked||libBusy)return;
+        const json=JSON.stringify(libShare,null,2).replace(/`/g,'\\u0060');
+        const url=new URL('https://github.com/ccachin/wordclock-themes/issues/new');
+        url.searchParams.set('title','[Theme] '+libShare.name);url.searchParams.set('body','Licence : CC0 1.0 — Je confirme être autorisé à soumettre ce thème.\n\n```json\n'+json+'\n```');
+        window.open(url.href,'_blank','noopener,noreferrer');libResult('Terminez la soumission sur GitHub. Aucune publication automatique.');libClose();
+    });
+    window.wordclockLibrary={open(id){
+        if(working||libBusy||libDialog.open)return;
+        const t=themes.find(t=>t.id===id);if(!t)return;const personal=id.startsWith('custom-');
+        byId('libraryTitle').textContent=t.name;libActions.replaceChildren();libMsg.textContent='';libShare=null;byId('libraryShare').hidden=true;
+        function action(label,fn,danger=false){const b=document.createElement('button');b.type='button';b.className='library-action'+(danger?' danger':'');b.textContent=label;b.addEventListener('click',()=>libRun(fn));libActions.appendChild(b);}
+        async function saved(){const v=personal?await api('GET',id):themes.find(x=>x.id===id);if(!v||v.id!==id)throw new Error('Thème indisponible.');return v;}
+        action('Appliquer',async()=>{if(!await applyTheme(id))throw new Error('Application non confirmée.');libResult('Thème appliqué.');libClose();});
+        action(personal?'Modifier dans le Studio':'Personnaliser une copie',()=>libEdit(id));
+        action('Dupliquer',()=>libEdit(id,true));
+        if(personal)action('Partager avec la communauté',async()=>{libShare=validateImport(await saved());validate(libShare);byId('libraryShareInfo').textContent='Version enregistrée : '+libShare.name+' — '+(libShare.author||'Auteur non renseigné')+(libShare.description?' — '+libShare.description:'');byId('libraryConsent').checked=false;byId('librarySubmit').disabled=true;byId('libraryShare').hidden=false;});
+        action('Exporter',async()=>{const v=await saved();const data={...validateImport(v),id:v.id};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download=id+'.json';try{document.body.appendChild(link);link.click();libResult('Export demandé.');libClose();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}});
+        if(personal)action('Supprimer',async()=>{if(!window.confirm('Supprimer définitivement « '+t.name+' » ?'))return;const result=await api('DELETE',id);if(!result.ok)throw new Error('Suppression non confirmée.');const refreshed=await refreshSources();libResult(refreshed?'Thème supprimé.':'Thème supprimé, actualisation impossible.');libClose();},true);
+        libDialog.showModal();
+    }};
     // Shared preview transport: one token and heartbeat for both views.
     window.wordclockCommunity = {
         validate: validateImport,
