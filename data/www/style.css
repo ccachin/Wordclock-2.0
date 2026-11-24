@@ -691,3 +691,6 @@ select{background:var(--control)}.community-card{border-radius:6px}.studio-nav b
 
 /* 18E.4: spacing between the device name label and input. */
 #setupDialog #setupName { margin-top: 8px; }
+
+/* Device settings */
+.device-fields{display:grid;gap:8px;margin-bottom:12px}.device-fields input,.device-fields select{width:100%;box-sizing:border-box;min-height:44px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--control);color:var(--text);font:inherit}.device-fields label:not(:first-child){margin-top:8px}#deviceSummary:empty{display:none}
