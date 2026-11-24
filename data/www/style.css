@@ -688,3 +688,6 @@ select{background:var(--control)}.community-card{border-radius:6px}.studio-nav b
 #shortcutDialog::backdrop{background:#0009}
 #shortcutDialog .action-button{width:100%;margin-top:10px}
 #shortcutDialog [hidden]{display:none!important}
+
+/* 18E.4: spacing between the device name label and input. */
+#setupDialog #setupName { margin-top: 8px; }
