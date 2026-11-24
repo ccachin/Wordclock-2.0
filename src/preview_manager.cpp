@@ -13,7 +13,7 @@ namespace PreviewManager {
     bool set(const String& token, const ThemeManager::Theme& theme) {
         if (active() && owner != token) return false;
         if (!WifiManager::isConnected()) return false;
-        if (!owner.length() || temporary.frontColor != theme.frontColor || temporary.rearColor != theme.rearColor || temporary.harmony != theme.harmony || temporary.frontAnimation.effect != theme.frontAnimation.effect || temporary.frontAnimation.speed != theme.frontAnimation.speed || temporary.rearAnimation.effect != theme.rearAnimation.effect || temporary.rearAnimation.speed != theme.rearAnimation.speed) ++rev;
+        if (!owner.length() || temporary.frontBrightness != theme.frontBrightness || temporary.rearBrightness != theme.rearBrightness || temporary.frontColor != theme.frontColor || temporary.rearColor != theme.rearColor || temporary.harmony != theme.harmony || temporary.frontAnimation.effect != theme.frontAnimation.effect || temporary.frontAnimation.speed != theme.frontAnimation.speed || temporary.rearAnimation.effect != theme.rearAnimation.effect || temporary.rearAnimation.speed != theme.rearAnimation.speed) ++rev;
         temporary = theme; owner = token; touched = millis(); return true;
     }
     bool stop(const String& token) {
@@ -25,8 +25,6 @@ namespace PreviewManager {
     ThemeManager::Theme renderTheme() {
         auto result = active() ? temporary : ThemeManager::getTheme();
         result.brightness = ThemeManager::getTheme().brightness;
-        result.frontBrightness = ThemeManager::getTheme().frontBrightness;
-        result.rearBrightness = ThemeManager::getTheme().rearBrightness;
         return result;
     }
 }

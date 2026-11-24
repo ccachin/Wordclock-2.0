@@ -174,9 +174,8 @@ namespace ThemeLibrary
     {
         const auto &old = ThemeManager::getTheme();
         theme.brightness = old.brightness;
-        theme.frontBrightness = old.frontBrightness;
-        theme.rearBrightness = old.rearBrightness;
-        const bool different = old.frontColor != theme.frontColor ||
+        const bool different = old.frontBrightness != theme.frontBrightness ||
+            old.rearBrightness != theme.rearBrightness || old.frontColor != theme.frontColor ||
             old.rearColor != theme.rearColor || old.harmony != theme.harmony ||
             old.frontAnimation.effect != theme.frontAnimation.effect ||
             old.frontAnimation.speed != theme.frontAnimation.speed ||
@@ -255,6 +254,8 @@ namespace ThemeLibrary
                 return false;
             }
 
+            theme.frontBrightness = 100;
+            theme.rearBrightness = 100;
             theme.frontColor = front;
 
             theme.rearColor = rear;

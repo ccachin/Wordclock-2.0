@@ -211,6 +211,7 @@ namespace WebServer
         for (size_t i=0;i<token.length();++i) if (!isxdigit(static_cast<unsigned char>(token[i]))) return false;
         return true;
     }
+    static bool nightNumber(const char* key, unsigned maxValue, unsigned& result);
     static void handlePreview() {
         const String token = server.arg("token");
         if (!validPreviewToken(token)) { sendJson(400, "{\"error\":\"Invalid token\"}"); return; }
@@ -235,6 +236,15 @@ namespace WebServer
                 sendJson(400, "{\"error\":\"Invalid animation\"}"); return;
             }
             a.speed = speed.toInt();
+        }
+        unsigned level;
+        if (server.hasArg("frontBrightness")) {
+            if (!nightNumber("frontBrightness", 100, level)) { sendJson(400, "{\"error\":\"Invalid frontBrightness\"}"); return; }
+            theme.frontBrightness = level;
+        }
+        if (server.hasArg("rearBrightness")) {
+            if (!nightNumber("rearBrightness", 100, level)) { sendJson(400, "{\"error\":\"Invalid rearBrightness\"}"); return; }
+            theme.rearBrightness = level;
         }
         const bool ok = PreviewManager::set(token, theme);
         sendJson(ok ? 200 : 409, ok ? "{\"ok\":true}" : "{\"error\":\"Preview busy or offline\"}");
@@ -512,9 +522,13 @@ namespace WebServer
     // Theme library
     // ==================================================
 
+    // Keep the validated v2 web client working until the Studio migration.
+    static uint8_t responseThemeVersion() { return server.arg("version") == "3" ? 3 : 2; }
+
     static void handleGetThemes()
     {
         String factory = ThemeLibrary::getCatalog();
+        if (responseThemeVersion() == 3) factory.replace("\"version\": 2,", "\"version\": 3, \"frontBrightness\": 100, \"rearBrightness\": 100,");
         int closing = factory.lastIndexOf(']');
         if (closing < 0) {
             sendJson(500, "{\"error\":\"Factory catalog unavailable\"}");
@@ -540,7 +554,7 @@ namespace WebServer
             if (!server.client().connected()) return;
             ThemeCodec::Entry entry;
             String encoded;
-            if (!CustomThemeStore::load(item.as<String>(), entry) || !ThemeCodec::encode(entry, encoded)) {
+            if (!CustomThemeStore::load(item.as<String>(), entry) || !ThemeCodec::encode(entry, encoded, responseThemeVersion())) {
                 Serial.println("Custom catalog: unreadable entry skipped");
                 continue;
             }
@@ -973,7 +987,7 @@ namespace WebServer
                 }
                 ThemeCodec::Entry entry;
                 if (!CustomThemeStore::load(id, entry)) { sendJson(404, "{\"error\":\"Theme not found or unreadable\"}"); return; }
-                if (!ThemeCodec::encode(entry, json)) { sendJson(500, "{\"error\":\"Encoding failed\"}"); return; }
+                if (!ThemeCodec::encode(entry, json, responseThemeVersion())) { sendJson(500, "{\"error\":\"Encoding failed\"}"); return; }
             }
             sendJson(200, json);
         });
@@ -988,7 +1002,7 @@ namespace WebServer
             if (CustomThemeStore::count() >= CustomThemeStore::MAX_THEMES) { sendJson(409, "{\"error\":\"Theme limit reached\"}"); return; }
             if (!CustomThemeStore::create(entry)) { sendJson(500, "{\"error\":\"Creation failed\"}"); return; }
             String json;
-            if (!ThemeCodec::encode(entry, json)) { sendJson(500, "{\"error\":\"Theme saved but response encoding failed\"}"); return; }
+            if (!ThemeCodec::encode(entry, json, responseThemeVersion())) { sendJson(500, "{\"error\":\"Theme saved but response encoding failed\"}"); return; }
             sendJson(201, json);
         });
 
@@ -1006,9 +1020,13 @@ namespace WebServer
             {
                 ThemeCodec::Entry original;
                 if (!CustomThemeStore::load(id, original)) { sendJson(404, "{\"error\":\"Theme not found or unreadable\"}"); return; }
+                if (entry.sourceVersion == 2) {
+                    entry.theme.frontBrightness = original.theme.frontBrightness;
+                    entry.theme.rearBrightness = original.theme.rearBrightness;
+                }
             }
             String json;
-            if (!ThemeCodec::encode(entry, json)) { sendJson(400, "{\"error\":\"Invalid theme\"}"); return; }
+            if (!ThemeCodec::encode(entry, json, responseThemeVersion())) { sendJson(400, "{\"error\":\"Invalid theme\"}"); return; }
             if (!CustomThemeStore::update(entry)) { sendJson(500, "{\"error\":\"Update failed\"}"); return; }
             sendJson(200, json);
         });

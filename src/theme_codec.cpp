@@ -33,7 +33,18 @@ bool decode(const String& json, Entry& out, bool allowMissingId){
     DynamicJsonDocument doc(4096);
     if(deserializeJson(doc,json,DeserializationOption::NestingLimit(3))||!doc.is<JsonObject>())return false;
     JsonObjectConst o=doc.as<JsonObjectConst>(); Entry e;
-    if(!o["version"].is<int>()||o["version"].as<int>()!=2)return false;
+    if(!o["version"].is<int>())return false;
+    const int version=o["version"].as<int>();
+    if(version!=2 && version!=3)return false;
+    e.sourceVersion=version;
+    if(version==3){
+        const char* keys[] = {"frontBrightness", "rearBrightness"};
+        for(const char* key : keys) {
+            if(!o[key].is<int>() || o[key].as<int>()<0 || o[key].as<int>()>100)return false;
+        }
+        e.theme.frontBrightness=o["frontBrightness"].as<int>();
+        e.theme.rearBrightness=o["rearBrightness"].as<int>();
+    }
     if (allowMissingId && !o.containsKey("id")) { e.id = "custom-new"; }
     else if (!field(o["id"],e.id,48,true) || !validId(e.id)) return false;
     if (!field(o["name"],e.name,48,true) || !field(o["author"],e.author,48,false)) return false;
@@ -42,11 +53,15 @@ bool decode(const String& json, Entry& out, bool allowMissingId){
     if(o.containsKey("harmony")){String h;if(!field(o["harmony"],h,24,true)||!ColorManager::harmonyFromString(h,e.theme.harmony))return false;}
     e.theme.brightness=0;out=e;return true;
 }
-bool encode(const Entry& e,String& json){
+bool encode(const Entry& e,String& json,uint8_t version){
+    if(version!=2 && version!=3)return false;
+    if(e.theme.frontBrightness>100 || e.theme.rearBrightness>100)return false;
     DynamicJsonDocument doc(2048); char f[8],r[8];
     snprintf(f,sizeof(f),"#%02X%02X%02X",(unsigned)e.theme.frontColor.r,(unsigned)e.theme.frontColor.g,(unsigned)e.theme.frontColor.b);
     snprintf(r,sizeof(r),"#%02X%02X%02X",(unsigned)e.theme.rearColor.r,(unsigned)e.theme.rearColor.g,(unsigned)e.theme.rearColor.b);
-    doc["version"]=2;doc["id"]=e.id;doc["name"]=e.name;doc["author"]=e.author;doc["description"]=e.description;doc["front"]=String(f);doc["rear"]=String(r);doc["harmony"]=ColorManager::harmonyToString(e.theme.harmony);doc["frontEffect"]=AnimationManager::effectToString(e.theme.frontAnimation.effect);doc["rearEffect"]=AnimationManager::effectToString(e.theme.rearAnimation.effect);doc["frontSpeed"]=e.theme.frontAnimation.speed;doc["rearSpeed"]=e.theme.rearAnimation.speed;
+    doc["version"]=version;
+    if(version==3){doc["frontBrightness"]=e.theme.frontBrightness;doc["rearBrightness"]=e.theme.rearBrightness;}
+    doc["id"]=e.id;doc["name"]=e.name;doc["author"]=e.author;doc["description"]=e.description;doc["front"]=String(f);doc["rear"]=String(r);doc["harmony"]=ColorManager::harmonyToString(e.theme.harmony);doc["frontEffect"]=AnimationManager::effectToString(e.theme.frontAnimation.effect);doc["rearEffect"]=AnimationManager::effectToString(e.theme.rearAnimation.effect);doc["frontSpeed"]=e.theme.frontAnimation.speed;doc["rearSpeed"]=e.theme.rearAnimation.speed;
     if(doc.overflowed())return false;String tmp; if(!serializeJson(doc,tmp))return false;Entry check;if(!decode(tmp,check))return false;json=tmp;return true;
 }
 }
