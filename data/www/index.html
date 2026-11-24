@@ -280,10 +280,11 @@
             <p id="accessMessage" class="muted" role="status"></p>
             <div class="access-brand"><img src="/icon.svg" alt="" width="64" height="64"><div><strong>Ma Wordclock</strong><p class="muted">Ajoutez un raccourci pour retrouver votre horloge.</p></div></div>
             <p><a href="http://wordclock.local/">Ouvrir l’adresse locale recommandée</a> avant de créer le raccourci.</p>
+            <button type="button" id="accessInstall" class="action-button action-primary">Ajouter l’application à l’écran d’accueil</button>
             <label for="accessPlatform">Votre appareil</label>
             <select id="accessPlatform"><option value="android">Android</option><option value="ios">iPhone / iPad</option><option value="windows">Windows</option></select>
             <p id="accessHelp"></p>
-            <p class="muted">Le raccourci doit être ajouté manuellement dans votre navigateur. Les options et l’icône dépendent du navigateur.</p>
+            <p class="muted">Les options d’installation et l’icône dépendent du navigateur.</p>
         </section>
 
         <h2 class="settings-group-title">Maintenance</h2>
@@ -357,10 +358,19 @@
  <section data-setup-step="0"><p>Personnalisez votre Wordclock.</p><label for="setupName">Nom de votre horloge</label><input id="setupName" type="text" maxlength="48" autocomplete="off"><p class="muted">48 octets maximum.</p></section>
  <section data-setup-step="1" hidden><label for="setupZone">Fuseau horaire</label><select id="setupZone"></select><p class="muted">L’heure est synchronisée automatiquement par Internet.</p></section>
  <section data-setup-step="2" hidden><p>Choisissez la couleur réelle de votre façade.</p><div id="setupFace" class="theme-preview" style="--front:#FFE1B4;--rear:transparent;width:200px;height:200px;margin:24px auto"></div><div id="setupPresets" class="face-presets"></div><label for="setupColor">Couleur personnalisée</label><input id="setupColor" type="color"><p class="muted">Cette couleur modifie uniquement les aperçus.</p></section>
- <section data-setup-step="3" hidden><p id="setupSummary"></p><p class="muted">Adresse : wordclock.local</p><p>Les paramètres restent modifiables dans les réglages.</p></section>
+ <section data-setup-step="3" hidden><p id="setupSummary"></p><p>Les paramètres restent modifiables dans les réglages.</p></section>
  <p id="setupMessage" role="status" aria-live="polite"></p>
  <div class="setup-actions"><button type="button" id="setupBack" class="action-button">Retour</button><button type="button" id="setupNext" class="action-button action-primary">Continuer</button></div>
  <button type="button" id="setupSkip" class="action-button">Passer la configuration</button>
+ </div></dialog>
+<dialog id="shortcutDialog" aria-labelledby="shortcutTitle">
+ <div class="setup-inner">
+ <h2 id="shortcutTitle">Votre Wordclock à portée de main</h2>
+ <p>Souhaitez-vous ajouter un raccourci à votre écran d’accueil ?</p>
+ <p id="shortcutHelp" hidden></p>
+ <p id="shortcutAddressHelp" class="muted" hidden></p>
+ <button type="button" id="shortcutAdd" class="action-button action-primary">Ajouter l’application à l’écran d’accueil</button>
+ <button type="button" id="shortcutClose" class="action-button">Plus tard</button>
  </div></dialog>
 <dialog id="maintenanceDialog" aria-labelledby="maintenanceTitle">
  <div class="setup-inner">

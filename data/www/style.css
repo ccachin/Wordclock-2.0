@@ -664,16 +664,16 @@ select{background:var(--control)}.community-card{border-radius:6px}.studio-nav b
 #maintenanceDialog{color:var(--text);background:var(--panel);border:1px solid var(--border);border-radius:12px;width:min(460px,calc(100% - 24px));max-height:90dvh;padding:0;overflow:auto}#maintenanceDialog::backdrop{background:#0009}#maintenanceDialog h2{margin-top:0}#maintenanceDialog input{display:block;width:100%;padding:12px;margin:8px 0 16px;border:1px solid var(--border);border-radius:6px;background:var(--control);color:var(--text);font:inherit}#maintenanceDialog button{margin:6px 6px 6px 0}#maintenanceValues{display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:14px}#maintenanceValues dt{color:var(--muted)}#maintenanceValues dd{margin:0;text-align:right;overflow-wrap:anywhere}#maintenanceMessage{overflow-wrap:anywhere}#maintenanceSubmit.danger{color:var(--error);border-color:var(--error)}
 
 /* Shared settings and dialog actions (18B.6.1). */
-#settingsView .action-button, #setupDialog .action-button, #maintenanceDialog .action-button {
+#settingsView .action-button, #setupDialog .action-button, #maintenanceDialog .action-button, #shortcutDialog .action-button {
   box-sizing:border-box; min-height:44px; max-width:100%; padding:10px 14px;
   border:1px solid var(--border); border-radius:8px; background:var(--panel);
   color:var(--text); font:inherit; line-height:1.35; cursor:pointer;
   white-space:normal; overflow-wrap:anywhere; touch-action:manipulation;
 }
 #settingsView .action-button.action-primary, #setupDialog .action-button.action-primary,
-#maintenanceDialog .action-button.action-primary {background:var(--accent);color:var(--background);border-color:var(--accent);font-weight:600}
+#maintenanceDialog .action-button.action-primary, #shortcutDialog .action-button.action-primary {background:var(--accent);color:var(--background);border-color:var(--accent);font-weight:600}
 #settingsView .action-button.action-danger, #maintenanceDialog .action-button.danger {background:var(--panel);color:var(--error);border-color:var(--error)}
-#settingsView .action-button:disabled, #setupDialog .action-button:disabled, #maintenanceDialog .action-button:disabled {opacity:.5;cursor:default}
+#settingsView .action-button:disabled, #setupDialog .action-button:disabled, #maintenanceDialog .action-button:disabled, #shortcutDialog .action-button:disabled {opacity:.5;cursor:default}
 @media(hover:hover){.action-button:not(:disabled):hover{filter:brightness(.94)}}
 .action-button:not(:disabled):active{opacity:.8}
 #settingsView #accessPanel .action-button{display:block;margin:8px 0 16px}
@@ -683,3 +683,8 @@ select{background:var(--control)}.community-card{border-radius:6px}.studio-nav b
 #settingsView .maintenance-panel button.maintenance-danger{border-color:var(--error);color:var(--error)}
 @media(hover:hover){#settingsView .maintenance-panel button:hover{background:var(--hover)}}
 @media(max-width:600px){#settingsView .action-button:not(.night-actions button){width:100%}#settingsView .night-actions .action-button{flex:1 1 130px}}
+
+#shortcutDialog{color:var(--text);background:var(--panel);border:1px solid var(--border);border-radius:12px;width:min(460px,calc(100% - 24px));max-height:90dvh;box-sizing:border-box;padding:0;overflow:auto}
+#shortcutDialog::backdrop{background:#0009}
+#shortcutDialog .action-button{width:100%;margin-top:10px}
+#shortcutDialog [hidden]{display:none!important}

@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded',function(){
     const url = 'http://' + ip;
     matrix(['EN ATTENTE','DU RESEAU'],'busy');
     status.textContent = 'Votre horloge est connect\u00e9e.';
-    detail.textContent = 'Le r\u00e9seau de configuration va se fermer. Adresse : ' + url;
+    detail.textContent = 'Le r\u00e9seau de configuration va se fermer.';
     const button = document.createElement('button');
     button.type = 'button'; button.disabled = true;
     button.style.width = '100%'; button.style.opacity = '.55';
@@ -114,39 +114,15 @@ document.addEventListener('DOMContentLoaded',function(){
         matrix(['TOUT','EST PRET'],'ready');
         status.textContent = 'Votre Wordclock est pr\u00eate.';
         detail.textContent = 'Votre appareil peut joindre votre horloge.';
-        const address = document.createElement('div');
-        address.style.cssText = 'background:#f5f4f1;border-radius:12px;padding:12px;margin:12px 0;text-align:left';
-        const label = document.createElement('p');
-        label.textContent = 'Adresse locale recommand\u00e9e';
-        const field = document.createElement('input');
-        field.type = 'text'; field.readOnly = true;
-        field.value = 'http://wordclock.local/';
-        field.style.cssText = 'width:100%;box-sizing:border-box;margin:4px 0';
-        const copy = document.createElement('button');
-        copy.type = 'button'; copy.textContent = 'Copier';
-        copy.onclick = async () => {
-          let copied = false;
-          try {
-            if (navigator.clipboard && window.isSecureContext) {
-              await navigator.clipboard.writeText(field.value); copied = true;
-            } else {
-              field.focus(); field.select(); field.setSelectionRange(0,field.value.length);
-              copied = document.execCommand('copy');
-            }
-          } catch (error) { /* Manual selection remains available. */ }
-          copy.textContent = copied ? 'Copi\u00e9' : 'S\u00e9lectionnez et copiez l\u2019adresse';
-        };
-        const fallback = document.createElement('p');
-        fallback.textContent = 'Adresse IP de secours : ' + url;
-        address.append(label, field, copy, fallback);
-        msg.insertBefore(address, button);
         button.disabled = false; button.style.opacity = '1';
-        button.textContent = 'Ouvrir ma Wordclock';
-        button.onclick = () => { window.location.href = url + '/'; };
-        const help = document.createElement('p');
-        help.style.cssText = 'margin-top:20px;border-top:1px solid #ddd;padding-top:16px';
-        help.textContent = 'Gardez votre Wordclock \u00e0 port\u00e9e de main : ouvrez l\u2019adresse locale dans votre navigateur habituel, puis ajoutez un raccourci \u00e0 votre \u00e9cran d\u2019accueil. Les instructions sont aussi disponibles dans les r\u00e9glages.';
-        msg.appendChild(help);
+        button.textContent = 'Ouvrir l\u2019application de la Wordclock';
+        button.onclick = () => { window.location.href = url + '/?shortcut=1'; };
+        const help = document.createElement('details');
+        const summary = document.createElement('summary');
+        summary.textContent = 'Probl\u00e8me de connexion ?';
+        const fallback = document.createElement('p');
+        fallback.textContent = 'Ouvrez dans votre navigateur : ' + url + '/';
+        help.append(summary, fallback); msg.appendChild(help);
         return;
       } catch (error) {
         if (Date.now()-since >= 20000) {
