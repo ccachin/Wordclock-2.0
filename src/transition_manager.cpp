@@ -16,6 +16,7 @@ namespace TransitionManager {
     static CRGB source[Config::TOTAL_LED_COUNT];
     static CRGB lastFront, sourceFront;
     static uint8_t lastBrightness, sourceBrightness;
+    static uint8_t lastFrontBrightness, lastRearBrightness, sourceFrontBrightness, sourceRearBrightness;
     static bool ready = false, active = false;
     static uint32_t started;
     void begin() { ready = active = false; }
@@ -27,10 +28,12 @@ namespace TransitionManager {
         for (uint16_t i = 0; i < Config::TOTAL_LED_COUNT; ++i) source[i] = last[i];
         sourceFront = lastFront;
         sourceBrightness = lastBrightness;
+        sourceFrontBrightness = lastFrontBrightness;
+        sourceRearBrightness = lastRearBrightness;
         started = millis();
         active = true;
     }
-    void apply(uint32_t now, bool timeChanged, uint8_t& brightness) {
+    void apply(uint32_t now, bool timeChanged, uint8_t& brightness, uint8_t& frontBrightness, uint8_t& rearBrightness) {
         if (!active) return;
         uint32_t elapsed = now - started;
         if (elapsed >= activeDuration) { active = false; return; }
@@ -47,14 +50,18 @@ namespace TransitionManager {
             Leds::setPixel(i, ColorManager::interpolate(from, target, t));
         }
         brightness = static_cast<uint8_t>(sourceBrightness + (static_cast<int>(brightness)-sourceBrightness)*t + 0.5f);
+        frontBrightness = static_cast<uint8_t>(sourceFrontBrightness + (static_cast<int>(frontBrightness)-sourceFrontBrightness)*t + 0.5f);
+        rearBrightness = static_cast<uint8_t>(sourceRearBrightness + (static_cast<int>(rearBrightness)-sourceRearBrightness)*t + 0.5f);
     }
-    void remember(uint8_t brightness) {
+    void remember(uint8_t brightness, uint8_t frontBrightness, uint8_t rearBrightness) {
         lastFront = CRGB::Black;
         for (uint16_t i = 0; i < Config::TOTAL_LED_COUNT; ++i) {
             last[i] = Leds::getPixel(i);
             if (i < Config::FRONT_LED_COUNT && last[i] != CRGB::Black) lastFront = last[i];
         }
         lastBrightness = brightness;
+        lastFrontBrightness = frontBrightness;
+        lastRearBrightness = rearBrightness;
         ready = true;
     }
 }

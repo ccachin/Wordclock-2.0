@@ -296,8 +296,10 @@ namespace RenderManager
         // ==============================================
 
         uint8_t brightness = theme.brightness;
-        if (!previewActive && !previewChanged) TransitionManager::apply(currentMillis, timeChanged, brightness);
-        TransitionManager::remember(brightness);
+        uint8_t frontBrightness = theme.frontBrightness;
+        uint8_t rearBrightness = theme.rearBrightness;
+        if (!previewActive && !previewChanged) TransitionManager::apply(currentMillis, timeChanged, brightness, frontBrightness, rearBrightness);
+        TransitionManager::remember(brightness, frontBrightness, rearBrightness);
 
         if (nightActive) {
             const auto& night = NightManager::getSettings();
@@ -323,7 +325,7 @@ namespace RenderManager
         // Scale after transition snapshots and night/status processing.
         // Keep snapshots unscaled to avoid cumulative attenuation.
         for (uint16_t i = 0; i < Config::TOTAL_LED_COUNT; ++i) {
-            const uint8_t percent = i < Config::FRONT_LED_COUNT ? theme.frontBrightness : theme.rearBrightness;
+            const uint8_t percent = i < Config::FRONT_LED_COUNT ? frontBrightness : rearBrightness;
             if (percent == 100) continue;
             CRGB c = Leds::getPixel(i);
             c.r = (uint16_t(c.r) * percent + 50) / 100;

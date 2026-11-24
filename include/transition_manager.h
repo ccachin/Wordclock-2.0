@@ -9,6 +9,6 @@ namespace TransitionManager {
     void request();
     void cancel();
     bool isActive();
-    void apply(uint32_t now, bool timeChanged, uint8_t& brightness);
-    void remember(uint8_t brightness);
+    void apply(uint32_t now, bool timeChanged, uint8_t& brightness, uint8_t& frontBrightness, uint8_t& rearBrightness);
+    void remember(uint8_t brightness, uint8_t frontBrightness, uint8_t rearBrightness);
 }
