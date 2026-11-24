@@ -892,7 +892,7 @@ for (const c of Object.values(animationControls)) {
 }
 
 async function refreshThemeLibrary() {
-    themes = await request("/api/themes");
+    themes = await request("/api/themes?version=3");
     renderThemeLibrary();
 }
 

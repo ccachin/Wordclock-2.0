@@ -41,8 +41,8 @@
     }
     function payload(action) {
         const p = new URLSearchParams({action, token});
-        if(action === 'set' && !community.hidden && communityPreview){for(const key of ['front','rear','harmony','frontEffect','rearEffect','frontSpeed','rearSpeed'])p.set(key,communityPreview[key]);return p;}
-        if(action === 'set') for(const [key,id] of Object.entries({front:'FrontColor',rear:'RearColor',harmony:'Harmony',frontEffect:'FrontEffect',rearEffect:'RearEffect',frontSpeed:'FrontSpeed',rearSpeed:'RearSpeed'})) p.set(key,byId('studio'+id).value);
+        if(action === 'set' && !community.hidden && communityPreview){for(const key of ['front','rear','harmony','frontEffect','rearEffect','frontSpeed','rearSpeed','frontBrightness','rearBrightness'])p.set(key,communityPreview[key]);return p;}
+        if(action === 'set') for(const [key,id] of Object.entries({front:'FrontColor',rear:'RearColor',harmony:'Harmony',frontEffect:'FrontEffect',rearEffect:'RearEffect',frontSpeed:'FrontSpeed',rearSpeed:'RearSpeed',frontBrightness:'FrontBrightness',rearBrightness:'RearBrightness'})) p.set(key,byId('studio'+id).value);
         return p;
     }
     async function requestPreview(action) {
@@ -92,15 +92,15 @@
     let last=0;
     function frame(now) { if(!studio.hidden && now-last>=40) {render(now);last=now;} requestAnimationFrame(frame); }
     // Theme persistence is independent from the preview session.
-    const fields = {name:'Name',author:'Author',description:'Description',front:'FrontColor',rear:'RearColor',harmony:'Harmony',frontEffect:'FrontEffect',rearEffect:'RearEffect',frontSpeed:'FrontSpeed',rearSpeed:'RearSpeed'};
+    const fields = {name:'Name',author:'Author',description:'Description',front:'FrontColor',rear:'RearColor',harmony:'Harmony',frontEffect:'FrontEffect',rearEffect:'RearEffect',frontSpeed:'FrontSpeed',rearSpeed:'RearSpeed',frontBrightness:'FrontBrightness',rearBrightness:'RearBrightness'};
     const source=byId('studioSource'), status=byId('studioSaveStatus');
     let shareId='', shareData=null;
     let lastSource='', imported=false, fromFile=false, editing='', working=false, catalog=[], catalogReady=false;
     function draft() {
-        const data={version:2};
+        const data={version:3};
         for(const [key,suffix] of Object.entries(fields)) {
             const value=byId('studio'+suffix).value;
-            data[key]=key.endsWith('Speed')?Number(value):value;
+            data[key]=(key.endsWith('Speed')||key.endsWith('Brightness'))?Number(value):value;
         }
         return data;
     }
@@ -142,7 +142,7 @@
         } catch(e){status.textContent='Bibliothèque indisponible : '+e.message;buttons();return false;}
     }
     async function api(method,id,data){
-        const response=await fetch('/api/themes/custom'+(id?'?id='+encodeURIComponent(id):''),{method,cache:'no-store',...(data?{headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{})});
+        const response=await fetch('/api/themes/custom?version=3'+(id?'&id='+encodeURIComponent(id):''),{method,cache:'no-store',...(data?{headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{})});
         const result=await response.json();if(!response.ok)throw new Error(result.error||'HTTP '+response.status);return result;
     }
     async function operation(fn){if(working)return;working=true;buttons();status.textContent='';try{await fn();}catch(e){status.textContent='Erreur : '+e.message;}finally{working=false;buttons();}}
@@ -153,7 +153,7 @@
         previewWanted=false;disableLive();
         const data=await request('/api/theme');
         if(!await refreshSources())throw new Error('Bibliothèque indisponible.');
-        const matches=catalog.filter(t=>(t.harmony||'manual')===(data.harmony||'manual')&&['front','rear'].every(f=>t[f].toLowerCase()===data[f].toLowerCase()&&(t[f+'Effect']||'solid')===(data[f+'Effect']||'solid')&&(t[f+'Speed']??50)===(data[f+'Speed']??50)));
+        const matches=catalog.filter(t=>(t.harmony||'manual')===(data.harmony||'manual')&&['front','rear'].every(f=>t[f].toLowerCase()===data[f].toLowerCase()&&(t[f+'Effect']||'solid')===(data[f+'Effect']||'solid')&&(t[f+'Speed']??50)===(data[f+'Speed']??50)&&(t[f+'Brightness']??100)===(data[f+'Brightness']??100)));
         if(matches.length)selectTheme(matches[0]);else {loadDraft({...defaults,...data});source.value='';buttons();}
         previewWanted=true;
     }
@@ -214,6 +214,7 @@
             status.textContent='Thème importé dans le Studio. Cliquez sur Enregistrer et appliquer pour le conserver.';
         });
     });
+    function shareLegacy(t){const v=validateImport(t);if(v.frontBrightness!==100||v.rearBrightness!==100)throw new Error("Partage des luminosités en attente de mise à jour du catalogue. Export JSON disponible.");const {frontBrightness,rearBrightness,...rest}=v;return {...rest,version:2};}
     function closeShare(){
         shareId='';shareData=null;byId('studioSharePanel').hidden=true;
         byId('studioShareConsent').checked=false;
@@ -223,7 +224,7 @@
         if(!id.startsWith('custom-'))throw new Error('Choisissez un thème personnel enregistré.');
         const t=await api('GET',id);
         if(t.id!==id)throw new Error('Thème indisponible.');
-        const data=validateImport(t);validate(data);
+        const data=shareLegacy(t);validate(data);
         shareId=id;shareData=data;
         byId('studioShareInfo').textContent='Version enregistrée : '+data.name+' — '+(data.author||'Auteur non renseigné')+(data.description?' — '+data.description:'');
         byId('studioSharePanel').hidden=false;
@@ -245,9 +246,8 @@
         const id=source.value;
         if(!catalogReady||!id)throw new Error('Choisissez un thème à exporter.');
         const t=id.startsWith('custom-')?await api('GET',id):catalog.find(t=>t.id===id);
-        if(!t||t.id!==id||t.version!==2)throw new Error('Thème indisponible ou format non pris en charge.');
-        const data={version:2,id:t.id,name:t.name,author:t.author??'',description:t.description??'',front:t.front,rear:t.rear,harmony:t.harmony??'manual',frontEffect:t.frontEffect,rearEffect:t.rearEffect,frontSpeed:t.frontSpeed,rearSpeed:t.rearSpeed};
-        if(Object.values(data).some(v=>v===undefined))throw new Error('Thème incomplet.');
+        if(!t||t.id!==id)throw new Error('Thème indisponible.');
+        const data={...validateImport(t),id:t.id};
         const slug=t.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||id;
         const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'}));
         const link=document.createElement('a');link.href=url;link.download=slug+'.json';
@@ -346,7 +346,7 @@
         action('Appliquer',async()=>{if(!await applyTheme(id))throw new Error('Application non confirmée.');libResult('Thème appliqué.');libClose();});
         action(personal?'Modifier dans le Studio':'Personnaliser une copie',()=>libEdit(id));
         action('Dupliquer',()=>libEdit(id,true));
-        if(personal)action('Partager avec la communauté',async()=>{libShare=validateImport(await saved());validate(libShare);byId('libraryShareInfo').textContent='Version enregistrée : '+libShare.name+' — '+(libShare.author||'Auteur non renseigné')+(libShare.description?' — '+libShare.description:'');byId('libraryConsent').checked=false;byId('librarySubmit').disabled=true;byId('libraryShare').hidden=false;});
+        if(personal)action('Partager avec la communauté',async()=>{libShare=shareLegacy(await saved());validate(libShare);byId('libraryShareInfo').textContent='Version enregistrée : '+libShare.name+' — '+(libShare.author||'Auteur non renseigné')+(libShare.description?' — '+libShare.description:'');byId('libraryConsent').checked=false;byId('librarySubmit').disabled=true;byId('libraryShare').hidden=false;});
         action('Exporter',async()=>{const v=await saved();const data={...validateImport(v),id:v.id};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download=id+'.json';try{document.body.appendChild(link);link.click();libResult('Export demandé.');libClose();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}});
         if(personal)action('Supprimer',async()=>{if(!window.confirm('Supprimer définitivement « '+t.name+' » ?'))return;const result=await api('DELETE',id);if(!result.ok)throw new Error('Suppression non confirmée.');const refreshed=await refreshSources();libResult(refreshed?'Thème supprimé.':'Thème supprimé, actualisation impossible.');libClose();},true);
         libDialog.showModal();

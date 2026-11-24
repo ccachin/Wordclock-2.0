@@ -9,7 +9,7 @@
         }
     }
     function validateImport(data) {
-        if(!data || typeof data!=='object' || Array.isArray(data) || data.version!==2) throw new Error('Format de thème version 2 requis.');
+        if(!data || typeof data!=='object' || Array.isArray(data) || ![2,3].includes(data.version)) throw new Error('Format de thème version 2 ou 3 requis.');
         const bytes=s=>new TextEncoder().encode(s).length;
         function text(key,max,required=false,fallback) {
             const v=data[key]===undefined?fallback:data[key];
@@ -17,7 +17,7 @@
             return v;
         }
         if(data.id!==undefined && (typeof data.id!=='string'||data.id.length>48||!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(data.id))) throw new Error('Identifiant invalide.');
-        const result={version:2,name:text('name',48,true),author:text('author',48),description:text('description',200,false,'')};
+        const result={version:3,name:text('name',48,true),author:text('author',48),description:text('description',200,false,'')};
         for(const key of ['front','rear']) {
             if(typeof data[key]!=='string'||!/^#[0-9a-fA-F]{6}$/.test(data[key])) throw new Error('Couleur invalide : '+key);
             result[key]=data[key];
@@ -31,6 +31,7 @@
             if(!Number.isInteger(data[key])||data[key]<0||data[key]>100) throw new Error('Vitesse invalide : '+key);
             result[key]=data[key];
         }
+        for(const key of ['frontBrightness','rearBrightness']) { const v=data.version===2?100:data[key]; if(!Number.isInteger(v)||v<0||v>100)throw new Error('Luminosité invalide : '+key);result[key]=v; }
         if(bytes(JSON.stringify(result))>2048) throw new Error('Thème trop volumineux.');
         return result;
     }

@@ -83,12 +83,15 @@
         const offsets={identical:0,complementary:180,'analogous-plus':30,'analogous-minus':-30,triadic:120};
         return [f,harmony.value==='manual'?r:rotate(f,offsets[harmony.value])];
     }
+    const level=face=>Number(byId(`studio${face}Brightness`).value)/100;
+    const dim=(color,face)=>color.map(n=>n*level(face));
     function render(now) {
         const [f,r]=bases();
-        front.style.setProperty('--studio-front',css(effect(f,controls[0],now)));
-        segments.forEach((p,i)=>{const col=css(effect(r,controls[1],now,i));p.setAttribute('fill',col);p.setAttribute('stroke',col);p.style.filter=`drop-shadow(0 0 2px ${col})`;});
+        front.style.setProperty('--studio-front',css(dim(effect(f,controls[0],now),'Front')));
+        segments.forEach((p,i)=>{const col=css(dim(effect(r,controls[1],now,i),'Rear'));p.setAttribute('fill',col);p.setAttribute('stroke',col);p.style.filter=`drop-shadow(0 0 2px ${col})`;});
     }
     function updatePreview() {
+        for(const face of ['Front','Rear'])byId(`studio${face}BrightnessValue`).textContent=byId(`studio${face}Brightness`).value+' %';
         const manual=harmony.value==='manual';
         byId('studioManualRear').hidden=!manual;
         byId('studioAutoRear').hidden=manual;
@@ -96,6 +99,6 @@
         render(performance.now());
     }
     controls.forEach(c=>{for(const el of [c.effect,c.speed]) el.addEventListener('input',()=>{c.start=performance.now();sync(c);updatePreview();});sync(c);});
-    for(const id of ['studioFrontColor','studioRearColor','studioHarmony']) byId(id).addEventListener('input',updatePreview);
+    for(const id of ['studioFrontColor','studioRearColor','studioHarmony','studioFrontBrightness','studioRearBrightness']) byId(id).addEventListener('input',updatePreview);
     window.WordclockStudioVisual=Object.freeze({controls,sync,render,updatePreview,timePixels,matrixPreview,rgb,css,rotate,effect});
 })();
