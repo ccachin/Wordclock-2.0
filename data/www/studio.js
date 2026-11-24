@@ -214,7 +214,8 @@
             status.textContent='Thème importé dans le Studio. Cliquez sur Enregistrer et appliquer pour le conserver.';
         });
     });
-    function shareLegacy(t){const v=validateImport(t);if(v.frontBrightness!==100||v.rearBrightness!==100)throw new Error("Partage des luminosités en attente de mise à jour du catalogue. Export JSON disponible.");const {frontBrightness,rearBrightness,...rest}=v;return {...rest,version:2};}
+    function shareTheme(t){const v=validateImport(t);validate(v);return v;}
+    function shareBrightness(t){return ' — Avant : '+t.frontBrightness+' % · Arrière : '+t.rearBrightness+' %';}
     function closeShare(){
         shareId='';shareData=null;byId('studioSharePanel').hidden=true;
         byId('studioShareConsent').checked=false;
@@ -224,9 +225,9 @@
         if(!id.startsWith('custom-'))throw new Error('Choisissez un thème personnel enregistré.');
         const t=await api('GET',id);
         if(t.id!==id)throw new Error('Thème indisponible.');
-        const data=shareLegacy(t);validate(data);
+        const data=shareTheme(t);validate(data);
         shareId=id;shareData=data;
-        byId('studioShareInfo').textContent='Version enregistrée : '+data.name+' — '+(data.author||'Auteur non renseigné')+(data.description?' — '+data.description:'');
+        byId('studioShareInfo').textContent='Version enregistrée : '+data.name+' — '+(data.author||'Auteur non renseigné')+(data.description?' — '+data.description:'')+shareBrightness(data);
         byId('studioSharePanel').hidden=false;
     }));
     byId('studioShareConsent').addEventListener('change',buttons);
@@ -346,7 +347,7 @@
         action('Appliquer',async()=>{if(!await applyTheme(id))throw new Error('Application non confirmée.');libResult('Thème appliqué.');libClose();});
         action(personal?'Modifier dans le Studio':'Personnaliser une copie',()=>libEdit(id));
         action('Dupliquer',()=>libEdit(id,true));
-        if(personal)action('Partager avec la communauté',async()=>{libShare=shareLegacy(await saved());validate(libShare);byId('libraryShareInfo').textContent='Version enregistrée : '+libShare.name+' — '+(libShare.author||'Auteur non renseigné')+(libShare.description?' — '+libShare.description:'');byId('libraryConsent').checked=false;byId('librarySubmit').disabled=true;byId('libraryShare').hidden=false;});
+        if(personal)action('Partager avec la communauté',async()=>{libShare=shareTheme(await saved());validate(libShare);byId('libraryShareInfo').textContent='Version enregistrée : '+libShare.name+' — '+(libShare.author||'Auteur non renseigné')+(libShare.description?' — '+libShare.description:'')+shareBrightness(libShare);byId('libraryConsent').checked=false;byId('librarySubmit').disabled=true;byId('libraryShare').hidden=false;});
         action('Exporter',async()=>{const v=await saved();const data={...validateImport(v),id:v.id};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download=id+'.json';try{document.body.appendChild(link);link.click();libResult('Export demandé.');libClose();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}});
         if(personal)action('Supprimer',async()=>{if(!window.confirm('Supprimer définitivement « '+t.name+' » ?'))return;const result=await api('DELETE',id);if(!result.ok)throw new Error('Suppression non confirmée.');const refreshed=await refreshSources();libResult(refreshed?'Thème supprimé.':'Thème supprimé, actualisation impossible.');libClose();},true);
         libDialog.showModal();

@@ -25,7 +25,11 @@
         const filtered=entries.filter(t=>(t.name+' '+t.author+' '+t.description).toLowerCase().includes(q));
         for(const t of filtered){
             const card=document.createElement('button');card.type='button';card.className='theme-card community-card';card.setAttribute('aria-pressed',String(t===selected));card.disabled=locked;
-            const preview=document.createElement('div');preview.className='theme-preview';preview.style.setProperty('--front',t.front);preview.style.setProperty('--rear',t.rear);
+            const preview=document.createElement('div');preview.className='theme-preview';const v=window.WordclockStudioVisual;
+            const level=n=>n>0?0.45+0.55*Math.pow(n/100,0.4):0;
+            preview.style.setProperty('--front',t.frontBrightness===0?'var(--face-unlit,#393939)':v.css(v.rgb(t.front).map(n=>n*level(t.frontBrightness))));
+            preview.style.setProperty('--rear',v.css(v.rgb(t.rear).map(n=>n*level(t.rearBrightness))));
+            if(t.rearBrightness===0)preview.style.boxShadow='none';
             window.WordclockStudioVisual.matrixPreview(preview);
             const title=document.createElement('strong');title.textContent=t.name;
             const author=document.createElement('small');author.textContent=t.author;
@@ -41,7 +45,9 @@
             const data=await json('catalog.json',262144);
             if(data.format!=='wordclock-community-catalog'||data.version!==1||!Array.isArray(data.themes)||data.themes.length>500)throw new Error('Catalogue incompatible');
             const validated=data.themes.map(t=>{
-                if(!t||!['name','author','description','front','rear','id','path'].every(k=>typeof t[k]==='string')||!/^themes\/[a-z0-9-]+\.json$/.test(t.path)||!/^#[0-9a-f]{6}$/i.test(t.front)||!/^#[0-9a-f]{6}$/i.test(t.rear))throw new Error('Entrée de catalogue invalide');return t;
+                if(!t||!['name','author','description','front','rear','id','path'].every(k=>typeof t[k]==='string')||!/^themes\/[a-z0-9-]+\.json$/.test(t.path)||!/^#[0-9a-f]{6}$/i.test(t.front)||!/^#[0-9a-f]{6}$/i.test(t.rear))throw new Error('Entrée de catalogue invalide');
+                const levels={};for(const key of ['frontBrightness','rearBrightness']){const n=t[key]===undefined?100:t[key];if(!Number.isInteger(n)||n<0||n>100)throw new Error('Luminosité du catalogue invalide');levels[key]=n;}
+                return {...t,...levels};
             });
             if(seq!==generation||!visible())return;entries=validated;render();
         }catch(e){if(seq===generation&&visible())byId('communityStatus').textContent='Catalogue indisponible : '+e.message;}
@@ -53,7 +59,7 @@
             const raw=await json(t.path,8192);if(raw.id!==t.id)throw new Error('Identifiant incohérent');
             const theme=bridge.validate(raw);
             if(seq!==selection||!visible())return;
-            current=theme;byId('communityName').textContent=theme.name;byId('communityDescription').textContent=theme.description;byId('communityExisting').textContent='';byId('communityDetails').hidden=false;status('');bridge.preview(theme);controls();
+            current=theme;byId('communityName').textContent=theme.name;byId('communityDescription').textContent=theme.description;byId('communityBrightness').textContent='Avant : '+theme.frontBrightness+' % · Arrière : '+theme.rearBrightness+' %';byId('communityExisting').textContent='';byId('communityDetails').hidden=false;status('');bridge.preview(theme);controls();
             try{const info=await bridge.inspect(theme);if(seq===selection&&visible())byId('communityExisting').textContent=info.existing?'Déjà dans ma bibliothèque':'';}catch(e){if(seq===selection&&visible())byId('communityExisting').textContent='Bibliothèque non vérifiée.';}
         }catch(e){if(seq===selection&&visible())status('Thème indisponible : '+e.message);}
     }
