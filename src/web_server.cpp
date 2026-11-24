@@ -29,6 +29,10 @@ namespace WebServer
 
     static bool running = false;
     static bool mdnsRunning = false;
+    static bool mdnsAttempted = false;
+    static uint32_t mdnsAttemptAt = 0;
+    static IPAddress mdnsAddress;
+    static constexpr uint32_t MDNS_RETRY_MS = 10000;
     static uint8_t wifiAction = 0;
     static uint32_t wifiActionAt = 0;
     static bool restartPending = false;
@@ -1080,6 +1084,7 @@ namespace WebServer
             mdnsRunning = false;
             Serial.println("mDNS stopped");
         }
+        mdnsAttempted = false;
     }
 
     void update()
@@ -1125,27 +1130,31 @@ namespace WebServer
 
             Serial.println("Web server started");
 
-            if (MDNS.begin("wordclock"))
-            {
-
-                MDNS.addService(
-                    "http",
-                    "tcp",
-                    80);
-
-                mdnsRunning = true;
-
-                Serial.println(
-                    "http://wordclock.local");
-            }
-            else
-            {
-
-                Serial.println("mDNS failed");
-            }
-
             Serial.println(
                 WifiManager::getIPAddress());
+        }
+
+        const IPAddress currentAddress = WiFi.localIP();
+        if (mdnsRunning && currentAddress != mdnsAddress) {
+            MDNS.close();
+            mdnsRunning = false;
+            mdnsAttempted = false;
+            Serial.println("mDNS restarting: IP changed");
+        }
+
+        if (!mdnsRunning && (!mdnsAttempted ||
+                millis() - mdnsAttemptAt >= MDNS_RETRY_MS)) {
+            mdnsAttempted = true;
+            mdnsAttemptAt = millis();
+            if (MDNS.begin("wordclock")) {
+                MDNS.addService("http", "tcp", 80);
+                mdnsAddress = currentAddress;
+                mdnsRunning = true;
+                Serial.println("http://wordclock.local");
+            } else {
+                MDNS.close();
+                Serial.println("mDNS failed; retry in 10s");
+            }
         }
 
         server.handleClient();
