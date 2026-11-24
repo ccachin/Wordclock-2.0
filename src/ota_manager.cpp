@@ -7,6 +7,7 @@
 #include "ota_config.h"
 #include "wifi_manager.h"
 #include "settings_manager.h"
+#include "storage.h"
 #include "leds.h"
 
 namespace OTAManager
@@ -14,6 +15,7 @@ namespace OTAManager
     static bool started = false;
     static bool updating = false;
     static bool configured = false;
+    static bool waitingForStorage = false;
     static unsigned int lastProgress = 101;
 
     // ==================================================
@@ -60,7 +62,8 @@ namespace OTAManager
             Serial.println();
             Serial.println("OTA update started");
 
-            SettingsManager::save();
+            // Settings must already be persisted before ArduinoOTA.handle().
+            Serial.println("OTA: settings already saved");
 
             Leds::clear();
             Leds::show(); });
@@ -185,6 +188,26 @@ namespace OTAManager
             stop();
 
             return;
+        }
+
+        // ArduinoOTA runs the transfer synchronously from handle().
+        // Let the normal loop persist pending settings before serving OTA.
+        if (!Storage::isReady() ||
+            SettingsManager::savePending() ||
+            SettingsManager::saveFailed())
+        {
+            if (!waitingForStorage)
+            {
+                Serial.println("OTA waiting: settings or storage not ready");
+                waitingForStorage = true;
+            }
+            return;
+        }
+
+        if (waitingForStorage)
+        {
+            Serial.println("OTA available: settings and storage ready");
+            waitingForStorage = false;
         }
 
         if (!started)
