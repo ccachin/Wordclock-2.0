@@ -10,6 +10,7 @@
 #include "settings_manager.h"
 #include "storage.h"
 #include "leds.h"
+#include "config.h"
 
 namespace OTAManager
 {
@@ -19,6 +20,37 @@ namespace OTAManager
     static bool waitingForStorage = false;
     static bool recoveryPending = false;
     static unsigned int lastProgress = 101;
+
+    // Preserve the rendered frame so an interrupted update can restore it
+    // even when RenderManager does not need to draw a new frame.
+    static CRGB savedFrame[Config::TOTAL_LED_COUNT];
+    static uint8_t savedBrightness = 0;
+    static bool frameSaved = false;
+    static uint8_t displayedSteps = 255;
+
+    static void showProgress(uint8_t steps)
+    {
+        if (steps == displayedSteps) return;
+        displayedSteps = steps;
+        Leds::clear();
+        Leds::setBrightness(32);
+        for (uint8_t i = 0; i < 4; ++i)
+        {
+            Leds::setPixel(Config::MINUTE_LEDS[i],
+                           i < steps ? CRGB(0, 160, 255) : CRGB(0, 0, 35));
+        }
+        Leds::show();
+    }
+
+    static void restoreFrame()
+    {
+        if (!frameSaved) return;
+        for (uint16_t i = 0; i < Config::TOTAL_LED_COUNT; ++i)
+            Leds::setPixel(i, savedFrame[i]);
+        Leds::setBrightness(savedBrightness);
+        Leds::show();
+        frameSaved = false;
+    }
 
     // ==================================================
     // Initialization
@@ -67,8 +99,12 @@ namespace OTAManager
             // Settings must already be persisted before ArduinoOTA.handle().
             Serial.println("OTA: settings already saved");
 
-            Leds::clear();
-            Leds::show(); });
+            savedBrightness = FastLED.getBrightness();
+            for (uint16_t i = 0; i < Config::TOTAL_LED_COUNT; ++i)
+                savedFrame[i] = Leds::getPixel(i);
+            frameSaved = true;
+            displayedSteps = 255;
+            showProgress(0); });
 
         // ==================================================
         // Update completed
@@ -76,6 +112,7 @@ namespace OTAManager
 
         ArduinoOTA.onEnd([]()
                          {
+            showProgress(4);
             Serial.println();
             Serial.println(
                 "OTA completed, restarting..."); });
@@ -95,6 +132,9 @@ namespace OTAManager
 
                 unsigned int percentage =
                     (progress * 100UL) / total;
+
+                // The fourth indicator is reserved for successful validation.
+                showProgress(static_cast<uint8_t>(min(percentage / 25U, 3U)));
 
                 if (
                     percentage != lastProgress &&
@@ -272,6 +312,7 @@ namespace OTAManager
                 return;
             }
 
+            restoreFrame();
             updating = false;
             Update.clearError();
             stop();
