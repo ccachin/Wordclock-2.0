@@ -652,7 +652,7 @@ namespace WebServer
 
     static void handleSystemInfo()
     {
-        DynamicJsonDocument doc(768);
+        DynamicJsonDocument doc(1024);
         doc["firmware"] = "3.0.0-dev";
         doc["hostname"] = "wordclock.local";
         doc["ip"] = WiFi.localIP().toString();
@@ -660,6 +660,10 @@ namespace WebServer
         doc["uptime"] = millis() / 1000;
         doc["freeHeap"] = ESP.getFreeHeap();
         doc["flashBytes"] = ESP.getFlashChipRealSize();
+        doc["flashConfiguredBytes"] = ESP.getFlashChipSize();
+        doc["resetReason"] = ESP.getResetReason();
+        doc["sketchBytes"] = ESP.getSketchSize();
+        doc["freeSketchBytes"] = ESP.getFreeSketchSpace();
         doc["storageReady"] = Storage::isReady();
         FSInfo info;
         if (Storage::isReady() && LittleFS.info(info)) {

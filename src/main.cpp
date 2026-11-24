@@ -28,8 +28,19 @@ void setup()
 
     Serial.println("Starting...");
 
+    Serial.print("Reset reason: ");
+    Serial.println(ESP.getResetReason());
+    Serial.print("Reset details: ");
+    Serial.println(ESP.getResetInfo());
+    Serial.printf("Flash configured: %lu, actual: %lu bytes\n",
+                  (unsigned long)ESP.getFlashChipSize(),
+                  (unsigned long)ESP.getFlashChipRealSize());
+    Serial.printf("Free heap at startup: %lu bytes\n", (unsigned long)ESP.getFreeHeap());
+
+    Serial.println("Boot: LEDs");
     Leds::begin();
 
+    Serial.println("Boot: storage");
     Storage::begin();
 
     // Complete an interrupted or requested reset before loading any user data.
@@ -44,6 +55,7 @@ void setup()
         return;
     }
 
+    Serial.println("Boot: managers");
     TimeManager::begin();
 
     StatusManager::begin();
@@ -57,14 +69,19 @@ void setup()
 
     RenderManager::begin();
 
+    Serial.println("Boot: Wi-Fi");
     WifiManager::begin();
 
+    Serial.println("Boot: web server");
     WebServer::begin();
 
+    Serial.println("Boot: OTA");
     OTAManager::begin();
 
     StatusManager::setState(
         State::WifiConnecting);
+
+    Serial.printf("Boot: setup complete; free heap: %lu bytes\n", (unsigned long)ESP.getFreeHeap());
 }
 
 void loop()
