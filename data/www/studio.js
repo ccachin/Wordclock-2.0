@@ -7,17 +7,17 @@
     const studio = byId('studioView');
     const communityTab = byId('communityTab'), community = byId('communityView');
     function showStudio(active, online=false, destination="themes") {
-        const page=active?"studio":online?"themes":destination;
+        const page=active||online?"themes":destination;
         byId("homeView").hidden=page!=="home";
         byId("settingsView").hidden=page!=="settings";
         byId("themesNav").hidden=page!=="themes";
-        for(const [id,target] of [["homeTab","home"],["themesTab","themes"],["studioTab","studio"],["settingsTab","settings"]])byId(id).setAttribute("aria-pressed",String(page===target));
+        for(const [id,target] of [["homeTab","home"],["themesTab","themes"],["settingsTab","settings"]])byId(id).setAttribute("aria-pressed",String(page===target));
         if(!online){communityPreview=null; document.dispatchEvent(new Event("wordclock:community-close"));}
-        library.hidden = page!=="themes" || online;
+        library.hidden = page!=="themes" || online || active;
         community.hidden = !online;
         communityTab.setAttribute('aria-pressed', String(online));
         studio.hidden = !active;
-        libraryTab.setAttribute('aria-pressed', String(page==="themes" && !online));
+        libraryTab.setAttribute('aria-pressed', String(page==="themes" && !online && !active));
         studioTab.setAttribute('aria-pressed', String(active));
     }
     libraryTab.addEventListener('click', () => { if (working || !confirmDiscard()) return; previewWanted=false; disableLive(); resetDraft(); showStudio(false); });
@@ -25,7 +25,7 @@
         if(working||byId(id).getAttribute('aria-pressed')==='true'||!confirmDiscard())return;
         previewWanted=false; disableLive(); resetDraft(); showStudio(false,false,destination);
     });
-    studioTab.addEventListener('click', () => { if(working||!studio.hidden)return; showStudio(true); operation(loadActive); });
+    studioTab.addEventListener('click', () => { if(working||!studio.hidden)return; previewWanted=false; disableLive(); showStudio(true); operation(loadActive); });
     communityTab.addEventListener('click', () => {
         if(working || !community.hidden || !confirmDiscard())return;
         previewWanted=false; disableLive(); resetDraft(); showStudio(false,true); document.dispatchEvent(new Event('wordclock:community-open'));

@@ -607,7 +607,7 @@ footer {
 :root[data-appearance="dark"] {color-scheme:dark;--background:#171819;--panel:#111213;--border:#393a3b;--text:#eeeeee;--muted:#a6a7a9;--accent:#e0e0e0;--success:#83cb98;--error:#ff9292;--control:#1c1d1f;--selected:#303133;--hover:#242527}
 main{max-width:780px;padding-bottom:32px}
 header{gap:12px;flex-wrap:wrap;margin-bottom:20px}header h1{flex:1;font-weight:600}header button{font:inherit;font-size:12px;border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:5px;padding:8px;cursor:pointer}
-.main-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;border-bottom:1px solid var(--border);margin-bottom:24px;background:var(--background)}
+.main-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;border-bottom:1px solid var(--border);margin-bottom:24px;background:var(--background)}
 .main-nav button{font:inherit;font-size:14px;padding:14px 3px;border:0;border-bottom:2px solid transparent;color:var(--muted);background:transparent;cursor:pointer}
 .main-nav button[aria-pressed="true"]{color:var(--text);border-bottom-color:var(--accent);font-weight:600}
 .panel,.clock{border-radius:6px}.clock{padding:24px 12px;background:transparent;border:0;margin-bottom:8px}#time{letter-spacing:0}.theme-card{background:var(--panel);border-color:var(--border);border-radius:6px}.theme-card:hover{background:var(--hover)}.theme-card.active,.community-card[aria-pressed="true"]{background:var(--selected);border-color:var(--accent)}
