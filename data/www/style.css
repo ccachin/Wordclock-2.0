@@ -629,7 +629,7 @@ select{background:var(--control)}.community-card{border-radius:6px}.studio-nav b
 .home-preview.matrix-preview {width:min(245px,75%);margin:30px auto;}
 .home-preview.front-off svg text.lit {fill:#555;}
 .home-preview.rear-off {box-shadow:none!important;}
-#powerToggle {display:block;margin:0 auto 20px;}
+#powerToggle {display:block;width:100%;margin:0 auto 20px;}
 
 /* Home preview: distinct unlit glyphs and readable illuminated letters. */
 .home-preview.matrix-preview svg text {fill:#393939;font-weight:500;}
@@ -664,7 +664,7 @@ select{background:var(--control)}.community-card{border-radius:6px}.studio-nav b
 #maintenanceDialog{color:var(--text);background:var(--panel);border:1px solid var(--border);border-radius:12px;width:min(460px,calc(100% - 24px));max-height:90dvh;padding:0;overflow:auto}#maintenanceDialog::backdrop{background:#0009}#maintenanceDialog h2{margin-top:0}#maintenanceDialog input{display:block;width:100%;padding:12px;margin:8px 0 16px;border:1px solid var(--border);border-radius:6px;background:var(--control);color:var(--text);font:inherit}#maintenanceDialog button{margin:6px 6px 6px 0}#maintenanceValues{display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:14px}#maintenanceValues dt{color:var(--muted)}#maintenanceValues dd{margin:0;text-align:right;overflow-wrap:anywhere}#maintenanceMessage{overflow-wrap:anywhere}#maintenanceSubmit.danger{color:var(--error);border-color:var(--error)}
 
 /* Shared settings and dialog actions (18B.6.1). */
-#settingsView .action-button, #setupDialog .action-button, #maintenanceDialog .action-button, #shortcutDialog .action-button {
+#homeView .action-button, #settingsView .action-button, #setupDialog .action-button, #maintenanceDialog .action-button, #shortcutDialog .action-button {
   box-sizing:border-box; min-height:44px; max-width:100%; padding:10px 14px;
   border:1px solid var(--border); border-radius:8px; background:var(--panel);
   color:var(--text); font:inherit; line-height:1.35; cursor:pointer;
@@ -673,7 +673,7 @@ select{background:var(--control)}.community-card{border-radius:6px}.studio-nav b
 #settingsView .action-button.action-primary, #setupDialog .action-button.action-primary,
 #maintenanceDialog .action-button.action-primary, #shortcutDialog .action-button.action-primary {background:var(--accent);color:var(--background);border-color:var(--accent);font-weight:600}
 #settingsView .action-button.action-danger, #maintenanceDialog .action-button.danger {background:var(--panel);color:var(--error);border-color:var(--error)}
-#settingsView .action-button:disabled, #setupDialog .action-button:disabled, #maintenanceDialog .action-button:disabled, #shortcutDialog .action-button:disabled {opacity:.5;cursor:default}
+#homeView .action-button:disabled, #settingsView .action-button:disabled, #setupDialog .action-button:disabled, #maintenanceDialog .action-button:disabled, #shortcutDialog .action-button:disabled {opacity:.5;cursor:default}
 @media(hover:hover){.action-button:not(:disabled):hover{filter:brightness(.94)}}
 .action-button:not(:disabled):active{opacity:.8}
 #settingsView #accessPanel .action-button{display:block;margin:8px 0 16px}
@@ -697,3 +697,6 @@ select{background:var(--control)}.community-card{border-radius:6px}.studio-nav b
 
 /* Library actions */
 .library-tile{display:flex;flex-direction:column;gap:6px;min-width:0}.library-tile .theme-card{flex:1;width:100%}.library-action{box-sizing:border-box;min-height:44px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);font:inherit;cursor:pointer;width:100%;line-height:1.35}.library-action:hover{background:var(--hover)}.library-action.primary{background:var(--accent);color:var(--background)}.library-action.danger{color:var(--error);border-color:var(--error)}.library-action:disabled{opacity:.5;cursor:default}#libraryCreate{margin-bottom:12px}#libraryDialog{box-sizing:border-box;width:min(460px,calc(100% - 24px));max-height:90dvh;overflow:auto;padding:0;border:1px solid var(--border);border-radius:12px;background:var(--panel);color:var(--text)}#libraryDialog::backdrop{background:#0009}#libraryActions{display:grid;gap:8px}#libraryShare{margin:16px 0}#libraryDialog [hidden]{display:none!important}#libraryClose{margin-top:12px}#libraryDialogMessage:empty,#libraryMessage:empty{display:none}
+
+/* Improve simulated light contrast without changing physical LED output. */
+.home-preview.matrix-preview:not(.front-off) svg text.lit {font-weight:700;filter:drop-shadow(0 0 1px var(--front));}

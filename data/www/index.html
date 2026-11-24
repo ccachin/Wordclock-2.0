@@ -56,7 +56,7 @@
 
         <section class="panel"><div class="section-header"><h2>Ambiance active</h2><span id="homeTheme">Chargement…</span></div>
             <div class="home-preview" aria-hidden="true"></div>
-            <button id="powerToggle" type="button" disabled>Éteindre</button>
+            <button id="powerToggle" type="button" class="action-button" disabled>Éteindre</button>
             <div class="setting">
 
                 <label for="brightness">
@@ -71,13 +71,7 @@
 
             <input type="range" id="brightness" min="0" max="255" value="8" disabled>
 
-            <details class="face-brightness">
-                <summary>Réglage indépendant</summary>
-                <div class="setting"><label for="frontBrightness">Face avant</label><span id="frontBrightnessValue">100 %</span></div>
-                <input type="range" id="frontBrightness" min="0" max="100" value="100" disabled>
-                <div class="setting"><label for="rearBrightness">Face arrière</label><span id="rearBrightnessValue">100 %</span></div>
-                <input type="range" id="rearBrightness" min="0" max="100" value="100" disabled>
-            </details>
+
             <p id="message" role="status"></p>
 
         </section>

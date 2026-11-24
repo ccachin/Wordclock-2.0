@@ -187,10 +187,9 @@ async function updateStatus() {
 // User controls
 // ======================================================
 
-const frontBrightness = document.getElementById("frontBrightness");
-const rearBrightness = document.getElementById("rearBrightness");
+let frontBrightness = 100;
+let rearBrightness = 100;
 function setControlsEnabled(enabled) {
-    frontBrightness.disabled = rearBrightness.disabled = !enabled;
     document.getElementById("powerToggle").disabled = !enabled;
 
     frontColor.disabled = !enabled;
@@ -212,8 +211,6 @@ function setControlsEnabled(enabled) {
 }
 
 function updateBrightnessLabel() {
-    document.getElementById("frontBrightnessValue").textContent = frontBrightness.value + " %";
-    document.getElementById("rearBrightnessValue").textContent = rearBrightness.value + " %";
 
     document.getElementById("powerToggle").textContent=Number(brightness.value)===0?"Allumer":"Éteindre";
     if(Number(brightness.value)>0){lastBrightness=Number(brightness.value);try{localStorage.setItem("wordclock-last-brightness",String(lastBrightness));}catch(e){}}
@@ -326,8 +323,8 @@ function updateControls(data) {
 
     brightness.value =
         data.brightness;
-    frontBrightness.value = data.frontBrightness ?? 100;
-    rearBrightness.value = data.rearBrightness ?? 100;
+    frontBrightness = data.frontBrightness ?? 100;
+    rearBrightness = data.rearBrightness ?? 100;
 
     harmony.value =
         data.harmony || "manual";
@@ -366,6 +363,8 @@ function updateActiveTheme() {
 
             theme.rear.toLowerCase() ===
             rearColor.value.toLowerCase() &&
+            (theme.frontBrightness ?? 100) === frontBrightness &&
+            (theme.rearBrightness ?? 100) === rearBrightness &&
             ["front", "rear"].every(face => {
                 const c = animationControls[face];
                 const effect = theme[face + "Effect"] || "solid";
@@ -430,21 +429,16 @@ function renderThemeLibrary() {
 
         preview.className = "theme-preview";
 
-        preview.style.setProperty(
-            "--front",
-            theme.front
-        );
-
-        preview.style.setProperty(
-            "--rear",
-            theme.rear
-        );
-
-        window.WordclockStudioVisual.matrixPreview(preview);
-        if(theme.harmony && theme.harmony!=="manual") {
-            const v=window.WordclockStudioVisual;
-            preview.style.setProperty('--rear',v.css(v.rotate(v.rgb(theme.front),{identical:0,complementary:180,'analogous-plus':30,'analogous-minus':-30,triadic:120}[theme.harmony]??0)));
-        }
+        const v = window.WordclockStudioVisual;
+        const f = v.rgb(theme.front);
+        const offsets = {identical:0,complementary:180,'analogous-plus':30,'analogous-minus':-30,triadic:120};
+        const r = theme.harmony && theme.harmony !== 'manual' ? v.rotate(f, offsets[theme.harmony] ?? 0) : v.rgb(theme.rear);
+        const fl = (theme.frontBrightness ?? 100) / 100;
+        const rl = (theme.rearBrightness ?? 100) / 100;
+        preview.style.setProperty('--front', fl === 0 ? 'var(--face-unlit,#393939)' : v.css(f.map(n=>n*(0.45+0.55*Math.pow(fl,0.4)))));
+        preview.style.setProperty('--rear', v.css(r.map(n=>n*(rl>0?0.45+0.55*Math.pow(rl,0.4):0))));
+        if(rl === 0) preview.style.boxShadow = 'none';
+        v.matrixPreview(preview);
 
         const name =
             document.createElement("span");
@@ -524,7 +518,7 @@ async function initialize() {
         updateControls(data);
 
         themes =
-            await request("/api/themes");
+            await request("/api/themes?version=3");
 
         initialized = true;
 
@@ -578,8 +572,6 @@ function sendTheme() {
         rear: rearColor.value,
 
         brightness: brightness.value,
-        frontBrightness: frontBrightness.value,
-        rearBrightness: rearBrightness.value,
 
         harmony: harmony.value,
         frontEffect: animationControls.front.effect.value,
@@ -704,9 +696,7 @@ async function applyTheme(id) {
 
                 body: new URLSearchParams({
 
-                    brightness: brightness.value,
-                    frontBrightness: frontBrightness.value,
-                    rearBrightness: rearBrightness.value
+                    brightness: brightness.value
 
                 })
 
@@ -785,8 +775,6 @@ rearColor.addEventListener(
 
 );
 
-frontBrightness.addEventListener("input", scheduleThemeUpdate);
-rearBrightness.addEventListener("input", scheduleThemeUpdate);
 brightness.addEventListener(
 
     "input",
@@ -825,22 +813,23 @@ document.addEventListener('DOMContentLoaded',()=>{
             if(effectKey!==lastKey){start=now;lastKey=effectKey;}
             let g=initialized?Number(brightness.value):0;
             if(nightPreview?.active)g=nightPreview.mode===2?0:Math.min(g,nightPreview.brightness);
-            const scale=(c,n)=>v.css(c.map(x=>x*n));
+            const screenLevel=n=>n>0?0.45+0.55*Math.pow(n,0.4):0;
+            const scale=(c,n)=>v.css(c.map(x=>x*screenLevel(n)));
             const f=v.rgb(frontColor.value),r=v.rgb(harmony.value==='manual'?rearColor.value:effectiveRear);
             const fc=v.effect(f,{...animationControls.front,start},now);
             const rc=Array.from({length:20},(_,i)=>v.effect(r,{...animationControls.rear,start},now,i));
             // Screen contrast is perceptual, not a linear LED power measurement.
-            const frontLevel=g/255*Number(frontBrightness.value)/100;
+            const frontLevel=g/255*Number(frontBrightness)/100;
             const peak=Math.max(...fc);
-            const perceptual=frontLevel>0&&peak>0 ? 0.28+0.72*Math.sqrt(frontLevel) : 0;
-            const normalization=peak>0 ? Math.max(1,160/Math.max(...f,1)) : 1;
+            const perceptual=frontLevel>0&&peak>0 ? screenLevel(frontLevel) : 0;
+            const normalization=peak>0 ? Math.max(1,235/Math.max(...f,1)) : 1;
             const displayFront=fc.map(x=>x*normalization*perceptual);
             el.style.setProperty('--front',v.css(displayFront));
-            const rearScale=nightPreview?.active&&nightPreview.mode===1?0:g/255*Number(rearBrightness.value)/100;
+            const rearScale=nightPreview?.active&&nightPreview.mode===1?0:g/255*Number(rearBrightness)/100;
             const groups=Array.from({length:4},(_,side)=>{const a=rc.slice(side*5,side*5+5);return scale([0,1,2].map(k=>a.reduce((sum,c)=>sum+c[k],0)/5),rearScale);});
-            el.style.boxShadow=`0 9px 18px ${groups[0]}, -9px 0 18px ${groups[1]}, 0 -9px 18px ${groups[2]}, 9px 0 18px ${groups[3]}`;
+            el.style.boxShadow=`0 12px 24px 4px ${groups[0]}, -12px 0 24px 4px ${groups[1]}, 0 -12px 24px 4px ${groups[2]}, 12px 0 24px 4px ${groups[3]}`;
             el.classList.toggle('rear-off',rearScale===0);
-            el.classList.toggle('front-off',g===0||Number(frontBrightness.value)===0);
+            el.classList.toggle('front-off',g===0||Number(frontBrightness)===0);
         }
         setTimeout(()=>requestAnimationFrame(draw),50);
     }
