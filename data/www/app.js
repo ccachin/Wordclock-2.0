@@ -909,10 +909,11 @@ appearanceToggle.addEventListener('click',()=>{darkAppearance=!darkAppearance;se
  function paint(el,c){const rgb=[1,3,5].map(i=>parseInt(c.slice(i,i+2),16));const l=rgb[0]*.299+rgb[1]*.587+rgb[2]*.114;const v=rgb.map(n=>Math.round(n*.78+(l>135?0:255)*.22));el.style.setProperty('--face-color',c);el.style.setProperty('--face-unlit',`rgb(${v.join(',')})`);}
  function draft(c){picker.value=c;paint(sample,c);for(const b of presets.children)b.setAttribute('aria-pressed',String(b.dataset.color.toLowerCase()===c.toLowerCase()));}
  function apply(c){saved=c;paint(document.documentElement,c);draft(c);}
- for(const [name,c] of colors){const b=document.createElement('button');b.type='button';b.dataset.color=c;const sw=document.createElement('span');sw.className='face-swatch';sw.style.background=c;b.append(sw,document.createTextNode(name));b.addEventListener('click',()=>draft(c));presets.append(b);}
+ for(const [name,c] of colors){const b=document.createElement('button');b.type='button';b.dataset.color=c;const sw=document.createElement('span');sw.className='face-swatch';sw.style.background=c;b.append(sw,document.createTextNode(name));b.addEventListener('click',()=>{draft(c);saveFace();});presets.append(b);}
  picker.addEventListener('input',()=>draft(picker.value));
  async function load(){try{const data=await request('/api/appearance');if(!/^#[0-9a-f]{6}$/i.test(data.faceColor))throw Error('Invalid color');apply(data.faceColor);fields.disabled=false;msg.textContent='';}catch(e){msg.textContent='Apparence indisponible. Nouvelle tentative…';setTimeout(load,3000);}}
- document.getElementById('faceSave').addEventListener('click',async()=>{if(busy)return;busy=true;fields.disabled=true;try{const data=await request('/api/appearance',{method:'POST',body:new URLSearchParams({faceColor:picker.value})});apply(data.faceColor);msg.textContent='Couleur appliquée';}catch(e){draft(saved);msg.textContent='Échec de la modification';}finally{busy=false;fields.disabled=false;}});
+ picker.addEventListener('change',saveFace);
+ async function saveFace(){if(busy)return;busy=true;fields.disabled=true;try{const data=await request('/api/appearance',{method:'POST',body:new URLSearchParams({faceColor:picker.value})});apply(data.faceColor);msg.textContent='Couleur appliquée';}catch(e){draft(saved);msg.textContent='Échec de la modification';}finally{busy=false;fields.disabled=false;}}
  function init(){
     try { window.WordclockStudioVisual.matrixPreview(sample); }
     catch (error) { console.error('Face preview initialization failed', error); }

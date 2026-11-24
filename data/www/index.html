@@ -224,7 +224,7 @@
                     <div class="animation-setting"><label for="nightMode">Comportement nocturne</label><select id="nightMode"><option value="0">Luminosité réduite</option><option value="1">Heure uniquement</option><option value="2">Extinction complète</option></select></div>
                     <div id="nightBrightnessRow"><div class="setting"><label for="nightBrightness">Luminosité maximale</label><span id="nightBrightnessValue">5 %</span></div><input type="range" id="nightBrightness" min="1" max="255" value="13"></div>
                     <p class="muted" id="nightHint"></p>
-                    <div class="night-actions"><button type="submit" class="action-button action-primary">Appliquer</button><button type="button" id="nightReset" class="action-button">Valeurs par défaut</button></div>
+                    <div class="night-actions"><button type="button" id="nightReset" class="action-button">Valeurs par défaut</button></div>
                 </fieldset>
             </form>
             <p id="nightMessage" class="muted" role="status"></p>
@@ -238,7 +238,7 @@
             <fieldset id="faceFields" disabled>
                 <div id="facePresets" class="face-presets"></div>
                 <div class="setting"><label for="facePicker">Couleur personnalisée</label><input type="color" id="facePicker" value="#151515"></div>
-                <button type="button" id="faceSave" class="action-button action-primary">Appliquer</button>
+                
             </fieldset>
             <p id="faceMessage" class="muted" role="status"></p>
         </section>

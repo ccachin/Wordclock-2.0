@@ -3,7 +3,7 @@
     const el = id => document.getElementById(id);
     const fields = el('nightFields'), enabled = el('nightEnabled'), start = el('nightStart'), end = el('nightEnd'), mode = el('nightMode'), brightness = el('nightBrightness');
     const defaults = {enabled:false,startMinute:1350,endMinute:420,brightness:13,mode:0};
-    let ready = false, busy = false, dirty = false;
+    let ready = false, busy = false, dirty = false, timer;
     const toTime = n => `${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`;
     const toMinute = s => { const [h,m] = s.split(':').map(Number); return h*60+m; };
     function message(text, error=false) { el('nightMessage').textContent=text; el('nightMessage').classList.toggle('error',error); }
@@ -24,18 +24,23 @@
         }
         setTimeout(poll,10000);
     }
-    el('nightForm').addEventListener('input',()=>{dirty=true;preview();message('Modifications non enregistrées.');});
-    el('nightReset').addEventListener('click',()=>{fill(defaults);dirty=true;message('Valeurs par défaut : clique sur Appliquer pour enregistrer.');});
-    el('nightForm').addEventListener('submit',async e=>{
-        e.preventDefault(); if(!ready || fields.disabled) return;
+    function schedule() { dirty=true;preview();clearTimeout(timer);message('Enregistrement en attente…');timer=setTimeout(save,500); }
+    el('nightForm').addEventListener('input',schedule);
+    el('nightForm').addEventListener('change',schedule);
+    el('nightReset').addEventListener('click',()=>{fill(defaults);schedule();});
+    el('nightForm').addEventListener('submit',e=>{e.preventDefault();schedule();});
+    async function save(){
+        if(!ready || !dirty || fields.disabled) return;
+        if(!el('nightForm').checkValidity()){message('Veuillez renseigner des horaires valides.',true);return;}
         // A status poll may be in progress; let it finish before writing.
         while(busy) { await new Promise(resolve=>setTimeout(resolve,50)); }
-        if(fields.disabled) return;
+        if(fields.disabled || !dirty) return;
+        clearTimeout(timer);
         const body=new URLSearchParams({enabled:enabled.checked?'1':'0',startMinute:String(toMinute(start.value)),endMinute:String(toMinute(end.value)),brightness:brightness.value,mode:mode.value});
-        busy=true;fields.disabled=true;
+        busy=true;fields.disabled=true;message("Envoi en cours…");
         try { const n=await request({method:'POST',body});fill(n);status(n);dirty=false;message('Paramètres appliqués.'); }
         catch(e){dirty=true;message('Échec de l’enregistrement : '+e.message,true);}
         finally {busy=false;fields.disabled=false;}
-    });
+    }
     poll();
 })();
