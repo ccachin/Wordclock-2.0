@@ -46,6 +46,7 @@
         return p;
     }
     async function requestPreview(action) {
+        return window.WordclockLocal.run(async()=>{
         const controller = new AbortController();
         const timeout = setTimeout(()=>controller.abort(),3000);
         try {
@@ -53,6 +54,7 @@
             if(!response.ok) throw new Error(response.status===409?'Aperçu utilisé ailleurs ou indisponible':`HTTP ${response.status}`);
             if(!(await response.json()).ok) throw new Error('Réponse invalide');
         } finally { clearTimeout(timeout); }
+        });
     }
     async function flush() {
         if(busy) return;
@@ -80,12 +82,12 @@
     }
     let previewWanted=false, retryAt=0;
     function startLive(){
-        if(!previewWanted||(studio.hidden&&(community.hidden||!communityPreview))||document.hidden||working||live||busy||stopping||performance.now()<retryAt)return;
+        if(window.WordclockLocal.busy||!previewWanted||(studio.hidden&&(community.hidden||!communityPreview))||document.hidden||working||live||busy||stopping||performance.now()<retryAt)return;
         token=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
         live=true;pending=true;lastSent=-1000;displayLive('Connexion…');flush();
     }
     studio.addEventListener('input',()=>{if(live)pending=true;});
-    setInterval(()=>{if(live||stopping)flush();else startLive();},100);
+    setInterval(()=>{if(window.WordclockLocal.busy)return;if(live||stopping)flush();else startLive();},100);
     document.addEventListener('visibilitychange',()=>{if(document.hidden)disableLive();else startLive();});
     window.addEventListener('pagehide',()=>{if(live||stopping)navigator.sendBeacon('/api/preview',payload('stop'));live=false;});
     // Skip drawing while the editor is hidden.
@@ -142,8 +144,10 @@
         } catch(e){status.textContent='Bibliothèque indisponible : '+e.message;buttons();return false;}
     }
     async function api(method,id,data){
+        return window.WordclockLocal.run(async()=>{
         const response=await fetch('/api/themes/custom?version=3'+(id?'&id='+encodeURIComponent(id):''),{method,cache:'no-store',...(data?{headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{})});
         const result=await response.json();if(!response.ok)throw new Error(result.error||'HTTP '+response.status);return result;
+        });
     }
     async function operation(fn){if(working)return;working=true;buttons();status.textContent='';try{await fn();}catch(e){status.textContent='Erreur : '+e.message;}finally{working=false;buttons();}}
     function selectTheme(t){

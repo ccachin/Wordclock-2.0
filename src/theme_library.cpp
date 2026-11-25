@@ -14,118 +14,18 @@
 namespace ThemeLibrary
 {
 
-    static const char FACTORY_THEMES[] = R"json(
-[
-    {
-        "version": 2,
-        "id": "warm-white",
-        "name": "Warm White",
-        "author": "Wordclock",
-        "front": "#FFE1B4",
-        "rear": "#B87838",
-        "frontEffect": "solid",
-        "rearEffect": "solid",
-        "frontSpeed": 50,
-        "rearSpeed": 50
-    },
-    {
-        "version": 2,
-        "id": "ocean",
-        "name": "Ocean",
-        "author": "Wordclock",
-        "front": "#A9EBFF",
-        "rear": "#267DD9",
-        "frontEffect": "solid",
-        "rearEffect": "solid",
-        "frontSpeed": 50,
-        "rearSpeed": 50
-    },
-    {
-        "version": 2,
-        "id": "sunset",
-        "name": "Sunset",
-        "author": "Wordclock",
-        "front": "#FFB568",
-        "rear": "#A63372",
-        "frontEffect": "solid",
-        "rearEffect": "solid",
-        "frontSpeed": 50,
-        "rearSpeed": 50
-    },
-    {
-        "version": 2,
-        "id": "forest",
-        "name": "Forest",
-        "author": "Wordclock",
-        "front": "#C9E8A5",
-        "rear": "#296B48",
-        "frontEffect": "solid",
-        "rearEffect": "solid",
-        "frontSpeed": 50,
-        "rearSpeed": 50
-    },
-    {
-        "version": 2,
-        "id": "aurora",
-        "name": "Aurora",
-        "author": "Wordclock",
-        "front": "#79F2D0",
-        "rear": "#7848D8",
-        "frontEffect": "solid",
-        "rearEffect": "solid",
-        "frontSpeed": 50,
-        "rearSpeed": 50
-    },
-    {
-        "version": 2,
-        "id": "ocean-pulse",
-        "name": "Ocean Pulse",
-        "author": "Wordclock",
-        "front": "#A9EBFF",
-        "rear": "#267DD9",
-        "frontEffect": "solid",
-        "rearEffect": "breathing",
-        "frontSpeed": 50,
-        "rearSpeed": 70
-    },
-    {
-        "version": 2,
-        "id": "aurora-flow",
-        "name": "Aurora Flow",
-        "author": "Wordclock",
-        "front": "#79F2D0",
-        "rear": "#7848D8",
-        "frontEffect": "solid",
-        "rearEffect": "color-cycle",
-        "frontSpeed": 50,
-        "rearSpeed": 50
-    },
-    {
-        "version": 2,
-        "id": "rainbow",
-        "name": "Rainbow",
-        "author": "Wordclock",
-        "front": "#FFE1B4",
-        "rear": "#FFFFFF",
-        "frontEffect": "solid",
-        "rearEffect": "rainbow",
-        "frontSpeed": 50,
-        "rearSpeed": 65
-    },
-    {
-        "version": 2,
-        "id": "ember",
-        "name": "Ember",
-        "author": "Wordclock",
-        "front": "#FFB568",
-        "rear": "#C53D10",
-        "frontEffect": "solid",
-        "rearEffect": "chase",
-        "frontSpeed": 50,
-        "rearSpeed": 85
-    }
-]
-)json";
+    struct FactoryRecord { const char* id; const char* json; };
+    static const FactoryRecord FACTORY_THEMES[] = {
+        {"warm-white", R"json({"version":2,"id":"warm-white","name":"Warm White","author":"Wordclock","front":"#FFE1B4","rear":"#B87838","frontEffect":"solid","rearEffect":"solid","frontSpeed":50,"rearSpeed":50})json"},
+        {"ocean", R"json({"version":2,"id":"ocean","name":"Ocean","author":"Wordclock","front":"#A9EBFF","rear":"#267DD9","frontEffect":"solid","rearEffect":"solid","frontSpeed":50,"rearSpeed":50})json"},
+        {"sunset", R"json({"version":2,"id":"sunset","name":"Sunset","author":"Wordclock","front":"#FFB568","rear":"#A63372","frontEffect":"solid","rearEffect":"solid","frontSpeed":50,"rearSpeed":50})json"},
+        {"forest", R"json({"version":2,"id":"forest","name":"Forest","author":"Wordclock","front":"#C9E8A5","rear":"#296B48","frontEffect":"solid","rearEffect":"solid","frontSpeed":50,"rearSpeed":50})json"},
+        {"aurora", R"json({"version":2,"id":"aurora","name":"Aurora","author":"Wordclock","front":"#79F2D0","rear":"#7848D8","frontEffect":"solid","rearEffect":"solid","frontSpeed":50,"rearSpeed":50})json"},
+        {"ocean-pulse", R"json({"version":2,"id":"ocean-pulse","name":"Ocean Pulse","author":"Wordclock","front":"#A9EBFF","rear":"#267DD9","frontEffect":"solid","rearEffect":"breathing","frontSpeed":50,"rearSpeed":70})json"},
+        {"aurora-flow", R"json({"version":2,"id":"aurora-flow","name":"Aurora Flow","author":"Wordclock","front":"#79F2D0","rear":"#7848D8","frontEffect":"solid","rearEffect":"color-cycle","frontSpeed":50,"rearSpeed":50})json"},
+        {"rainbow", R"json({"version":2,"id":"rainbow","name":"Rainbow","author":"Wordclock","front":"#FFE1B4","rear":"#FFFFFF","frontEffect":"solid","rearEffect":"rainbow","frontSpeed":50,"rearSpeed":65})json"},
+        {"ember", R"json({"version":2,"id":"ember","name":"Ember","author":"Wordclock","front":"#FFB568","rear":"#C53D10","frontEffect":"solid","rearEffect":"chase","frontSpeed":50,"rearSpeed":85})json"},
+    };
 
     static bool parseColor(
         const char *value,
@@ -164,11 +64,8 @@ namespace ThemeLibrary
         return true;
     }
 
-    String getCatalog()
-    {
-
-        return String(FACTORY_THEMES);
-    }
+    size_t factoryCount() { return sizeof(FACTORY_THEMES)/sizeof(FACTORY_THEMES[0]); }
+    const char* factoryEntry(size_t index) { return index<factoryCount()?FACTORY_THEMES[index].json:nullptr; }
 
     static bool applyResolvedTheme(ThemeManager::Theme theme, const String& id)
     {
@@ -197,40 +94,11 @@ namespace ThemeLibrary
             return applyResolvedTheme(entry.theme, id);
         }
 
-        DynamicJsonDocument doc(6144);
-
-        DeserializationError error =
-            deserializeJson(
-                doc,
-                FACTORY_THEMES);
-
-        if (error)
-        {
-
-            Serial.print(
-                "Theme catalog error: ");
-
-            Serial.println(error.c_str());
-
-            return false;
-        }
-
-        JsonArray themes =
-            doc.as<JsonArray>();
-
-        for (JsonObject entry : themes)
-        {
-
-            const char *themeId =
-                entry["id"].as<const char *>();
-
-            if (
-                themeId == nullptr ||
-                id != themeId)
-            {
-
-                continue;
-            }
+        for (const auto& record : FACTORY_THEMES) {
+            if (id != record.id) continue;
+            DynamicJsonDocument doc(768);
+            if (deserializeJson(doc, record.json)) return false;
+            JsonObject entry = doc.as<JsonObject>();
 
             ThemeManager::Theme theme =
                 ThemeManager::getTheme();

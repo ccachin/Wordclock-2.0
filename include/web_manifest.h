@@ -16,7 +16,7 @@ struct Result {
     uint32_t sizes[AssetCount];
     uint8_t hashes[AssetCount][32];
 };
-// Mutable variant consumes the input buffer (ArduinoJson zero-copy).
+// Both variants preserve input bytes; retained for source compatibility.
 bool validateMutable(char* body, size_t length, Result& result);
 bool validate(const char* body, size_t length, Result& result);
 inline bool validate(const String& body, Result& result) {

@@ -1,5 +1,4 @@
 #include "web_manifest.h"
-#include <ArduinoJson.h>
 #include <string.h>
 
 namespace WebManifest {
@@ -11,151 +10,123 @@ constexpr size_t count = sizeof(assets) / sizeof(assets[0]);
 const char* assetName(size_t i) { return i<count ? assets[i] : nullptr; }
 int assetIndex(const char* name) { for(size_t i=0;i<count;++i) if(name && !strcmp(name,assets[i])) return i; return -1; }
 static bool digit(char c) { return c >= '0' && c <= '9'; }
-// Manifest v1 has only ASCII identifiers, hashes, versions and integer values.
-// Reject every string escape (including Unicode aliases), and require unique
-// literal keys per object. No heap allocation; nesting and keys are bounded.
-class StrictJson {
-    const char* p;
-    const char* end;
-    void ws() { while (p<end && (*p==' ' || *p=='\t' || *p=='\r' || *p=='\n')) ++p; }
-    bool take(char c) { ws(); if (p==end || *p!=c) return false; ++p; return true; }
-    bool str(const char*& start, size_t& len) {
-        if (!take('"')) return false;
-        start=p;
-        while (p<end && *p!='"') {
-            unsigned char c=*p++;
-            if (c<32 || c>=127 || c=='\\') return false;
-        }
-        if (p==end) return false;
-        len=p-start; ++p; return true;
+namespace {
+struct Span {
+    const char* p = nullptr; size_t n = 0;
+    bool equals(const char* s) const { return n==strlen(s) && !memcmp(p,s,n); }
+};
+// The v1 schema has a fixed shape. Parse directly into Result without a
+// second copy, a JSON document, dynamic allocation, or input modification.
+class Reader {
+    const char* p; const char* end; Result& out;
+    void ws() { while(p<end && (*p==' '||*p=='\t'||*p=='\r'||*p=='\n')) ++p; }
+    bool take(char c) { ws(); if(p==end||*p!=c)return false; ++p; return true; }
+    bool string(Span& s) {
+        if(!take('"'))return false;
+        s.p=p;
+        while(p<end&&*p!='"') { unsigned char c=*p++; if(c<32||c>=127||c=='\\')return false; }
+        if(p==end)return false;
+        s.n=p-s.p; ++p; return true;
     }
-    bool literal(const char* s) {
-        size_t n=strlen(s);
-        if (size_t(end-p)<n || memcmp(p,s,n)) return false;
-        p+=n; return true;
-    }
-    bool number() {
-        if (p<end && *p=='-') ++p;
-        if (p==end || !digit(*p)) return false;
-        if (*p=='0') ++p; else while (p<end && digit(*p)) ++p;
-        if (p<end && *p=='.') {
-            ++p; if (p==end || !digit(*p)) return false;
-            while (p<end && digit(*p)) ++p;
-        }
-        if (p<end && (*p=='e' || *p=='E')) {
-            ++p; if (p<end && (*p=='+' || *p=='-')) ++p;
-            if (p==end || !digit(*p)) return false;
-            while (p<end && digit(*p)) ++p;
+    bool number(uint32_t& n) {
+        ws(); n=0;
+        if(p==end||!digit(*p))return false;
+        if(*p=='0') { ++p; return p==end||!digit(*p); }
+        while(p<end&&digit(*p)) {
+            unsigned d=*p++-'0';
+            if(n>(UINT32_MAX-d)/10)return false;
+            n=n*10+d;
         }
         return true;
     }
-    bool object(unsigned depth) {
-        struct Key { const char* start; size_t len; } keys[7];
-        unsigned n=0;
-        ++p;
-        if (take('}')) return true;
-        do {
-            const char* start; size_t len;
-            if (n==7 || !str(start,len)) return false;
-            for (unsigned i=0;i<n;++i)
-                if (keys[i].len==len && !memcmp(keys[i].start,start,len)) return false;
-            keys[n++]={start,len};
-            if (!take(':') || !value(depth+1)) return false;
-            if (take('}')) return true;
-        } while (take(','));
-        return false;
+    bool key(const char* const* names,size_t count,uint32_t& seen,unsigned& i) {
+        Span s;
+        if(!string(s)||!take(':'))return false;
+        for(i=0;i<count;++i)if(s.equals(names[i]))break;
+        if(i==count||(seen&(uint32_t(1)<<i)))return false;
+        seen|=uint32_t(1)<<i; return true;
     }
-    bool value(unsigned depth) {
-        ws(); if (p==end || depth>5) return false;
-        switch (*p) {
-            case '{': return object(depth);
-            case '[':
-                ++p; if (take(']')) return true;
-                do { if (!value(depth+1)) return false; if (take(']')) return true; } while (take(','));
-                return false;
-            case '"': { const char* s; size_t n; return str(s,n); }
-            case 't': return literal("true");
-            case 'f': return literal("false");
-            case 'n': return literal("null");
-            default: return number();
+    bool version() {
+        Span s; if(!string(s)||s.n>32||!s.n)return false;
+        const char* q=s.p; const char* e=q+s.n;
+        for(unsigned i=0;i<3;++i) {
+            if(q==e||!digit(*q)||(*q=='0'&&q+1<e&&digit(q[1])))return false;
+            while(q<e&&digit(*q))++q;
+            if(i<2&&(q==e||*q++!='.'))return false;
         }
+        if(q!=e)return false;
+        memcpy(out.version,s.p,s.n); out.version[s.n]=0; return true;
     }
+    bool compat() {
+        Span s; uint32_t n;
+        return take('{')&&string(s)&&s.equals("webApiVersion")&&take(':')&&number(n)&&n==ApiVersion&&take('}');
+    }
+    static int hex(char c) { return digit(c)?c-'0':c>='a'&&c<='f'?c-'a'+10:-1; }
+    bool file(uint32_t& filesSeen,uint32_t& total) {
+        static const char* const keys[]={"path","size","sha256"};
+        unsigned idx=AssetCount; uint32_t size=0,seen=0; uint8_t hash[32];
+        if(!take('{'))return false;
+        for(unsigned j=0;j<3;++j) {
+            unsigned k;
+            if(j&&!take(','))return false;
+            if(!key(keys,3,seen,k))return false;
+            if(k==0) {
+                Span s; if(!string(s))return false;
+                for(idx=0;idx<AssetCount;++idx)if(s.equals(assetName(idx)))break;
+                if(idx==AssetCount)return false;
+            } else if(k==1) {
+                if(!number(size)||!size||size>128UL*1024)return false;
+            } else {
+                Span s; if(!string(s)||s.n!=64)return false;
+                for(unsigned i=0;i<32;++i) { int a=hex(s.p[i*2]),b=hex(s.p[i*2+1]); if(a<0||b<0)return false; hash[i]=uint8_t((a<<4)|b); }
+            }
+        }
+        if(!take('}')||seen!=7||idx==AssetCount||(filesSeen&(uint32_t(1)<<idx)))return false;
+        if(size>384UL*1024-total)return false;
+        total+=size; filesSeen|=uint32_t(1)<<idx;
+        out.sizes[idx]=size; memcpy(out.hashes[idx],hash,32); return true;
+    }
+    bool files(uint32_t& total) {
+        uint32_t seen=0;
+        if(!take('['))return false;
+        for(unsigned i=0;i<AssetCount;++i) {
+            if(i&&!take(','))return false;
+            if(!file(seen,total))return false;
+        }
+        return take(']')&&seen==((uint32_t(1)<<AssetCount)-1);
+    }
+    bool fail(const char* error) { out.error=error; return false; }
 public:
-    StrictJson(const char* data,size_t len):p(data),end(data+len) {}
-    bool valid() { if (!value(0)) return false; ws(); return p==end; }
-};
-static bool versionValid(const char* p) {
-    if (!p || strlen(p) > 32) return false;
-    for (int i=0; i<3; ++i) {
-        if (!digit(*p) || (*p=='0' && digit(p[1]))) return false;
-        do { ++p; } while (digit(*p));
-        if (i<2 && *p++ != '.') return false;
-    }
-    return *p=='\0';
-}
-static bool hashValid(const char* p) {
-    if (!p || strlen(p)!=64) return false;
-    for (; *p; ++p) if (!digit(*p) && !(*p>='a' && *p<='f')) return false;
-    return true;
-}
-static bool fail(Result& r, const char* error) { r.error=error; return false; }
-template<typename Buffer>
-static bool validateImpl(Buffer body, size_t length, Result& r) {
-    r = Result{};
-    if (!body || !length || length>MaxBytes) return fail(r,"manifest-size");
-    if (!StrictJson(body,length).valid()) return fail(r,"strict-json");
-    // Bounded allocation: the current schema has exactly twelve assets.
-    DynamicJsonDocument doc(4096);
-    if (!doc.capacity()) return fail(r,"memory");
-    const auto err=deserializeJson(doc,body,length,DeserializationOption::NestingLimit(5));
-    if (err==DeserializationError::NoMemory) return fail(r,"memory");
-    if (err) return fail(r,"json");
-    JsonObjectConst root=doc.as<JsonObjectConst>();
-    if (root.isNull() || root.size()!=7) return fail(r,"structure");
-    const char* format=root["format"].as<const char*>();
-    if (!format || strcmp(format,"wordclock-web")) return fail(r,"format");
-    if (!root["manifestVersion"].is<uint32_t>() || root["manifestVersion"].as<uint32_t>()!=1) return fail(r,"manifest-version");
-    const char* version=root["version"].as<const char*>();
-    if (!versionValid(version)) return fail(r,"version");
-    JsonObjectConst compat=root["compatibility"].as<JsonObjectConst>();
-    if (compat.isNull() || compat.size()!=1 || !compat["webApiVersion"].is<uint32_t>() || compat["webApiVersion"].as<uint32_t>()!=ApiVersion) return fail(r,"api-version");
-    JsonArrayConst files=root["files"].as<JsonArrayConst>();
-    if (files.isNull() || files.size()!=count || !root["fileCount"].is<uint32_t>() || root["fileCount"].as<uint32_t>()!=count) return fail(r,"file-count");
-    uint32_t seen=0, total=0;
-    for (JsonVariantConst v : files) {
-        JsonObjectConst f=v.as<JsonObjectConst>();
-        if (f.isNull() || f.size()!=3) return fail(r,"file-structure");
-        const char* path=f["path"].as<const char*>();
-        size_t i=0;
-        if (!path) return fail(r,"file-path");
-        while (i<count && strcmp(path,assets[i])) ++i;
-        if (i==count) return fail(r,"file-path");
-        const uint32_t bit=uint32_t(1)<<i;
-        if (seen&bit) return fail(r,"duplicate-file");
-        seen|=bit;
-        if (!f["size"].is<uint32_t>()) return fail(r,"file-size");
-        const uint32_t size=f["size"].as<uint32_t>();
-        if (!size || size>128UL*1024) return fail(r,"file-size");
-        r.sizes[i]=size;
-        total+=size;
-        if (total>384UL*1024) return fail(r,"total-size");
-        const char* hash=f["sha256"].as<const char*>();
-        if (!hashValid(hash)) return fail(r,"sha256");
-        for (size_t j=0;j<32;++j) {
-            const char a=hash[2*j], b=hash[2*j+1];
-            r.hashes[i][j]=((a<='9'?a-'0':a-'a'+10)<<4)|(b<='9'?b-'0':b-'a'+10);
+    Reader(const char* data,size_t length,Result& r):p(data),end(data+length),out(r){}
+    bool read() {
+        static const char* const keys[]={"format","manifestVersion","version","compatibility","fileCount","totalBytes","files"};
+        uint32_t seen=0,total=0,declared=0,n=0;
+        if(!take('{'))return fail("structure");
+        for(unsigned j=0;j<7;++j) {
+            unsigned k;
+            if(j&&!take(','))return fail("structure");
+            if(!key(keys,7,seen,k))return fail("strict-json");
+            switch(k) {
+                case 0: { Span s; if(!string(s)||!s.equals("wordclock-web"))return fail("format"); break; }
+                case 1: if(!number(n)||n!=1)return fail("manifest-version"); break;
+                case 2: if(!version())return fail("version"); break;
+                case 3: if(!compat())return fail("api-version"); break;
+                case 4: if(!number(n)||n!=AssetCount)return fail("file-count"); break;
+                case 5: if(!number(declared))return fail("total-size"); break;
+                case 6: if(!files(total))return fail("files"); break;
+            }
         }
+        if(!take('}'))return fail("structure");
+        ws(); if(p!=end||seen!=127)return fail("strict-json");
+        if(total!=declared)return fail("total-size");
+        out.fileCount=AssetCount; out.totalBytes=total; return true;
     }
-    if (!root["totalBytes"].is<uint32_t>() || root["totalBytes"].as<uint32_t>()!=total) return fail(r,"total-size");
-    r.fileCount=count; r.totalBytes=total;
-    memcpy(r.version,version,strlen(version)+1);
-    return true;
+};
 }
-bool validate(const char* body, size_t length, Result& r) {
-    return validateImpl(body, length, r);
+bool validate(const char* body,size_t length,Result& r) {
+    r=Result{};
+    if(!body||!length||length>MaxBytes) { r.error="manifest-size"; return false; }
+    return Reader(body,length,r).read();
 }
-bool validateMutable(char* body, size_t length, Result& r) {
-    return validateImpl(body, length, r);
-}
-
+bool validateMutable(char* body,size_t length,Result& r) { return validate(body,length,r); }
 }

@@ -12,7 +12,7 @@ size_t count(){if(!Storage::isReady())return 0;Dir d=LittleFS.openDir(DIR);size_
 bool listIds(String& json) {
     if (!Storage::isReady()) return false;
     json = "";
-    if (!json.reserve(MAX_THEMES * 51 + 2)) return false;
+    if (!json.reserve(MAX_THEMES * 25 + 2)) return false;
     if (!json.concat('[')) return false;
     Dir d = LittleFS.openDir(DIR);
     size_t n = 0;

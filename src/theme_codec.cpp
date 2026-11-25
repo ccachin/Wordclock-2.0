@@ -30,7 +30,8 @@ static bool anim(JsonObjectConst obj,const char* effect,const char* speed,Animat
 }
 bool decode(const String& json, Entry& out, bool allowMissingId){
     if(!json.length()||json.length()>MAX_BYTES)return false;
-    DynamicJsonDocument doc(4096);
+    // Input is bounded to MAX_BYTES; the supported schema has 14 fields.
+    DynamicJsonDocument doc(JSON_OBJECT_SIZE(14) + MAX_BYTES);
     if(deserializeJson(doc,json,DeserializationOption::NestingLimit(3))||!doc.is<JsonObject>())return false;
     JsonObjectConst o=doc.as<JsonObjectConst>(); Entry e;
     if(!o["version"].is<int>())return false;
@@ -56,12 +57,16 @@ bool decode(const String& json, Entry& out, bool allowMissingId){
 bool encode(const Entry& e,String& json,uint8_t version){
     if(version!=2 && version!=3)return false;
     if(e.theme.frontBrightness>100 || e.theme.rearBrightness>100)return false;
-    DynamicJsonDocument doc(2048); char f[8],r[8];
+    String tmp;
+    {
+    DynamicJsonDocument doc(JSON_OBJECT_SIZE(14) + 512); char f[8],r[8];
     snprintf(f,sizeof(f),"#%02X%02X%02X",(unsigned)e.theme.frontColor.r,(unsigned)e.theme.frontColor.g,(unsigned)e.theme.frontColor.b);
     snprintf(r,sizeof(r),"#%02X%02X%02X",(unsigned)e.theme.rearColor.r,(unsigned)e.theme.rearColor.g,(unsigned)e.theme.rearColor.b);
     doc["version"]=version;
     if(version==3){doc["frontBrightness"]=e.theme.frontBrightness;doc["rearBrightness"]=e.theme.rearBrightness;}
     doc["id"]=e.id;doc["name"]=e.name;doc["author"]=e.author;doc["description"]=e.description;doc["front"]=String(f);doc["rear"]=String(r);doc["harmony"]=ColorManager::harmonyToString(e.theme.harmony);doc["frontEffect"]=AnimationManager::effectToString(e.theme.frontAnimation.effect);doc["rearEffect"]=AnimationManager::effectToString(e.theme.rearAnimation.effect);doc["frontSpeed"]=e.theme.frontAnimation.speed;doc["rearSpeed"]=e.theme.rearAnimation.speed;
-    if(doc.overflowed())return false;String tmp; if(!serializeJson(doc,tmp))return false;Entry check;if(!decode(tmp,check))return false;json=tmp;return true;
+    if(doc.overflowed() || !tmp.reserve(measureJson(doc)) || !serializeJson(doc,tmp))return false;
+    } // Release JSON pool before round-trip validation.
+    Entry check;if(!decode(tmp,check))return false;json=tmp;return true;
 }
 }

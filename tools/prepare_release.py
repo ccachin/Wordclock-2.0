@@ -36,11 +36,39 @@ def descriptor(path):
     return {'path': path.name, 'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
 
 
+def artifact_names(meta):
+    names = {'web': 'web.zip', 'webManifest': 'web-manifest.json', 'notes': 'CHANGELOG.md'}
+    if meta.get('firmwareVersion') is not None:
+        if not re.fullmatch(r'(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-dev(?:\.\d+)?)?', meta['firmwareVersion']):
+            raise ValueError('Invalid firmware version')
+        names.update(firmware='firmware.bin', firmwareSignature='firmware.sig')
+    if set(meta['artifacts']) != set(names):
+        raise ValueError('Unexpected artifact set')
+    for key, name in names.items():
+        if meta['artifacts'][key]['path'] != name:
+            raise ValueError('Unexpected artifact path: ' + key)
+    return names
+
+
+def verify_firmware(image, signature):
+    from firmware_signing import verify as verify_signature
+    from cryptography.exceptions import InvalidSignature
+    if not 12288 <= len(image) <= 1044464 or image[:1] != b'\xe9' or len(signature) != 256:
+        raise ValueError('Invalid firmware or signature format')
+    try:
+        verify_signature(image, signature)
+    except InvalidSignature as exc:
+        raise ValueError('Invalid firmware signature for pinned key') from exc
+
+
 def verify(folder):
     meta = json.loads((folder / 'release.json').read_text())
+    artifact_names(meta)
     for item in meta['artifacts'].values():
         if descriptor(folder / item['path']) != item:
             raise ValueError('Artifact mismatch: ' + item['path'])
+    if meta.get('firmwareVersion') is not None:
+        verify_firmware((folder / 'firmware.bin').read_bytes(), (folder / 'firmware.sig').read_bytes())
     web = json.loads((folder / 'web-manifest.json').read_text())
     with zipfile.ZipFile(folder / 'web.zip') as z:
         if sorted(z.namelist()) != sorted(x['path'] for x in web['files']):
@@ -66,6 +94,11 @@ def main():
     if dest.exists():
         raise ValueError(f'Output already exists: {dest}; move it before rebuilding')
     if not args.web_only:
+        if v['RELEASE_CHANNEL'] != 'development':
+            raise ValueError('Stable firmware packaging disabled pending security validation')
+        import os
+        if any(os.environ.get(k) for k in ('PLATFORMIO_BUILD_FLAGS', 'PLATFORMIO_BUILD_SRC_FLAGS', 'PLATFORMIO_EXTRA_SCRIPTS', 'PLATFORMIO_PROJECT_CONF')):
+            raise ValueError('Clear PlatformIO build overrides before release build')
         subprocess.run(['pio', 'run', '-e', 'd1', '-t', 'clean'], cwd=ROOT, check=True)
         subprocess.run(['pio', 'run', '-e', 'd1'], cwd=ROOT, check=True)
     firmware = ROOT / '.pio/build/d1/firmware.bin'
@@ -75,8 +108,10 @@ def main():
         folder.mkdir()
         if not args.web_only:
             shutil.copyfile(firmware, folder / 'firmware.bin')
-            if not 0 < firmware.stat().st_size <= 1044464 or firmware.open('rb').read(1) != b'\xe9':
+            if not 12288 <= firmware.stat().st_size <= 1044464 or firmware.open('rb').read(1) != b'\xe9':
                 raise ValueError('Unexpected ESP8266 firmware image')
+            import sys
+            subprocess.run([sys.executable, str(ROOT / 'tools/firmware_signing.py'), 'sign', '--image', str(folder / 'firmware.bin')], check=True)
         source = ROOT / 'data/www'
         manifest, raw = generate(source, v['WEB_VERSION'], int(v['WEB_API_VERSION']))
         (folder / 'web-manifest.json').write_bytes(raw)
@@ -88,7 +123,7 @@ def main():
                 'version': v['RELEASE_VERSION'], 'channel': v['RELEASE_CHANNEL'],
                 'firmwareVersion': None if args.web_only else v['FIRMWARE_VERSION'], 'webVersion': v['WEB_VERSION'],
                 'compatibility': {'board': 'd1', 'webApiVersion': int(v['WEB_API_VERSION'])},
-                'artifacts': {k: descriptor(folder / name) for k, name in ([('firmware','firmware.bin')] if not args.web_only else []) + [('web','web.zip'), ('webManifest','web-manifest.json'), ('notes','CHANGELOG.md')]}}
+                'artifacts': {k: descriptor(folder / name) for k, name in ([('firmware','firmware.bin'), ('firmwareSignature','firmware.sig')] if not args.web_only else []) + [('web','web.zip'), ('webManifest','web-manifest.json'), ('notes','CHANGELOG.md')]}}
         (folder / 'release.json').write_text(json.dumps(meta, indent=2) + '\n', encoding='utf-8')
         verify(folder)
         folder.rename(dest)

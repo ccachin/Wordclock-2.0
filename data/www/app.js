@@ -104,12 +104,31 @@ const harmonyDescriptions = {
 // HTTP API
 // ======================================================
 
-async function request(url, options = {}) {
+// One local HTTP request at a time, including body consumption. The ESP8266
+// has a small heap and handles clients sequentially. Maintenance can exclude
+// normal requests while a release is in progress.
+window.WordclockLocal = (() => {
+    let tail = Promise.resolve(), maintenance = false;
+    return {
+        get busy() { return maintenance; },
+        setBusy(value) { maintenance = value; },
+        run(task, privileged=false) {
+            const next = tail.then(() => {
+                if (maintenance && !privileged) throw Error('Mise à jour en cours');
+                return task();
+            });
+            tail = next.catch(() => {});
+            return next;
+        }
+    };
+})();
 
+async function request(url, options = {}) {
+    return window.WordclockLocal.run(async () => {
     const response = await fetch(url, {
 
         cache: "no-store",
-
+        signal: AbortSignal.timeout(10000),
         ...options
 
     });
@@ -121,7 +140,8 @@ async function request(url, options = {}) {
         );
     }
 
-    return response.json();
+    return await response.json();
+    });
 }
 
 
@@ -145,7 +165,7 @@ function showMessage(text, error = false) {
 // ======================================================
 
 async function updateStatus() {
-
+    if (window.WordclockLocal.busy || document.hidden) { setTimeout(updateStatus,1000); return; }
     try {
 
         const data =
@@ -500,7 +520,7 @@ function renderThemeLibrary() {
 // ======================================================
 
 async function initialize() {
-
+    if (window.WordclockLocal.busy) { setTimeout(initialize,3000); return; }
     setControlsEnabled(false);
 
     try {

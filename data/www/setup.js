@@ -5,8 +5,10 @@ const zones = [['Europe/Zurich','Suisse — Zurich'],['Europe/Paris','France —
 const colors = [['Noir','#151515'],['Blanc','#F5F5F5'],['Anthracite','#454545'],['Gris','#909090'],['Rouge','#A13835'],['Bleu','#304D70'],['Vert','#536B49'],['Terracotta','#B46B50']];
 const sleep = ms => new Promise(resolve=>setTimeout(resolve,ms));
 async function api(path, data) {
+ return window.WordclockLocal.run(async()=>{
  const controller = new AbortController(); const timeout=setTimeout(()=>controller.abort(),5000);
  try { const response=await fetch(path,{cache:'no-store',signal:controller.signal,...(data?{method:'POST',body:new URLSearchParams(data)}:{})}); if(!response.ok) throw Error('HTTP '+response.status); return await response.json(); } finally {clearTimeout(timeout);}
+ });
 }
 let installPrompt=null;
 window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;});

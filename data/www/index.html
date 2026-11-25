@@ -286,15 +286,16 @@
         <h2 class="settings-group-title">Mises à jour</h2>
         <section class="panel" id="updatesPanel">
           <p id="updateInstalled" class="muted">Lecture des versions…</p>
+          <p id="updateAvailable" class="muted"></p>
           <p id="updateStatus" role="status" aria-live="polite"></p>
           <details id="updateNotes" hidden><summary id="updateNotesTitle">Notes de version</summary><div id="updateNotesBody"></div></details>
           <progress id="updateProgress" max="100" value="0" hidden style="width:100%"></progress>
           <button id="updateCheck" class="action-button" type="button">Rechercher des mises à jour</button>
-          <button id="updateInstall" class="action-button action-primary" type="button" hidden>Installer l’interface</button>
+          <button id="updateInstall" class="action-button action-primary" type="button" hidden>Installer la mise à jour</button>
           <details><summary>Options avancées</summary>
             <label for="updateChannel">Canal de publication</label>
             <select id="updateChannel"><option value="stable">Stable</option><option value="development">Expérimental</option></select>
-            <p class="muted">Les versions expérimentales peuvent contenir des erreurs. Le firmware public n’est pas encore disponible.</p>
+            <p class="muted">Les versions expérimentales peuvent contenir des erreurs. Les firmwares expérimentaux sont signés ; la version stable reste en préparation.</p>
             <label for="updateFirmware">Firmware local (.bin)</label><input type="file" id="updateFirmware" accept=".bin">
             <label for="updateSignature">Signature du firmware (.sig)</label><input type="file" id="updateSignature" accept=".sig">
             <button id="updateManual" class="action-button" type="button">Installer le firmware local</button>

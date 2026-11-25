@@ -1,3 +1,23 @@
+## 3.0.5-dev
+
+- Analyse du manifeste web sans allocation dynamique.
+- Catalogue des thèmes traité entrée par entrée et réduction des allocations.
+- Sérialisation des requêtes locales et blocs web de 512 octets.
+- Correctif de développement : validation matérielle requise.
+
+## 3.0.4-dev
+
+- Recherche indépendante des versions firmware et web.
+- Installation du firmware signé depuis GitHub et reprise de l’autorisation en cas de mémoire insuffisante.
+- Version web de développement : validation matérielle en cours.
+
+## 3.0.3-dev
+
+- Firmware signé RSA-2048 et transfert par blocs de 512 octets.
+- Identifiants propres à chaque appareil, conservés lors des mises à jour.
+- Vérification SHA-256 avant activation.
+- Version de développement : tests d’interruption et installation automatique depuis GitHub encore à valider.
+
 ## 3.0.2-dev
 
 - Vérification des octets des publications dans Git avant commit.

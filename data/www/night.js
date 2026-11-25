@@ -14,9 +14,9 @@
     }
     function fill(n) { enabled.checked=n.enabled; start.value=toTime(n.startMinute); end.value=toTime(n.endMinute); mode.value=String(n.mode); brightness.value=String(n.brightness); preview(); }
     function status(n) { document.dispatchEvent(new CustomEvent("wordclock:night-status",{detail:n})); const e=el('nightStatus'); e.textContent=n.active?'Actif':n.enabled?'Programmé':'Désactivé'; e.classList.toggle('active',n.active); }
-    async function request(options={}) { const r=await fetch('/api/night',{cache:'no-store',...options}); if(!r.ok) throw Error(`HTTP ${r.status}`); return r.json(); }
+    async function request(options={}) { return window.WordclockLocal.run(async()=>{ const r=await fetch('/api/night',{cache:'no-store',...options}); if(!r.ok) throw Error(`HTTP ${r.status}`); return await r.json(); }); }
     async function poll() {
-        if (!busy) {
+        if (!busy && !window.WordclockLocal.busy && !document.hidden) {
             busy=true;
             try { const n=await request(); status(n); if(!dirty) fill(n); if(!ready){ready=true;fields.disabled=false;message('');} }
             catch(e){el('nightStatus').textContent='Indisponible';el('nightStatus').classList.remove('active'); if(!ready) message('Mode nuit inaccessible : '+e.message,true);}

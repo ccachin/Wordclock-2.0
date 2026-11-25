@@ -73,8 +73,8 @@ def main():
         for name, data in ([] if a.test in ('incomplete','unknown') else assets):
             if a.test == 'corrupt' and name == assets[0][0]:
                 data = bytes([data[0] ^ 1]) + data[1:]
-            for offset in range(0, len(data), 1024):
-                chunk = data[offset:offset+1024]
+            for offset in range(0, len(data), 512):
+                chunk = data[offset:offset+512]
                 query = urllib.parse.urlencode(dict(id=session, name=name, offset=offset))
                 result = request('chunk?' + query, 'PUT', chunk)
                 if result['offset'] != offset + len(chunk):

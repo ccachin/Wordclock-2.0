@@ -1,6 +1,4 @@
-"""Stage verified web-only releases on a dedicated GitHub Pages checkout.
-Firmware publication is deliberately disabled until credentials are device-specific.
-"""
+"""Stage verified development releases on a dedicated GitHub Pages checkout."""
 import argparse
 import json
 import hashlib
@@ -9,7 +7,7 @@ import re
 import shutil
 import subprocess
 import tempfile
-from prepare_release import verify, versions, ROOT, descriptor
+from prepare_release import verify, versions, ROOT, descriptor, artifact_names, verify_firmware
 
 
 def git(folder, *args):
@@ -42,15 +40,17 @@ def verify_index(pages):
         if digest(raw) != entry['sha256']:
             raise ValueError('Indexed release hash mismatch: ' + root)
         meta = json.loads(raw)
-        for key, name in {'web':'web.zip','webManifest':'web-manifest.json','notes':'CHANGELOG.md'}.items():
+        for key, name in artifact_names(meta).items():
             item = meta['artifacts'][key]
             data = blob(root + name)
             if item['path'] != name or len(data) != item['size'] or digest(data) != item['sha256']:
                 raise ValueError('Indexed artifact mismatch: ' + root + name)
+        if meta.get('firmwareVersion') is not None:
+            verify_firmware(blob(root + 'firmware.bin'), blob(root + 'firmware.sig'))
     print('All indexed release artifacts verified.')
 
 
-def stage(source, pages):
+def stage(source, pages, include_firmware=False):
     meta = verify(source)
     version = meta['version']
     if not re.fullmatch(r'(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-dev(?:\.\d+)?)?', version):
@@ -62,7 +62,9 @@ def stage(source, pages):
         raise ValueError('Stable publication disabled until security validation')
     if meta['compatibility'] != {'board': 'd1', 'webApiVersion': 1}:
         raise ValueError('Unsupported compatibility')
-    names = {'web': 'web.zip', 'webManifest': 'web-manifest.json', 'notes': 'CHANGELOG.md'}
+    names = artifact_names(meta)
+    if (meta.get('firmwareVersion') is not None) != include_firmware:
+        raise ValueError('Firmware publication requires explicit --include-firmware; use a web-only package otherwise')
     for key, name in names.items():
         if meta['artifacts'][key] != descriptor(source / name):
             raise ValueError('Unexpected descriptor: ' + key)
@@ -78,7 +80,6 @@ def stage(source, pages):
         raise ValueError('Release already exists; use a new version')
     public = dict(meta)
     public['artifacts'] = {key: meta['artifacts'][key] for key in names}
-    public['firmwareVersion'] = None
     target.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=target.parent) as tmp:
         staged = Path(tmp) / 'release'
@@ -101,6 +102,7 @@ def stage(source, pages):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--pages', required=True, type=Path)
+    p.add_argument('--include-firmware', action='store_true', help='Explicitly allow signed development firmware staging')
     p.add_argument('--verify-index', action='store_true', help='Verify exact staged Git bytes before commit')
     p.add_argument('--release', type=Path, default=ROOT/'dist'/versions()['RELEASE_VERSION'])
     args = p.parse_args()
@@ -114,10 +116,11 @@ def main():
         raise ValueError('Use a clean gh-pages checkout')
     if pages == ROOT or ROOT in pages.parents:
         raise ValueError('Use a separate checkout outside source tree')
-    print('Web-only staging; firmware.bin will NOT be copied. No push is performed.')
+    print('Signed development firmware staging' if args.include_firmware else 'Web-only staging')
+    print('No push is performed.')
     if input('Type PUBLISH to stage: ') != 'PUBLISH':
         return
-    print('Prepared:', stage(args.release.resolve(), pages))
+    print('Prepared:', stage(args.release.resolve(), pages, args.include_firmware))
     protect(pages)
     subprocess.run(['git', '-C', str(pages), 'add', '--', '.gitattributes', '.nojekyll', 'index.html', 'catalog.json', 'releases'], check=True)
     verify_index(pages)

@@ -1,0 +1,5 @@
+# Signed development releases
+
+Run `python tools/prepare_release.py` for a clean generic d1 build, local RSA signature and web package. The private key stays outside the repository. `--web-only` retains the existing web-only workflow. `--verify dist/3.0.3-dev` checks hashes, web ZIP and the pinned RSA signature. No upload occurs.
+
+Only after reviewing the generic binary and web compatibility, use `python tools/publish_release.py --pages <separate-gh-pages-checkout> --include-firmware` to stage a signed development release. `--verify-index` verifies the exact indexed bytes, including signatures. Commit and push are manual. Stable publication remains disabled. Do not publish migration builds. A valid signature does not prove that an image contains no secrets or that its version metadata is authentic. Firmware protocol 2 must be present on the receiving device; older web clients do not offer automatic firmware installation. Physical interruption tests, provisioning and security review remain pending.

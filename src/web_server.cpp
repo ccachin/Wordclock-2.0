@@ -554,39 +554,45 @@ namespace WebServer
 
     static void handleGetThemes()
     {
-        String factory = ThemeLibrary::getCatalog();
-        if (responseThemeVersion() == 3) factory.replace("\"version\": 2,", "\"version\": 3, \"frontBrightness\": 100, \"rearBrightness\": 100,");
-        int closing = factory.lastIndexOf(']');
-        if (closing < 0) {
-            sendJson(500, "{\"error\":\"Factory catalog unavailable\"}");
-            return;
-        }
+        const uint8_t version = responseThemeVersion();
         String ids;
-        DynamicJsonDocument list(3072);
+        DynamicJsonDocument list(JSON_ARRAY_SIZE(CustomThemeStore::MAX_THEMES));
         if (Storage::isReady()) {
-            if (!CustomThemeStore::listIds(ids) || deserializeJson(list, ids) || !list.is<JsonArray>()) {
+            if (!CustomThemeStore::listIds(ids) ||
+                deserializeJson(list, const_cast<char*>(ids.c_str()), ids.length()) || !list.is<JsonArray>()) {
                 sendJson(503, "{\"error\":\"Custom catalog unavailable\"}");
                 return;
             }
         }
-        // Stream each entry separately; never allocate the full merged catalog.
-        factory.remove(closing);
         server.sendHeader("Cache-Control", "no-store");
         server.setContentLength(CONTENT_LENGTH_UNKNOWN);
         server.send(200, "application/json", "");
-        server.sendContent(factory);
-        factory = String();
-        ids = String();
+        server.sendContent("[");
+        bool comma = false;
+        for (size_t i=0;i<ThemeLibrary::factoryCount();++i) {
+            if (!server.client().connected()) return;
+            const char* entry = ThemeLibrary::factoryEntry(i);
+            if (comma) server.sendContent(",");
+            if (version==3) {
+                // All built-in entries start with this fixed v2 prefix.
+                constexpr char prefix[] = "{\"version\":2,";
+                if (strncmp(entry,prefix,sizeof(prefix)-1)!=0) { server.client().stop(); return; }
+                server.sendContent("{\"version\":3,\"frontBrightness\":100,\"rearBrightness\":100,");
+                entry += sizeof(prefix)-1;
+            }
+            server.sendContent(entry); comma=true;
+        }
         for (JsonVariantConst item : list.as<JsonArrayConst>()) {
             if (!server.client().connected()) return;
             ThemeCodec::Entry entry;
             String encoded;
-            if (!CustomThemeStore::load(item.as<String>(), entry) || !ThemeCodec::encode(entry, encoded, responseThemeVersion())) {
-                Serial.println("Custom catalog: unreadable entry skipped");
-                continue;
+            if (!CustomThemeStore::load(item.as<const char*>(), entry) || !ThemeCodec::encode(entry, encoded, version)) {
+                // An incomplete response is preferable to silently reporting a missing theme.
+                Serial.printf("Custom catalog: entry unavailable heap=%u max=%u\n", ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
+                server.client().stop(); return;
             }
-            server.sendContent(",");
-            server.sendContent(encoded);
+            if (comma) server.sendContent(",");
+            server.sendContent(encoded); comma=true;
             yield();
         }
         server.sendContent("]");
@@ -727,7 +733,7 @@ namespace WebServer
     }
 
     static void handleWebUpdatePreflight() {
-        if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
+        if (firmwareSessionActive()) { clearManifestRx(); sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
         if (server.header("X-Wordclock-Action") != "web-update") {
             clearManifestRx(); sendJson(403, "{\"error\":\"Action required\"}"); return;
         }
@@ -740,7 +746,7 @@ namespace WebServer
         WebManifest::Result result{};
         Serial.printf("Manifest before parse: bytes=%u heap=%u maxBlock=%u\n", static_cast<unsigned>(manifestRx.length), ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
         const bool starting = server.uri() == "/api/system/web-update/start";
-        const bool valid = starting ? WebManifest::validate(static_cast<const char*>(manifestRx.data), manifestRx.length, result) : WebManifest::validateMutable(manifestRx.data, manifestRx.length, result);
+        const bool valid = WebManifest::validate(manifestRx.data, manifestRx.length, result);
         if (!starting || !valid) clearManifestRx();
         if (!valid) {
             Serial.printf("Manifest validation failed: %s heap=%u maxBlock=%u\n", result.error, ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
@@ -766,7 +772,7 @@ namespace WebServer
             clearManifestRx();
             sendJson(200,String("{\"id\":")+String(id)+",\"target\":\""+(WebSlotManager::inactiveSlot()==WebSlotManager::Slot::A?"A":"B")+"\"}"); return;
         }
-        DynamicJsonDocument doc(768);
+        StaticJsonDocument<512> doc;
         doc["valid"] = true;
         doc["ready"] = !check.error;
         if (check.error) doc["error"] = check.error;
@@ -1332,7 +1338,8 @@ namespace WebServer
         if (!releaseAuthorized()) return;
         uint32_t id=0, offset=0;
         if (!readNumber(server.arg("id"),id) || !readNumber(server.arg("offset"),offset)) { sendJson(400,"{\"error\":\"parameters\"}"); return; }
-        const String name=server.arg("name"), data=server.arg("plain");
+        const String& name=server.arg("name");
+        const String& data=server.arg("plain");
         if (!WebUpdateManager::chunk(id,name.c_str(),offset,reinterpret_cast<const uint8_t*>(data.c_str()),data.length())) { sendJson(409,"{\"error\":\"chunk-rejected\"}"); return; }
         sendJson(200,String("{\"offset\":")+String(offset+data.length())+"}");
     }
@@ -1412,7 +1419,7 @@ namespace WebServer
             sendJson(200,String("{\"ok\":true,\"size\":")+String(total)+"}"); return;
         }
         if (server.arg("action")!="chunk") { sendJson(400,"{\"error\":\"Unknown transfer action\"}"); return; }
-        const String content=server.arg("plain");
+        const String& content=server.arg("plain");
         size_t length=content.length();
         if (!length || length>1024 || length>total-offset) { sendJson(413,"{\"error\":\"Invalid chunk size\"}"); return; }
         if (!LittleFS.exists(root) && !LittleFS.mkdir(root)) { sendJson(500,"{\"error\":\"Cannot create web directory\"}"); return; }
