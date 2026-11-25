@@ -771,22 +771,33 @@ namespace WebServer
     // Web update - Allowed files
     // ==================================================
 
-    static bool isAllowedWebFile(
-        const String &name)
-    {
+    static const char* const WEB_ASSETS[] = {
+        "index.html", "style.css", "app.js", "night.js", "studio.js", "theme-rules.js",
+        "studio-visual.js", "community.js", "setup.js", "maintenance.js", "icon.svg", "manifest.json"
+    };
 
-        return name == "index.html" ||
-               name == "style.css" ||
-               name == "app.js" ||
-               name == "night.js" ||
-               name == "studio.js" ||
-               name == "theme-rules.js" ||
-               name == "studio-visual.js" ||
-               name == "community.js" ||
-               name == "setup.js" ||
-               name == "maintenance.js" ||
-               name == "icon.svg" ||
-               name == "manifest.json";
+    static bool isAllowedWebFile(const String &name)
+    {
+        for (const char* asset : WEB_ASSETS) if (name == asset) return true;
+        return false;
+    }
+
+    // Called only during boot, before accepting any upload requests.
+    static void cleanupAbandonedWebUploads()
+    {
+        if (!Storage::isReady()) return;
+        for (const char* asset : WEB_ASSETS) {
+            const String path = String(WebSlotManager::activeRoot()) + "/" + asset + ".tmp";
+            if (!LittleFS.exists(path)) continue;
+            File f = LittleFS.open(path, "r");
+            if (!f) continue;
+            const bool regular = !f.isDirectory();
+            f.close();
+            if (!regular) continue;
+            Serial.printf("Web upload cleanup: %s %s\n", path.c_str(),
+                          LittleFS.remove(path) ? "removed" : "failed");
+            yield();
+        }
     }
 
     // ==================================================
@@ -1219,6 +1230,7 @@ namespace WebServer
 
     void begin()
     {
+        cleanupAbandonedWebUploads();
 
         server.on(
             "/",
