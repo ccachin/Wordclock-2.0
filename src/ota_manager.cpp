@@ -5,6 +5,7 @@
 #include <ESP8266WiFi.h>
 
 #include "ota_manager.h"
+#include "firmware_update.h"
 #include "ota_config.h"
 #include "wifi_manager.h"
 #include "settings_manager.h"
@@ -19,39 +20,6 @@ namespace OTAManager
     static bool configured = false;
     static bool waitingForStorage = false;
     static bool recoveryPending = false;
-    static unsigned int lastProgress = 101;
-
-    // Preserve the rendered frame so an interrupted update can restore it
-    // even when RenderManager does not need to draw a new frame.
-    static CRGB savedFrame[Config::TOTAL_LED_COUNT];
-    static uint8_t savedBrightness = 0;
-    static bool frameSaved = false;
-    static uint8_t displayedSteps = 255;
-
-    static void showProgress(uint8_t steps)
-    {
-        if (steps == displayedSteps) return;
-        displayedSteps = steps;
-        Leds::clear();
-        Leds::setBrightness(32);
-        for (uint8_t i = 0; i < 4; ++i)
-        {
-            Leds::setPixel(Config::MINUTE_LEDS[i],
-                           i < steps ? CRGB(0, 160, 255) : CRGB(0, 0, 35));
-        }
-        Leds::show();
-    }
-
-    static void restoreFrame()
-    {
-        if (!frameSaved) return;
-        for (uint16_t i = 0; i < Config::TOTAL_LED_COUNT; ++i)
-            Leds::setPixel(i, savedFrame[i]);
-        Leds::setBrightness(savedBrightness);
-        Leds::show();
-        frameSaved = false;
-    }
-
     // ==================================================
     // Initialization
     // ==================================================
@@ -91,7 +59,7 @@ namespace OTAManager
         ArduinoOTA.onStart([]()
                            {
             updating = true;
-            lastProgress = 101;
+
 
             Serial.println();
             Serial.println("OTA update started");
@@ -99,12 +67,11 @@ namespace OTAManager
             // Settings must already be persisted before ArduinoOTA.handle().
             Serial.println("OTA: settings already saved");
 
-            savedBrightness = FastLED.getBrightness();
-            for (uint16_t i = 0; i < Config::TOTAL_LED_COUNT; ++i)
-                savedFrame[i] = Leds::getPixel(i);
-            frameSaved = true;
-            displayedSteps = 255;
-            showProgress(0); });
+            if (!FirmwareUpdate::begin(FirmwareUpdate::Owner::ArduinoOTA)) {
+                Serial.println("OTA ownership conflict: restarting");
+                Serial.flush();
+                ESP.restart();
+            } });
 
         // ==================================================
         // Update completed
@@ -112,7 +79,7 @@ namespace OTAManager
 
         ArduinoOTA.onEnd([]()
                          {
-            showProgress(4);
+            FirmwareUpdate::validated(FirmwareUpdate::Owner::ArduinoOTA);
             Serial.println();
             Serial.println(
                 "OTA completed, restarting..."); });
@@ -125,28 +92,7 @@ namespace OTAManager
             [](unsigned int progress,
                unsigned int total)
             {
-                if (total == 0)
-                {
-                    return;
-                }
-
-                unsigned int percentage =
-                    (progress * 100UL) / total;
-
-                // The fourth indicator is reserved for successful validation.
-                showProgress(static_cast<uint8_t>(min(percentage / 25U, 3U)));
-
-                if (
-                    percentage != lastProgress &&
-                    (percentage % 10 == 0 ||
-                     percentage == 100))
-                {
-                    lastProgress = percentage;
-
-                    Serial.printf(
-                        "OTA progress: %u%%\n",
-                        percentage);
-                }
+                FirmwareUpdate::progress(FirmwareUpdate::Owner::ArduinoOTA, progress, total);
             });
 
         // ==================================================
@@ -223,7 +169,7 @@ namespace OTAManager
 
     void update()
     {
-        if (!configured)
+        if (!configured || (FirmwareUpdate::active() && !updating))
         {
             return;
         }
@@ -312,7 +258,7 @@ namespace OTAManager
                 return;
             }
 
-            restoreFrame();
+            FirmwareUpdate::recover(FirmwareUpdate::Owner::ArduinoOTA);
             updating = false;
             Update.clearError();
             stop();
@@ -327,6 +273,6 @@ namespace OTAManager
 
     bool isUpdating()
     {
-        return updating;
+        return updating || FirmwareUpdate::active();
     }
 }
