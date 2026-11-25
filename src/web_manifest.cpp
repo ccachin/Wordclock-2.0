@@ -8,6 +8,8 @@ static const char* const assets[] = {
     "studio-visual.js", "community.js", "setup.js", "maintenance.js", "icon.svg", "manifest.json"
 };
 constexpr size_t count = sizeof(assets) / sizeof(assets[0]);
+const char* assetName(size_t i) { return i<count ? assets[i] : nullptr; }
+int assetIndex(const char* name) { for(size_t i=0;i<count;++i) if(name && !strcmp(name,assets[i])) return i; return -1; }
 static bool digit(char c) { return c >= '0' && c <= '9'; }
 // Manifest v1 has only ASCII identifiers, hashes, versions and integer values.
 // Reject every string escape (including Unicode aliases), and require unique
@@ -134,6 +136,7 @@ static bool validateImpl(Buffer body, size_t length, Result& r) {
         if (!f["size"].is<uint32_t>()) return fail(r,"file-size");
         const uint32_t size=f["size"].as<uint32_t>();
         if (!size || size>128UL*1024) return fail(r,"file-size");
+        r.sizes[i]=size;
         total+=size;
         if (total>384UL*1024) return fail(r,"total-size");
         if (!hashValid(f["sha256"].as<const char*>())) return fail(r,"sha256");

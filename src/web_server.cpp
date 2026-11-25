@@ -724,8 +724,9 @@ namespace WebServer
         }
         WebManifest::Result result{};
         Serial.printf("Manifest before parse: bytes=%u heap=%u maxBlock=%u\n", static_cast<unsigned>(manifestRx.length), ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
-        const bool valid = WebManifest::validateMutable(manifestRx.data, manifestRx.length, result);
-        clearManifestRx();
+        const bool starting = server.uri() == "/api/system/web-update/start";
+        const bool valid = starting ? WebManifest::validate(static_cast<const char*>(manifestRx.data), manifestRx.length, result) : WebManifest::validateMutable(manifestRx.data, manifestRx.length, result);
+        if (!starting || !valid) clearManifestRx();
         if (!valid) {
             Serial.printf("Manifest validation failed: %s heap=%u maxBlock=%u\n", result.error, ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
             sendJson(strcmp(result.error, "memory") == 0 ? 503 : 400,
@@ -739,6 +740,16 @@ namespace WebServer
                      strcmp(check.error, "payload-size") == 0) status = 400;
             else if (strcmp(check.error, "operation-active") == 0) status = 409;
             else status = 503;
+        }
+        if (starting) {
+            uint32_t id=0;
+            if (check.error) { clearManifestRx(); sendJson(status, String("{\"error\":\"")+check.error+"\"}"); return; }
+            if (!WebUpdateManager::start(result,id) || !WebUpdateManager::storeManifest(id,manifestRx.data,manifestRx.length)) {
+                if (id) WebUpdateManager::cancel(id);
+                clearManifestRx(); sendJson(503,"{\"error\":\"start-failed\"}"); return;
+            }
+            clearManifestRx();
+            sendJson(200,String("{\"id\":")+String(id)+",\"target\":\""+(WebSlotManager::inactiveSlot()==WebSlotManager::Slot::A?"A":"B")+"\"}"); return;
         }
         DynamicJsonDocument doc(768);
         doc["valid"] = true;
@@ -1241,6 +1252,37 @@ namespace WebServer
         sendJson(code, json);
     }
 
+    static bool releaseAuthorized() {
+        if (server.header("X-Wordclock-Action") != "web-update") { sendJson(403,"{\"error\":\"Action required\"}"); return false; }
+        return authorizeWebUpdate();
+    }
+    static void handleReleaseStatus() {
+        if (!releaseAuthorized()) return;
+        const auto state=WebUpdateManager::snapshot();
+        StaticJsonDocument<512> doc;
+        doc["active"]=WebUpdateManager::active(); doc["id"]=state.id;
+        doc["target"]=state.target==WebSlotManager::Slot::A?"A":"B";
+        doc["receivedBytes"]=state.received; doc["totalBytes"]=state.totalBytes;
+        doc["completedFiles"]=state.completed; doc["fileCount"]=state.fileCount;
+        doc["complete"]=state.id && state.completed==state.fileCount && state.received==state.totalBytes;
+        if(state.lastError) doc["error"]=state.lastError;
+        String json; serializeJson(doc,json); sendJson(200,json);
+    }
+    static void handleReleaseChunk() {
+        if (!releaseAuthorized()) return;
+        uint32_t id=0, offset=0;
+        if (!readNumber(server.arg("id"),id) || !readNumber(server.arg("offset"),offset)) { sendJson(400,"{\"error\":\"parameters\"}"); return; }
+        const String name=server.arg("name"), data=server.arg("plain");
+        if (!WebUpdateManager::chunk(id,name.c_str(),offset,reinterpret_cast<const uint8_t*>(data.c_str()),data.length())) { sendJson(409,"{\"error\":\"chunk-rejected\"}"); return; }
+        sendJson(200,String("{\"offset\":")+String(offset+data.length())+"}");
+    }
+    static void handleReleaseCancel() {
+        if (!releaseAuthorized()) return;
+        uint32_t id=0;
+        if (!readNumber(server.arg("id"),id) || !WebUpdateManager::cancel(id)) { sendJson(409,"{\"error\":\"cancel-rejected\"}"); return; }
+        sendJson(200,"{\"cancelled\":true}");
+    }
+
     static void handleWebUpdate()
     {
         if (!authorizeWebUpdate()) return;
@@ -1522,6 +1564,10 @@ namespace WebServer
 
             server.on("/api/system/web-update/preflight", HTTP_POST,
                       handleWebUpdatePreflight, handleManifestChunk);
+            server.on("/api/system/web-update/start", HTTP_POST, handleWebUpdatePreflight, handleManifestChunk);
+            server.on("/api/system/web-update/status", HTTP_GET, handleReleaseStatus);
+            server.on("/api/system/web-update/chunk", HTTP_PUT, handleReleaseChunk);
+            server.on("/api/system/web-update/cancel", HTTP_POST, handleReleaseCancel);
 
             server.on(
                 "/api/dev/web",

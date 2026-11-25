@@ -10,9 +10,55 @@ namespace WebUpdateManager {
 namespace {
 Snapshot session{};
 uint32_t sequence = 0;
+uint32_t sizes[WebManifest::AssetCount]{}, offsets[WebManifest::AssetCount]{};
+bool manifestStored = false;
+String pathFor(const char* name) { return String(WebSlotManager::root(session.target))+"/"+name; }
+bool cleanTarget() {
+    if (session.target == WebSlotManager::activeSlot() || !WebSlotManager::isIncomplete(session.target)) return false;
+    for (size_t i=0;i<WebManifest::AssetCount;++i) {
+        String path=pathFor(WebManifest::assetName(i));
+        if (LittleFS.exists(path) && !LittleFS.remove(path)) return false;
+        path += ".tmp";
+        if (LittleFS.exists(path) && !LittleFS.remove(path)) return false;
+    }
+    for (const char* name : {"web-manifest.json", ".development"}) {
+        String path=pathFor(name);
+        if (LittleFS.exists(path) && !LittleFS.remove(path)) return false;
+    }
+    return true;
+}
 void clear(const char* error) {
     session = Snapshot{};
+    manifestStored=false;
+    memset(offsets,0,sizeof(offsets));
     session.lastError = error;
+}
+bool storeManifest(uint32_t id, const char* data, size_t length) {
+    if (!touch(id) || manifestStored || !data || !length || length>WebManifest::MaxBytes) return false;
+    File f=LittleFS.open(pathFor("web-manifest.json"),"w");
+    if (!f) return false;
+    bool ok=f.write(reinterpret_cast<const uint8_t*>(data),length)==length;
+    f.close();
+    f=LittleFS.open(pathFor("web-manifest.json"),"r");
+    ok=ok && f && f.size()==length;
+    f.close(); manifestStored=ok; return ok;
+}
+bool chunk(uint32_t id, const char* name, uint32_t offset, const uint8_t* data, size_t length) {
+    update();
+    if (!id || id!=session.id || !manifestStored || !length || length>1024 || !data || session.target==WebSlotManager::activeSlot() || !WebSlotManager::isIncomplete(session.target)) return false;
+    int i=WebManifest::assetIndex(name);
+    if (i<0 || offset!=offsets[i] || offset>sizes[i] || length>sizes[i]-offset) return false;
+    File f=LittleFS.open(pathFor(name),offset?"a":"w");
+    if (!f) return false;
+    bool ok=f.size()==offset && f.write(data,length)==length;
+    f.close();
+    if (!ok) { cancel(id); return false; }
+    f=LittleFS.open(pathFor(name),"r");
+    ok=f && f.size()==offset+length; f.close();
+    if (!ok) { cancel(id); return false; }
+    offsets[i]+=length; session.received+=length;
+    if (offsets[i]==sizes[i]) ++session.completed;
+    return touch(id);
 }
 }
 bool active() { return session.id != 0; }
@@ -23,6 +69,7 @@ void update() {
         session.generation != WebSlotManager::selectionGeneration()) {
         clear("slot-changed");
     } else if (uint32_t(millis() - session.lastActivity) >= TimeoutMs) {
+        cleanTarget();
         clear("timeout");
     }
 }
@@ -68,6 +115,8 @@ bool start(const WebManifest::Result& manifest, uint32_t& id) {
     session.totalBytes = manifest.totalBytes;
     session.fileCount = manifest.fileCount;
     memcpy(session.version, manifest.version, sizeof(session.version));
+    memcpy(sizes,manifest.sizes,sizeof(sizes));
+    if (!cleanTarget()) { clear("cleanup-failed"); return false; }
     id = session.id;
     return true;
 }
@@ -80,7 +129,35 @@ bool touch(uint32_t id) {
 bool cancel(uint32_t id) {
     update();
     if (!id || id != session.id) return false;
-    clear("cancelled");
-    return true;
+    const bool ok=cleanTarget();
+    clear(ok ? "cancelled" : "cleanup-failed");
+    return ok;
+}
+bool storeManifest(uint32_t id, const char* data, size_t length) {
+    if (!touch(id) || manifestStored || !data || !length || length>WebManifest::MaxBytes) return false;
+    File f=LittleFS.open(pathFor("web-manifest.json"),"w");
+    if (!f) return false;
+    bool ok=f.write(reinterpret_cast<const uint8_t*>(data),length)==length;
+    f.close();
+    f=LittleFS.open(pathFor("web-manifest.json"),"r");
+    ok=ok && f && f.size()==length;
+    f.close(); manifestStored=ok; return ok;
+}
+bool chunk(uint32_t id, const char* name, uint32_t offset, const uint8_t* data, size_t length) {
+    update();
+    if (!id || id!=session.id || !manifestStored || !length || length>1024 || !data || session.target==WebSlotManager::activeSlot() || !WebSlotManager::isIncomplete(session.target)) return false;
+    int i=WebManifest::assetIndex(name);
+    if (i<0 || offset!=offsets[i] || offset>sizes[i] || length>sizes[i]-offset) return false;
+    File f=LittleFS.open(pathFor(name),offset?"a":"w");
+    if (!f) return false;
+    bool ok=f.size()==offset && f.write(data,length)==length;
+    f.close();
+    if (!ok) { cancel(id); return false; }
+    f=LittleFS.open(pathFor(name),"r");
+    ok=f && f.size()==offset+length; f.close();
+    if (!ok) { cancel(id); return false; }
+    offsets[i]+=length; session.received+=length;
+    if (offsets[i]==sizes[i]) ++session.completed;
+    return touch(id);
 }
 }
