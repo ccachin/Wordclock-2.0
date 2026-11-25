@@ -26,6 +26,7 @@
 #include "settings_manager.h"
 #include "ota_manager.h"
 #include "firmware_update.h"
+#include "web_slot_manager.h"
 
 namespace WebServer
 {
@@ -67,8 +68,8 @@ namespace WebServer
     // Static files
     // ==================================================
 
-    static void serveFile(
-        const char *path,
+    static void serveWebFile(
+        const char *name,
         const char *contentType)
     {
 
@@ -83,6 +84,7 @@ namespace WebServer
             return;
         }
 
+        const String path = String(WebSlotManager::activeRoot()) + "/" + name;
         File file = LittleFS.open(path, "r");
 
         if (!file)
@@ -108,8 +110,8 @@ namespace WebServer
     static void handleRoot()
     {
 
-        serveFile(
-            "/www/index.html",
+        serveWebFile(
+            "index.html",
             "text/html; charset=utf-8");
     }
 
@@ -1109,7 +1111,8 @@ namespace WebServer
         if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
         String name=server.arg("name");
         if (!isAllowedWebFile(name)) { sendJson(400, "{\"error\":\"File not allowed\"}"); return; }
-        String path="/www/"+name, temporaryPath=path+".tmp";
+        const char* root = WebSlotManager::activeRoot();
+        String path=String(root)+"/"+name, temporaryPath=path+".tmp";
         uint32_t offset=0, total=0, expectedCrc=0;
         if (!readNumber(server.arg("offset"),offset) || !readNumber(server.arg("total"),total) ||
             !readNumber(server.arg("crc"),expectedCrc,16) || !total || total>WebUpdateConfig::MAX_FILE_SIZE || offset>total) {
@@ -1139,7 +1142,7 @@ namespace WebServer
         const String content=server.arg("plain");
         size_t length=content.length();
         if (!length || length>1024 || length>total-offset) { sendJson(413,"{\"error\":\"Invalid chunk size\"}"); return; }
-        if (!LittleFS.exists("/www") && !LittleFS.mkdir("/www")) { sendJson(500,"{\"error\":\"Cannot create web directory\"}"); return; }
+        if (!LittleFS.exists(root) && !LittleFS.mkdir(root)) { sendJson(500,"{\"error\":\"Cannot create web directory\"}"); return; }
         File f=LittleFS.open(temporaryPath,offset==0?"w":"a");
         if (!f) { sendJson(500,"{\"error\":\"Cannot open staging file\"}"); return; }
         if (f.size()!=offset) { f.close(); sendJson(409,"{\"error\":\"Offset mismatch; restart transfer\"}"); return; }
@@ -1207,8 +1210,8 @@ namespace WebServer
             HTTP_GET,
             []()
             {
-                serveFile(
-                    "/www/style.css",
+                serveWebFile(
+                    "style.css",
                     "text/css; charset=utf-8");
             });
 
@@ -1217,42 +1220,42 @@ namespace WebServer
             HTTP_GET,
             []()
             {
-                serveFile(
-                    "/www/app.js",
+                serveWebFile(
+                    "app.js",
                     "application/javascript; charset=utf-8");
             });
 
         server.on("/icon.svg", HTTP_GET, []() {
-            serveFile("/www/icon.svg", "image/svg+xml");
+            serveWebFile("icon.svg", "image/svg+xml");
         });
         server.on("/manifest.json", HTTP_GET, []() {
-            serveFile("/www/manifest.json", "application/manifest+json");
+            serveWebFile("manifest.json", "application/manifest+json");
         });
 
         server.on("/night.js", HTTP_GET, []() {
-            serveFile("/www/night.js", "application/javascript; charset=utf-8");
+            serveWebFile("night.js", "application/javascript; charset=utf-8");
         });
 
         server.on("/theme-rules.js", HTTP_GET, []() {
-            serveFile("/www/theme-rules.js", "application/javascript; charset=utf-8");
+            serveWebFile("theme-rules.js", "application/javascript; charset=utf-8");
         });
 
         server.on("/studio-visual.js", HTTP_GET, []() {
-            serveFile("/www/studio-visual.js", "application/javascript; charset=utf-8");
+            serveWebFile("studio-visual.js", "application/javascript; charset=utf-8");
         });
 
         server.on("/studio.js", HTTP_GET, []() {
-            serveFile("/www/studio.js", "application/javascript; charset=utf-8");
+            serveWebFile("studio.js", "application/javascript; charset=utf-8");
         });
 
         server.on("/maintenance.js", HTTP_GET, []() {
-            serveFile("/www/maintenance.js", "application/javascript; charset=utf-8");
+            serveWebFile("maintenance.js", "application/javascript; charset=utf-8");
         });
         server.on("/setup.js", HTTP_GET, []() {
-            serveFile("/www/setup.js", "application/javascript; charset=utf-8");
+            serveWebFile("setup.js", "application/javascript; charset=utf-8");
         });
         server.on("/community.js", HTTP_GET, []() {
-            serveFile("/www/community.js", "application/javascript; charset=utf-8");
+            serveWebFile("community.js", "application/javascript; charset=utf-8");
         });
 
         server.on(
