@@ -11,6 +11,7 @@
 #include "transition_manager.h"
 #include "night_manager.h"
 #include "preview_manager.h"
+#include "firmware_update.h"
 
 
 namespace RenderManager
@@ -38,6 +39,8 @@ namespace RenderManager
 
 
     static bool lastTimeValid = false;
+    static bool lastWaiting = false;
+    static uint32_t waitingStartedAt = 0;
     static bool lastNightActive = false;
     static uint32_t lastNightRevision = 0;
     static uint32_t lastPreviewRevision = 0;
@@ -63,6 +66,8 @@ namespace RenderManager
 
 
         lastTimeValid = false;
+        lastWaiting = false;
+        waitingStartedAt = millis();
 
         lastFrameAt = millis();
 
@@ -160,6 +165,8 @@ namespace RenderManager
     void update()
     {
 
+        if (FirmwareUpdate::active()) return;
+
         uint32_t currentMillis = millis();
 
         if (
@@ -227,10 +234,19 @@ namespace RenderManager
         bool animationActive = AnimationManager::isAnimated(frontAnimation) ||
                                AnimationManager::isAnimated(rearAnimation);
 
+        const bool waiting = !timeValid && status != StatusManager::State::WifiSetupRequired;
+        if (waiting && !lastWaiting) waitingStartedAt = currentMillis;
+        // Do not blend a theme transition into the waiting indicator.
+        if (!timeValid) TransitionManager::cancel();
+        const bool fadeInTime = timeValid && lastWaiting && !previewActive && !nightActive;
+        if (fadeInTime) TransitionManager::request();
+
         // Render only when necessary.
 
         bool needsRender =
 
+            waiting ||
+            waiting != lastWaiting ||
             previewChanged ||
             nightChanged ||
             timeChanged ||
@@ -277,6 +293,19 @@ namespace RenderManager
         {
 
             Leds::clearFront();
+            if (waiting) {
+                // Crossfade between adjacent minute dots, one cycle per 1600 ms.
+                const uint32_t phase = (currentMillis - waitingStartedAt) % 1600UL;
+                const uint8_t dot = phase / 400UL;
+                const uint8_t fraction = (phase % 400UL) * 255UL / 400UL;
+                const uint8_t nextLevel = ease8InOutQuad(fraction);
+                CRGB a = CRGB(255, 225, 180);
+                CRGB b = CRGB(255, 225, 180);
+                a.nscale8_video((uint8_t)((255U - nextLevel) * 102U / 255U));
+                b.nscale8_video((uint8_t)(nextLevel * 102U / 255U));
+                Leds::setPixel(Config::MINUTE_LEDS[dot], a);
+                Leds::setPixel(Config::MINUTE_LEDS[(dot + 1) % 4], b);
+            }
         }
 
         // ==============================================
@@ -333,13 +362,36 @@ namespace RenderManager
             c.b = (uint16_t(c.b) * percent + 50) / 100;
             Leds::setPixel(i, c);
         }
-        Leds::setBrightness(brightness);
+        // Use full controller brightness only for the system indicator frame.
+        // Preserve the normal rear output by applying its global scale in software.
+        // A zero global brightness (off) or zero front brightness still hides the dots.
+        if (waiting && brightness > 0 && frontBrightness > 0 && !nightActive) {
+            for (uint16_t i = Config::REAR_LED_START; i < Config::TOTAL_LED_COUNT; ++i) {
+                CRGB c = Leds::getPixel(i);
+                c.nscale8(brightness);
+                Leds::setPixel(i, c);
+            }
+            // Rebuild the indicator after ordinary theme scaling.
+            const uint32_t phase = (currentMillis - waitingStartedAt) % 1600UL;
+            const uint8_t dot = phase / 400UL;
+            const uint8_t level = ease8InOutQuad((phase % 400UL) * 255UL / 400UL);
+            CRGB a(255, 225, 180), b(255, 225, 180);
+            a.nscale8_video((255U - level) * 102U / 255U);
+            b.nscale8_video(level * 102U / 255U);
+            Leds::clearFront();
+            Leds::setPixel(Config::MINUTE_LEDS[dot], a);
+            Leds::setPixel(Config::MINUTE_LEDS[(dot + 1) % 4], b);
+            Leds::setBrightness(255);
+        } else {
+            Leds::setBrightness(brightness);
+        }
 
         Leds::show();
 
         lastStatus = status;
 
         lastTimeValid = timeValid;
+        lastWaiting = waiting;
         lastNightActive = nightActive;
         lastNightRevision = nightRevision;
         lastPreviewRevision = previewRevision;
