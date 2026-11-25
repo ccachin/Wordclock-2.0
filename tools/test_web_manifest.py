@@ -1,4 +1,4 @@
-"""Exercise the temporary Wordclock manifest validator; no filesystem writes on device."""
+"""Exercise the Wordclock web-update preflight; no filesystem writes on device."""
 import argparse
 import base64
 import copy
@@ -73,7 +73,7 @@ def main():
     p.add_argument('--host',required=True)
     p.add_argument('--manifest',type=Path,default=ROOT/'dist'/'web-manifest.json')
     p.add_argument('--repeat',type=int,default=15,choices=range(1,51),metavar='1-50')
-    p.add_argument('--oversize',action='store_true',help='Also send one 8193-byte request; may stress RAM')
+    p.add_argument('--oversize',action='store_true',help='Also send one 4097-byte request; may stress RAM')
     a=p.parse_args()
     url=urlsplit(a.host)
     if url.scheme!='http' or not url.hostname or url.username or url.password or url.path not in ('','/') or url.query or url.fragment:
@@ -81,7 +81,7 @@ def main():
     host=a.host.rstrip('/')
     raw=a.manifest.read_bytes()
     base=json.loads(raw)
-    if base.get('compatibility',{}).get('webApiVersion')!=1 or len(base.get('files',[]))!=12 or len(raw)>8192:
+    if base.get('compatibility',{}).get('webApiVersion')!=1 or len(base.get('files',[]))!=12 or len(raw)>4096:
         p.error('Generate a valid API 1 reference manifest first')
     auth='Basic '+base64.b64encode(('admin:'+getpass.getpass('Web update password: ')).encode()).decode()
     opener=build_opener(ProxyHandler({}),NoRedirect())
@@ -89,7 +89,7 @@ def main():
         headers={'Connection':'close'}
         if body is not None:
             boundary = 'wordclock-' + uuid.uuid4().hex
-            headers.update({'Authorization':auth,'X-Wordclock-Action':'manifest-test','Content-Type':'multipart/form-data; boundary='+boundary})
+            headers.update({'Authorization':auth,'X-Wordclock-Action':'web-update','Content-Type':'multipart/form-data; boundary='+boundary})
             body = ('--'+boundary+'\r\nContent-Disposition: form-data; name="manifest"; filename="web-manifest.json"\r\nContent-Type: application/octet-stream\r\n\r\n').encode('ascii') + body + ('\r\n--'+boundary+'--\r\n').encode('ascii')
         try:
             with opener.open(Request(host+path,data=body,headers=headers),timeout=10) as r:
@@ -100,7 +100,7 @@ def main():
         status,data=request('/api/system')
         if status!=200: raise RuntimeError('System diagnostic HTTP '+str(status))
         return json.loads(data)
-    endpoint='/api/dev/web-manifest-test'
+    endpoint='/api/system/web-update/preflight'
     before=system(); print('BEFORE:',json.dumps(before))
     failures=0; passed=0
     def run(name,body,expected):
@@ -110,7 +110,7 @@ def main():
         except ValueError: result={}
         ok=status==expected and isinstance(result,dict) and result.get('valid') is (expected==200)
         if expected==200 and ok:
-            ok=all(result.get(k)==base[k] for k in ('version','fileCount','totalBytes'))
+            ok=result.get('ready') is True and all(result.get(k)==base[k] for k in ('version','fileCount','totalBytes'))
         print(f'{"PASS" if ok else "FAIL"} | {name} | expected {expected}, got {status} | {data[:240].decode(errors="replace")}')
         passed+=int(ok); failures+=int(not ok)
         time.sleep(.15)
@@ -120,8 +120,8 @@ def main():
     try:
         for name,body,expected in cases(base): run(name,body,expected)
         if a.oversize:
-            run('8192 bytes',encode(base).ljust(8192,b' '),200)
-            run('8193 bytes',encode(base).ljust(8193,b' '),413)
+            run('4096 bytes',encode(base).ljust(4096,b' '),200)
+            run('4097 bytes',encode(base).ljust(4097,b' '),413)
             run('32768 bytes',encode(base).ljust(32768,b' '),413)
             run('recovery after oversize',raw,200)
         for i in range(a.repeat): run(f'repeat {i+1}/{a.repeat}',raw,200)

@@ -88,6 +88,10 @@ namespace WebServer
             return;
         }
 
+        if (WebSlotManager::isIncomplete(WebSlotManager::activeSlot())) {
+            server.send(503, "text/plain", "Web interface incomplete");
+            return;
+        }
         const String path = String(WebSlotManager::activeRoot()) + "/" + name;
         File file = LittleFS.open(path, "r");
 
@@ -653,6 +657,7 @@ namespace WebServer
     static struct {
         char* data = nullptr;
         size_t length = 0;
+        size_t capacity = 0;
         int error = 0;
         bool seen = false;
         bool ended = false;
@@ -668,7 +673,7 @@ namespace WebServer
         if (upload.status == UPLOAD_FILE_START) {
             if (manifestRx.seen) { manifestRx.error = 400; return; }
             manifestRx.seen = true;
-            if (server.header("X-Wordclock-Action") != "manifest-test" ||
+            if (server.header("X-Wordclock-Action") != "web-update" ||
                 !WebUpdateConfig::ENABLED || strcmp(WebUpdateConfig::PASSWORD, "CHANGE_ME") == 0) {
                 manifestRx.error = 403; return;
             }
@@ -676,14 +681,27 @@ namespace WebServer
                 manifestRx.error = 401; return;
             }
             if (upload.name != "manifest") { manifestRx.error = 400; return; }
-            manifestRx.data = static_cast<char*>(malloc(WebManifest::MaxBytes));
-            if (!manifestRx.data) manifestRx.error = 503;
+
         } else if (upload.status == UPLOAD_FILE_WRITE) {
-            if (manifestRx.error || !manifestRx.data) return;
+            if (manifestRx.error || !manifestRx.seen) return;
             if (upload.currentSize > WebManifest::MaxBytes - manifestRx.length) {
                 manifestRx.error = 413;
                 free(manifestRx.data); manifestRx.data = nullptr;
                 return;
+            }
+            if (!upload.currentSize) return;
+            const size_t needed = manifestRx.length + upload.currentSize;
+            if (needed > manifestRx.capacity) {
+                const size_t capacity = ((needed + 511) / 512) * 512;
+                char* next = static_cast<char*>(realloc(manifestRx.data, capacity));
+                if (!next) {
+                    Serial.printf("Manifest receive allocation failed: need=%u heap=%u maxBlock=%u\n", static_cast<unsigned>(capacity), ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
+                    manifestRx.error = 503;
+                    free(manifestRx.data); manifestRx.data = nullptr;
+                    return;
+                }
+                manifestRx.data = next;
+                manifestRx.capacity = capacity;
             }
             memcpy(manifestRx.data + manifestRx.length, upload.buf, upload.currentSize);
             manifestRx.length += upload.currentSize;
@@ -694,8 +712,8 @@ namespace WebServer
         }
     }
 
-    static void handleManifestTest() {
-        if (server.header("X-Wordclock-Action") != "manifest-test") {
+    static void handleWebUpdatePreflight() {
+        if (server.header("X-Wordclock-Action") != "web-update") {
             clearManifestRx(); sendJson(403, "{\"error\":\"Action required\"}"); return;
         }
         if (!authorizeWebUpdate()) { clearManifestRx(); return; }
@@ -705,15 +723,44 @@ namespace WebServer
             sendJson(status, "{\"valid\":false,\"error\":\"manifest-receive\"}"); return;
         }
         WebManifest::Result result{};
-        const bool valid = WebManifest::validate(manifestRx.data, manifestRx.length, result);
+        Serial.printf("Manifest before parse: bytes=%u heap=%u maxBlock=%u\n", static_cast<unsigned>(manifestRx.length), ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
+        const bool valid = WebManifest::validateMutable(manifestRx.data, manifestRx.length, result);
         clearManifestRx();
         if (!valid) {
+            Serial.printf("Manifest validation failed: %s heap=%u maxBlock=%u\n", result.error, ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
             sendJson(strcmp(result.error, "memory") == 0 ? 503 : 400,
                 String("{\"valid\":false,\"error\":\"") + result.error + "\"}"); return;
         }
-        sendJson(200, String("{\"valid\":true,\"version\":\"") + result.version +
-            "\",\"fileCount\":" + String(result.fileCount) +
-            ",\"totalBytes\":" + String(result.totalBytes) + "}");
+        const auto check = WebUpdateManager::preflight(result);
+        int status = 200;
+        if (check.error) {
+            if (strcmp(check.error, "insufficient-space") == 0) status = 507;
+            else if (strcmp(check.error, "invalid-manifest") == 0 ||
+                     strcmp(check.error, "payload-size") == 0) status = 400;
+            else if (strcmp(check.error, "operation-active") == 0) status = 409;
+            else status = 503;
+        }
+        DynamicJsonDocument doc(768);
+        doc["valid"] = true;
+        doc["ready"] = !check.error;
+        if (check.error) doc["error"] = check.error;
+        doc["version"] = result.version;
+        doc["fileCount"] = result.fileCount;
+        doc["totalBytes"] = result.totalBytes;
+        doc["source"] = WebSlotManager::activeSlot() == WebSlotManager::Slot::A ? "A" : "B";
+        doc["target"] = WebSlotManager::inactiveSlot() == WebSlotManager::Slot::A ? "A" : "B";
+        if (check.space.requiredBytes) {
+            doc["freeBytes"] = check.space.freeBytes;
+            doc["requiredBytes"] = check.space.requiredBytes;
+            doc["marginBytes"] = static_cast<int32_t>(check.space.freeBytes) -
+                                 static_cast<int32_t>(check.space.requiredBytes);
+        }
+        if (doc.overflowed()) {
+            sendJson(503, "{\"ready\":false,\"error\":\"memory\"}"); return;
+        }
+        String json;
+        serializeJson(doc, json);
+        sendJson(status, json);
     }
 
     static void handleWifiInfo()
@@ -738,6 +785,8 @@ namespace WebServer
         doc["rssi"] = WiFi.RSSI();
         doc["uptime"] = millis() / 1000;
         doc["freeHeap"] = ESP.getFreeHeap();
+        doc["maxFreeBlock"] = ESP.getMaxFreeBlockSize();
+        doc["heapFragmentation"] = ESP.getHeapFragmentation();
         doc["flashBytes"] = ESP.getFlashChipRealSize();
         doc["flashConfiguredBytes"] = ESP.getFlashChipSize();
         doc["resetReason"] = ESP.getResetReason();
@@ -1199,6 +1248,7 @@ namespace WebServer
         if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
         String name=server.arg("name");
         if (!isAllowedWebFile(name)) { sendJson(400, "{\"error\":\"File not allowed\"}"); return; }
+        if (WebSlotManager::isIncomplete(WebSlotManager::activeSlot())) { sendJson(409, "{\"error\":\"Web interface incomplete\"}"); return; }
         const char* root = WebSlotManager::activeRoot();
         const char* slot = WebSlotManager::activeSlot() == WebSlotManager::Slot::A ? "A" : "B";
         if (server.hasArg("slot") && server.arg("slot") != slot) {
@@ -1470,8 +1520,8 @@ namespace WebServer
         {
 
 
-            // Manifest diagnostic route disabled after validation (19.6.3.D).
-            // Receiver and validator retained for the release update API.
+            server.on("/api/system/web-update/preflight", HTTP_POST,
+                      handleWebUpdatePreflight, handleManifestChunk);
 
             server.on(
                 "/api/dev/web",

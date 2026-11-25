@@ -97,7 +97,8 @@ static bool hashValid(const char* p) {
     return true;
 }
 static bool fail(Result& r, const char* error) { r.error=error; return false; }
-bool validate(const char* body, size_t length, Result& r) {
+template<typename Buffer>
+static bool validateImpl(Buffer body, size_t length, Result& r) {
     r = Result{};
     if (!body || !length || length>MaxBytes) return fail(r,"manifest-size");
     if (!StrictJson(body,length).valid()) return fail(r,"strict-json");
@@ -142,4 +143,11 @@ bool validate(const char* body, size_t length, Result& r) {
     memcpy(r.version,version,strlen(version)+1);
     return true;
 }
+bool validate(const char* body, size_t length, Result& r) {
+    return validateImpl(body, length, r);
+}
+bool validateMutable(char* body, size_t length, Result& r) {
+    return validateImpl(body, length, r);
+}
+
 }

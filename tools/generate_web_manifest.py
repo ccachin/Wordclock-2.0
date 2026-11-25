@@ -14,7 +14,7 @@ REQUIRED = frozenset(('style.css', 'app.js', 'night.js', 'theme-rules.js',
 MAX_FILES = 32
 MAX_FILE = 128 * 1024
 MAX_TOTAL = 384 * 1024
-MAX_MANIFEST = 8 * 1024
+MAX_MANIFEST = 4 * 1024
 
 
 def generate(source, version, api):

@@ -1,6 +1,7 @@
 #include "web_update_manager.h"
 #include <cstring>
 #include <Updater.h>
+#include <LittleFS.h>
 #include "firmware_update.h"
 #include "web_server.h"
 #include "wifi_manager.h"
@@ -25,14 +26,38 @@ void update() {
         clear("timeout");
     }
 }
+Preflight preflight(const WebManifest::Result& manifest) {
+    Preflight result{};
+    if (!Storage::isReady()) result.error = "storage-unavailable";
+    else if (active() || FirmwareUpdate::active() || Update.isRunning() ||
+             WebServer::maintenancePending()) result.error = "operation-active";
+    else if (!WifiManager::isConnected() || WifiManager::isPortalActive())
+        result.error = "wifi-unavailable";
+    else if (manifest.error || manifest.fileCount != 12 ||
+             !manifest.totalBytes || manifest.totalBytes > 384UL * 1024 ||
+             !manifest.version[0] || !memchr(manifest.version, 0, sizeof(manifest.version)))
+        result.error = "invalid-manifest";
+    else if (WebSlotManager::activeSlot() == WebSlotManager::inactiveSlot() ||
+             !WebSlotManager::hasEntryPoint(WebSlotManager::activeSlot()))
+        result.error = "slot-unavailable";
+    else {
+        FSInfo info{};
+        if (!LittleFS.info(info)) result.error = "storage-info";
+        else {
+            result.space = WebUpdateSpace::estimate(info.totalBytes, info.usedBytes, manifest.totalBytes);
+            result.error = result.space.error;
+        }
+    }
+    return result;
+}
 bool start(const WebManifest::Result& manifest, uint32_t& id) {
     update();
     id = 0;
-    if (FirmwareUpdate::active() || Update.isRunning() || WebServer::maintenancePending() ||
-        !Storage::isReady() || !WifiManager::isConnected() || WifiManager::isPortalActive()) return false;
-    if (active() || manifest.error || manifest.fileCount != 12 ||
-        !manifest.totalBytes || manifest.totalBytes > 384UL * 1024 ||
-        !manifest.version[0] || !memchr(manifest.version, 0, sizeof(manifest.version))) return false;
+    if (preflight(manifest).error) return false;
+    if (!WebSlotManager::markIncomplete(WebSlotManager::inactiveSlot())) {
+        clear("slot-protection-failed");
+        return false;
+    }
     clear(nullptr);
     if (++sequence == 0) ++sequence;
     session.id = sequence;

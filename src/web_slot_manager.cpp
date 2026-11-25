@@ -26,9 +26,29 @@ namespace WebSlotManager {
     const char* activeRoot() { return root(selected); }
     const char* selectionSource() { return source; }
     uint32_t selectionGeneration() { return generation; }
+    bool isIncomplete(Slot slot) {
+        const char* directory = root(slot);
+        return !directory || !Storage::isReady() || LittleFS.exists(String(directory) + "/.incomplete");
+    }
+    bool markIncomplete(Slot slot) {
+        const char* directory = root(slot);
+        if (!initialized || !directory || !Storage::isReady() || slot == selected) return false;
+        if (!LittleFS.exists(directory) && !LittleFS.mkdir(directory)) return false;
+        const String path = String(directory) + "/.incomplete";
+        if (LittleFS.exists(path)) return true;
+        File file = LittleFS.open(path, "w");
+        if (!file) return false;
+        const bool written = file.write(uint8_t(1)) == 1;
+        file.close();
+        File check = LittleFS.open(path, "r");
+        if (!check) return false;
+        const bool valid = !check.isDirectory() && check.size() == 1 && check.read() == 1;
+        check.close();
+        return written && valid;
+    }
     bool hasEntryPoint(Slot slot) {
         const char* directory = root(slot);
-        if (!directory || !Storage::isReady()) return false;
+        if (!directory || !Storage::isReady() || isIncomplete(slot)) return false;
         File file = LittleFS.open(String(directory) + "/index.html", "r");
         if (!file) return false;
         const bool valid = !file.isDirectory() && file.size() > 0;
