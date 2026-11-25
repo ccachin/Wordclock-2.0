@@ -1,3 +1,5 @@
 # Preserve exact release artifact bytes
 /releases/** -text
 /catalog.json -text
+/releases/** -text -filter -ident -working-tree-encoding
+/catalog.json -text -filter -ident -working-tree-encoding
