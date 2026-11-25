@@ -27,6 +27,7 @@
 #include "ota_manager.h"
 #include "firmware_update.h"
 #include "web_slot_manager.h"
+#include "web_manifest.h"
 
 namespace WebServer
 {
@@ -643,6 +644,73 @@ namespace WebServer
         }
 
         return true;
+    }
+
+    // Multipart file receiver: allocate at most MaxBytes, only after auth.
+    static struct {
+        char* data = nullptr;
+        size_t length = 0;
+        int error = 0;
+        bool seen = false;
+        bool ended = false;
+    } manifestRx;
+
+    static void clearManifestRx() {
+        free(manifestRx.data);
+        manifestRx = {};
+    }
+
+    static void handleManifestChunk() {
+        HTTPUpload& upload = server.upload();
+        if (upload.status == UPLOAD_FILE_START) {
+            if (manifestRx.seen) { manifestRx.error = 400; return; }
+            manifestRx.seen = true;
+            if (server.header("X-Wordclock-Action") != "manifest-test" ||
+                !WebUpdateConfig::ENABLED || strcmp(WebUpdateConfig::PASSWORD, "CHANGE_ME") == 0) {
+                manifestRx.error = 403; return;
+            }
+            if (!server.authenticate(WebUpdateConfig::USERNAME, WebUpdateConfig::PASSWORD)) {
+                manifestRx.error = 401; return;
+            }
+            if (upload.name != "manifest") { manifestRx.error = 400; return; }
+            manifestRx.data = static_cast<char*>(malloc(WebManifest::MaxBytes));
+            if (!manifestRx.data) manifestRx.error = 503;
+        } else if (upload.status == UPLOAD_FILE_WRITE) {
+            if (manifestRx.error || !manifestRx.data) return;
+            if (upload.currentSize > WebManifest::MaxBytes - manifestRx.length) {
+                manifestRx.error = 413;
+                free(manifestRx.data); manifestRx.data = nullptr;
+                return;
+            }
+            memcpy(manifestRx.data + manifestRx.length, upload.buf, upload.currentSize);
+            manifestRx.length += upload.currentSize;
+        } else if (upload.status == UPLOAD_FILE_END) {
+            manifestRx.ended = true;
+        } else if (upload.status == UPLOAD_FILE_ABORTED) {
+            clearManifestRx();
+        }
+    }
+
+    static void handleManifestTest() {
+        if (server.header("X-Wordclock-Action") != "manifest-test") {
+            clearManifestRx(); sendJson(403, "{\"error\":\"Action required\"}"); return;
+        }
+        if (!authorizeWebUpdate()) { clearManifestRx(); return; }
+        if (manifestRx.error || !manifestRx.ended || !manifestRx.data) {
+            const int status = manifestRx.error ? manifestRx.error : 400;
+            clearManifestRx();
+            sendJson(status, "{\"valid\":false,\"error\":\"manifest-receive\"}"); return;
+        }
+        WebManifest::Result result{};
+        const bool valid = WebManifest::validate(manifestRx.data, manifestRx.length, result);
+        clearManifestRx();
+        if (!valid) {
+            sendJson(strcmp(result.error, "memory") == 0 ? 503 : 400,
+                String("{\"valid\":false,\"error\":\"") + result.error + "\"}"); return;
+        }
+        sendJson(200, String("{\"valid\":true,\"version\":\"") + result.version +
+            "\",\"fileCount\":" + String(result.fileCount) +
+            ",\"totalBytes\":" + String(result.totalBytes) + "}");
     }
 
     static void handleWifiInfo()
@@ -1395,6 +1463,9 @@ namespace WebServer
         if (WebUpdateConfig::ENABLED)
         {
 
+            // Manifest diagnostic route disabled after validation (19.6.3.D).
+            // Receiver and validator retained for the release update API.
+
             server.on(
                 "/api/dev/web",
                 HTTP_GET,
@@ -1526,6 +1597,7 @@ namespace WebServer
         }
 
         server.handleClient();
+        if (manifestRx.seen || manifestRx.data) clearManifestRx();
         // A disconnected or malformed multipart request may never reach its
         // final handler. Never leave the diagnostic receiver owning the LEDs.
         if (firmwareRx.seen) {
