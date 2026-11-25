@@ -1,3 +1,4 @@
+#include <new>
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -658,6 +659,7 @@ namespace WebServer
     {
         DynamicJsonDocument doc(1024);
         doc["firmware"] = "3.0.0-dev";
+        doc["buildId"] = __DATE__ " " __TIME__;
         doc["hostname"] = "wordclock.local";
         doc["ip"] = WiFi.localIP().toString();
         doc["rssi"] = WiFi.RSSI();
@@ -835,7 +837,7 @@ namespace WebServer
         const char* reason = firmwareBlocked(maxBytes);
         StaticJsonDocument<384> doc;
         doc["ready"] = reason == nullptr;
-        doc["uploadSupported"] = false;
+        doc["uploadSupported"] = true;
         doc["maxBytes"] = maxBytes;
         doc["freeSketchBytes"] = freeBytes;
         if (reason) doc["reason"] = reason;
@@ -848,7 +850,10 @@ namespace WebServer
     static constexpr uint32_t FLASH_TEST_RESERVE = 4096;
     // ESP8266WebServer processes multipart uploads synchronously in handleClient().
     static br_sha256_context firmwareHash;
+    static uint8_t* firmwareTail = nullptr;
     static struct {
+        bool install = false;
+        uint32_t tailBytes = 0;
         bool integrity = false;
         bool hashVerified = false;
         uint8_t expectedHash[32] = {};
@@ -875,6 +880,8 @@ namespace WebServer
 
     static void clearFirmwareRx()
     {
+        delete[] firmwareTail;
+        firmwareTail = nullptr;
         if (firmwareRx.updaterOwned) {
             if (Update.isRunning()) {
                 // Never finalize a complete image in this diagnostic route.
@@ -908,7 +915,7 @@ namespace WebServer
         return -1;
     }
 
-    static void handleFirmwareChunk(bool staging, bool integrity = false)
+    static void handleFirmwareChunk(bool staging, bool integrity = false, bool install = false)
     {
         HTTPUpload& upload = server.upload();
         if (upload.status == UPLOAD_FILE_START) {
@@ -918,6 +925,7 @@ namespace WebServer
             firmwareRx.seen = true;
             firmwareRx.staging = staging;
             firmwareRx.integrity = integrity;
+            firmwareRx.install = install;
             if (server.header("X-Wordclock-Action") != "firmware-update") {
                 failFirmwareRx(403, "Missing action header"); return;
             }
@@ -929,6 +937,9 @@ namespace WebServer
             }
             if (upload.name != "firmware" || !readNumber(server.arg("size"), firmwareRx.expected) || !firmwareRx.expected) {
                 failFirmwareRx(400, "Invalid file field or firmware size"); return;
+            }
+            if (install && server.arg("confirm") != "INSTALL") {
+                failFirmwareRx(400, "Installation confirmation required"); return;
             }
             const uint32_t limit = min(ESP.getFreeSketchSpace() & ~uint32_t(4095), uint32_t(1044464));
             if (firmwareRx.expected > limit) {
@@ -958,6 +969,10 @@ namespace WebServer
                 failFirmwareRx(409, "Update already running"); return;
             }
             firmwareRx.owns = true;
+            if (install) {
+                firmwareTail = new (std::nothrow) uint8_t[FLASH_TEST_RESERVE];
+                if (!firmwareTail) { failFirmwareRx(503, "Insufficient memory"); return; }
+            }
             if (staging) {
                 if (!Update.begin(firmwareRx.expected, U_FLASH)) {
                     Update.printError(Serial);
@@ -991,6 +1006,14 @@ namespace WebServer
                         failFirmwareRx(500, "Flash write failed"); return;
                     }
                 }
+                if (firmwareRx.install && upload.currentSize > count) {
+                    const size_t tailCount = upload.currentSize - count;
+                    if (!firmwareTail || tailCount > FLASH_TEST_RESERVE - firmwareRx.tailBytes) {
+                        failFirmwareRx(500, "Firmware tail overflow"); return;
+                    }
+                    memcpy(firmwareTail + firmwareRx.tailBytes, upload.buf + count, tailCount);
+                    firmwareRx.tailBytes += tailCount;
+                }
             }
             firmwareRx.received += upload.currentSize;
             FirmwareUpdate::progress(FirmwareUpdate::Owner::Web, firmwareRx.received, firmwareRx.expected);
@@ -1007,6 +1030,8 @@ namespace WebServer
     static void handleFirmwareFlashChunk() { handleFirmwareChunk(true); }
 
     static void handleFirmwareIntegrityChunk() { handleFirmwareChunk(true, true); }
+
+    static void handleFirmwareInstallChunk() { handleFirmwareChunk(true, true, true); }
 
     static void handleFirmwareReceive()
     {
@@ -1027,6 +1052,34 @@ namespace WebServer
             if (!firmwareRx.hashVerified)
                 failFirmwareRx(422, "SHA-256 mismatch");
         }
+        if (!firmwareRx.error && firmwareRx.install) {
+            if (server.arg("confirm") != "INSTALL" || !firmwareRx.hashVerified ||
+                !firmwareTail || firmwareRx.tailBytes != FLASH_TEST_RESERVE ||
+                firmwareRx.received != firmwareRx.expected || Update.hasError()) {
+                failFirmwareRx(400, "Installation validation failed");
+            } else {
+                // Only the final HTTP handler may supply the reserved bytes.
+                const size_t count = Update.write(firmwareTail, FLASH_TEST_RESERVE);
+                firmwareRx.accepted += count;
+                delete[] firmwareTail;
+                firmwareTail = nullptr;
+                if (count == FLASH_TEST_RESERVE && !Update.hasError() &&
+                    Update.isFinished() && Update.end(false)) {
+                    firmwareRx.updaterOwned = false;
+                    FirmwareUpdate::validated(FirmwareUpdate::Owner::Web);
+                    Serial.println("HTTP firmware validated; installation scheduled");
+                    // Keep exclusive ownership until reboot. The main loop skips
+                    // WebServer::update while FirmwareUpdate is active.
+                    sendJson(202, "{\"sha256Verified\":true,\"installationScheduled\":true,\"restartPending\":true}");
+                    delay(1500);
+                    Serial.flush();
+                    ESP.restart();
+                    for (;;) delay(100);
+                }
+                Update.printError(Serial);
+                failFirmwareRx(500, "Firmware finalization failed");
+            }
+        }
         StaticJsonDocument<768> doc;
         if (firmwareRx.integrity) doc["sha256Verified"] = firmwareRx.hashVerified;
         doc["receivedBytes"] = firmwareRx.received;
@@ -1036,7 +1089,7 @@ namespace WebServer
             doc["acceptedBytes"] = firmwareRx.accepted;
             doc["writtenBytes"] = firmwareRx.written;
             doc["reservedBytes"] = FLASH_TEST_RESERVE;
-            doc["testOnly"] = true;
+            doc["testOnly"] = !firmwareRx.install;
         }
         doc["installed"] = false;
         if (firmwareRx.error) doc["error"] = firmwareRx.message;
@@ -1322,6 +1375,7 @@ namespace WebServer
         server.on("/api/system/firmware/receive-test", HTTP_POST, handleFirmwareReceive, handleFirmwareReceiveChunk);
         server.on("/api/system/firmware/flash-test", HTTP_POST, handleFirmwareReceive, handleFirmwareFlashChunk);
         server.on("/api/system/firmware/integrity-test", HTTP_POST, handleFirmwareReceive, handleFirmwareIntegrityChunk);
+        server.on("/api/system/firmware/install", HTTP_POST, handleFirmwareReceive, handleFirmwareInstallChunk);
         server.on("/api/system", HTTP_GET, handleSystemInfo);
         server.on("/api/system/restart", HTTP_POST, handleRestart);
         server.on("/api/system/reset-settings", HTTP_POST, handleResetSettings);
