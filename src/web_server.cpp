@@ -1265,6 +1265,7 @@ namespace WebServer
         doc["receivedBytes"]=state.received; doc["totalBytes"]=state.totalBytes;
         doc["completedFiles"]=state.completed; doc["fileCount"]=state.fileCount;
         doc["complete"]=state.id && state.completed==state.fileCount && state.received==state.totalBytes;
+        doc["verified"]=state.verified; doc["verifiedFiles"]=state.verifiedFiles;
         if(state.lastError) doc["error"]=state.lastError;
         String json; serializeJson(doc,json); sendJson(200,json);
     }
@@ -1275,6 +1276,14 @@ namespace WebServer
         const String name=server.arg("name"), data=server.arg("plain");
         if (!WebUpdateManager::chunk(id,name.c_str(),offset,reinterpret_cast<const uint8_t*>(data.c_str()),data.length())) { sendJson(409,"{\"error\":\"chunk-rejected\"}"); return; }
         sendJson(200,String("{\"offset\":")+String(offset+data.length())+"}");
+    }
+    static void handleReleaseVerify() {
+        if (!releaseAuthorized()) return;
+        uint32_t id=0;
+        if (!readNumber(server.arg("id"),id)) { sendJson(400,"{\"error\":\"parameters\"}"); return; }
+        const char* error=WebUpdateManager::verify(id);
+        if (error) { sendJson(strcmp(error,"sha256-mismatch")==0?422:409,String("{\"verified\":false,\"error\":\"")+error+"\"}"); return; }
+        sendJson(200,"{\"verified\":true,\"verifiedFiles\":12}");
     }
     static void handleReleaseCancel() {
         if (!releaseAuthorized()) return;
@@ -1568,6 +1577,7 @@ namespace WebServer
             server.on("/api/system/web-update/status", HTTP_GET, handleReleaseStatus);
             server.on("/api/system/web-update/chunk", HTTP_PUT, handleReleaseChunk);
             server.on("/api/system/web-update/cancel", HTTP_POST, handleReleaseCancel);
+            server.on("/api/system/web-update/verify", HTTP_POST, handleReleaseVerify);
 
             server.on(
                 "/api/dev/web",

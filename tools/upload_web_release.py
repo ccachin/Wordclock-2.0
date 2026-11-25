@@ -17,7 +17,9 @@ def main():
     p.add_argument('--manifest', type=Path, default=Path('dist/web-manifest.json'))
     p.add_argument('--source', type=Path, default=Path('data/www'))
     p.add_argument('--keep', action='store_true', help='Leave the completed test session until timeout or manual cancellation')
+    p.add_argument('--test', choices=['corrupt','incomplete','unknown'], help='Expect device rejection')
     a = p.parse_args()
+    if a.test and a.keep: p.error('--test and --keep are incompatible')
     raw = a.manifest.read_bytes()
     manifest = json.loads(raw)
     assets = []
@@ -45,7 +47,24 @@ def main():
         result = request('start', 'POST', body, 'multipart/form-data; boundary=' + boundary)
         session = result['id']
         print(f'Session {session}, target {result["target"]}')
-        for name, data in assets:
+        def expect_rejection(route, method, body, code, error):
+            try:
+                request(route, method, body)
+            except urllib.error.HTTPError as exc:
+                result = json.load(exc)
+                if exc.code == code and result.get('error') == error:
+                    print(f'PASS: HTTP {code}, {error}')
+                    return
+                raise ValueError(f'Unexpected rejection: {exc.code} {result}') from exc
+            raise ValueError('Unexpected acceptance')
+        verify_route = 'verify?' + urllib.parse.urlencode(dict(id=session))
+        if a.test == 'incomplete':
+            expect_rejection(verify_route, 'POST', b'', 409, 'incomplete')
+        if a.test == 'unknown':
+            expect_rejection('chunk?' + urllib.parse.urlencode(dict(id=session,name='unknown.js',offset=0)), 'PUT', b'x', 409, 'chunk-rejected')
+        for name, data in ([] if a.test in ('incomplete','unknown') else assets):
+            if a.test == 'corrupt' and name == assets[0][0]:
+                data = bytes([data[0] ^ 1]) + data[1:]
             for offset in range(0, len(data), 1024):
                 chunk = data[offset:offset+1024]
                 query = urllib.parse.urlencode(dict(id=session, name=name, offset=offset))
@@ -55,10 +74,22 @@ def main():
                 print(f'{name}: {offset+len(chunk)}/{len(data)}', flush=True)
         state = request('status')
         print(json.dumps(state, indent=2))
-        if not state['complete'] or state['id'] != session:
-            raise ValueError('Transfer incomplete')
+        if state['id'] != session:
+            raise ValueError('Session mismatch')
+        if a.test not in ('incomplete','unknown'):
+            if not state['complete']:
+                raise ValueError('Transfer incomplete')
+            if a.test == 'corrupt':
+                expect_rejection(verify_route, 'POST', b'', 422, 'sha256-mismatch')
+                if request('status')['verified']:
+                    raise ValueError('Corrupt session marked verified')
+            else:
+                result = request(verify_route, 'POST', b'')
+                state = request('status')
+                if not result['verified'] or not state['verified'] or state['verifiedFiles'] != len(assets):
+                    raise ValueError('Verification incomplete')
+                print('SHA-256 verified: all assets. NOT activated.')
         success = True
-        print('Transfer complete; NOT hash verified or activated on device.')
     except (Exception, KeyboardInterrupt) as exc:
         print(f'Transfer stopped: {exc}')
     finally:

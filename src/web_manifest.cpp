@@ -139,7 +139,12 @@ static bool validateImpl(Buffer body, size_t length, Result& r) {
         r.sizes[i]=size;
         total+=size;
         if (total>384UL*1024) return fail(r,"total-size");
-        if (!hashValid(f["sha256"].as<const char*>())) return fail(r,"sha256");
+        const char* hash=f["sha256"].as<const char*>();
+        if (!hashValid(hash)) return fail(r,"sha256");
+        for (size_t j=0;j<32;++j) {
+            const char a=hash[2*j], b=hash[2*j+1];
+            r.hashes[i][j]=((a<='9'?a-'0':a-'a'+10)<<4)|(b<='9'?b-'0':b-'a'+10);
+        }
     }
     if (!root["totalBytes"].is<uint32_t>() || root["totalBytes"].as<uint32_t>()!=total) return fail(r,"total-size");
     r.fileCount=count; r.totalBytes=total;
