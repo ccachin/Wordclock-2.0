@@ -8,6 +8,7 @@
 #include "web_slot_manager.h"
 #include "web_update_manager.h"
 #include "storage.h"
+#include "credentials_manager.h"
 #include "theme_manager.h"
 #include "render_manager.h"
 #include "settings_manager.h"
@@ -57,6 +58,8 @@ void setup()
         return;
     }
 
+    Credentials::begin();
+
     Serial.println("Boot: managers");
     TimeManager::begin();
 
@@ -95,6 +98,12 @@ void loop()
     WebUpdateManager::update();
 
     OTAManager::update();
+
+    if (WebServer::firmwareSessionActive()) {
+        WebServer::update();
+        delay(5);
+        return;
+    }
 
     if (OTAManager::isUpdating())
     {

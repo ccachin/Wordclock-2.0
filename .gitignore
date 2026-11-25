@@ -7,3 +7,9 @@ include/web_update_config.h
 include/ota_config.h
 /dist/
 __pycache__/
+
+# Local firmware builds and diagnostic logs
+/firmware.bin
+/firmware.elf
+/firmware.sig
+/logs/

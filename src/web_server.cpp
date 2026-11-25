@@ -1,4 +1,8 @@
+#include <BearSSLHelpers.h>
 #include <new>
+extern "C" {
+#include <user_interface.h>
+}
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -8,6 +12,8 @@
 #include <LittleFS.h>
 #include <Updater.h>
 #include <bearssl/bearssl_hash.h>
+#include <bearssl/bearssl_rsa.h>
+#include "firmware_signing_key.h"
 #include <ctype.h>
 #include <stdlib.h>
 
@@ -18,7 +24,7 @@
 #include "theme_manager.h"
 #include "theme_library.h"
 #include "color_manager.h"
-#include "web_update_config.h"
+#include "credentials_manager.h"
 #include "transition_manager.h"
 #include "night_manager.h"
 #include "custom_theme_store.h"
@@ -228,6 +234,7 @@ namespace WebServer
     }
     static bool nightNumber(const char* key, unsigned maxValue, unsigned& result);
     static void handlePreview() {
+        if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
         const String token = server.arg("token");
         if (!validPreviewToken(token)) { sendJson(400, "{\"error\":\"Invalid token\"}"); return; }
         const String action = server.arg("action");
@@ -284,6 +291,7 @@ namespace WebServer
         return result <= maxValue;
     }
     static void handleSetNight() {
+        if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
         auto n = NightManager::getSettings();
         unsigned value;
         if (server.hasArg("enabled")) {
@@ -317,6 +325,7 @@ namespace WebServer
         sendJson(200, json);
     }
     static void handleSetTransitions() {
+        if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
         String value = server.arg("duration");
         if (value.length() == 0 || value.length() > 4) { sendJson(400, "{\"error\":\"Invalid duration\"}"); return; }
         for (unsigned i = 0; i < value.length(); ++i)
@@ -339,6 +348,7 @@ namespace WebServer
         sendJson(200, json);
     }
     static void handleSetDevice() {
+        if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
         auto value = SettingsManager::deviceSettings();
         if (!server.hasArg("name") && !server.hasArg("timezone") && !server.hasArg("setupComplete")) { sendJson(400, "{\"error\":\"Missing device settings\"}"); return; }
         if (server.hasArg("name")) { value.name = server.arg("name"); value.name.trim(); }
@@ -361,6 +371,7 @@ namespace WebServer
         sendJson(200, json);
     }
     static void handleSetAppearance() {
+        if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
         CRGB color;
         if (!parseColor(server.arg("faceColor"), color)) { sendJson(400, "{\"error\":\"Invalid face color\"}"); return; }
         SettingsManager::setFaceColor((uint32_t(color.r)<<16) | (uint32_t(color.g)<<8) | color.b);
@@ -415,6 +426,7 @@ namespace WebServer
 
     static void handleSetTheme()
     {
+        if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
 
         ThemeManager::Theme theme =
             ThemeManager::getTheme();
@@ -583,6 +595,7 @@ namespace WebServer
 
     static void handleApplyTheme()
     {
+        if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
 
         if (!server.hasArg("id"))
         {
@@ -627,9 +640,9 @@ namespace WebServer
     {
 
         if (
-            !WebUpdateConfig::ENABLED ||
+            !Credentials::ready() ||
             strcmp(
-                WebUpdateConfig::PASSWORD,
+                Credentials::adminPassword(),
                 "CHANGE_ME") == 0)
         {
 
@@ -641,8 +654,8 @@ namespace WebServer
         }
 
         if (!server.authenticate(
-                WebUpdateConfig::USERNAME,
-                WebUpdateConfig::PASSWORD))
+                "admin",
+                Credentials::adminPassword()))
         {
 
             server.requestAuthentication();
@@ -669,15 +682,16 @@ namespace WebServer
     }
 
     static void handleManifestChunk() {
+        if (firmwareSessionActive()) return;
         HTTPUpload& upload = server.upload();
         if (upload.status == UPLOAD_FILE_START) {
             if (manifestRx.seen) { manifestRx.error = 400; return; }
             manifestRx.seen = true;
             if (server.header("X-Wordclock-Action") != "web-update" ||
-                !WebUpdateConfig::ENABLED || strcmp(WebUpdateConfig::PASSWORD, "CHANGE_ME") == 0) {
+                !Credentials::ready() || strcmp(Credentials::adminPassword(), "CHANGE_ME") == 0) {
                 manifestRx.error = 403; return;
             }
-            if (!server.authenticate(WebUpdateConfig::USERNAME, WebUpdateConfig::PASSWORD)) {
+            if (!server.authenticate("admin", Credentials::adminPassword())) {
                 manifestRx.error = 401; return;
             }
             if (upload.name != "manifest") { manifestRx.error = 400; return; }
@@ -713,6 +727,7 @@ namespace WebServer
     }
 
     static void handleWebUpdatePreflight() {
+        if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
         if (server.header("X-Wordclock-Action") != "web-update") {
             clearManifestRx(); sendJson(403, "{\"error\":\"Action required\"}"); return;
         }
@@ -860,6 +875,7 @@ namespace WebServer
 
     static void handleRestart()
     {
+        if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
         if (server.header("X-Wordclock-Action") != "restart") {
             sendJson(403, "{\"error\":\"Missing action header\"}"); return;
         }
@@ -875,6 +891,7 @@ namespace WebServer
 
     static void handleResetSettings()
     {
+        if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
         if (server.header("X-Wordclock-Action") != "reset-settings") {
             sendJson(403, "{\"error\":\"Missing action header\"}"); return;
         }
@@ -894,6 +911,7 @@ namespace WebServer
 
     static void handleFactoryReset()
     {
+        if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
         if (server.header("X-Wordclock-Action") != "factory-reset") {
             sendJson(403, "{\"error\":\"Missing action header\"}"); return;
         }
@@ -917,6 +935,7 @@ namespace WebServer
 
     static void handleWifiAction()
     {
+        if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
         // Custom header prevents cross-origin HTML form submissions.
         if (server.header("X-Wordclock-Action") != "wifi") {
             sendJson(403, "{\"error\":\"Missing action header\"}");
@@ -1024,6 +1043,9 @@ namespace WebServer
         StaticJsonDocument<384> doc;
         doc["ready"] = reason == nullptr;
         doc["uploadSupported"] = true;
+        doc["protocol"] = 2; doc["chunkSize"] = 512;
+        doc["signatureRequired"] = true;
+        doc["authorizationRequired"] = true;
         doc["maxBytes"] = maxBytes;
         doc["freeSketchBytes"] = freeBytes;
         if (reason) doc["reason"] = reason;
@@ -1032,65 +1054,28 @@ namespace WebServer
         sendJson(reason ? 409 : 200, json);
     }
 
-    // Diagnostic multipart receiver with optional incomplete flash staging.
-    static constexpr uint32_t FLASH_TEST_RESERVE = 4096;
-    // ESP8266WebServer processes multipart uploads synchronously in handleClient().
+    static constexpr uint32_t FLASH_TEST_RESERVE = 4096; // retain minimum image size
+    static constexpr uint32_t FW_TAIL = 256, FW_CHUNK = 512, FW_TIMEOUT = 60000;
     static br_sha256_context firmwareHash;
-    static uint8_t* firmwareTail = nullptr;
     static struct {
-        bool install = false;
-        uint32_t tailBytes = 0;
-        bool integrity = false;
-        bool hashVerified = false;
-        uint8_t expectedHash[32] = {};
-        bool seen = false;
-        bool owns = false;
-        bool ended = false;
-        bool staging = false;
-        bool updaterOwned = false;
-        uint32_t accepted = 0;
-        uint32_t written = 0;
-        uint32_t expected = 0;
-        uint32_t received = 0;
-        int error = 0;
-        const char* message = nullptr;
-    } firmwareRx;
-
-    static void failFirmwareRx(int code, const char* message)
-    {
-        if (!firmwareRx.error) {
-            firmwareRx.error = code;
-            firmwareRx.message = message;
-        }
-    }
-
-    static void clearFirmwareRx()
-    {
-        delete[] firmwareTail;
-        firmwareTail = nullptr;
-        if (firmwareRx.updaterOwned) {
-            if (Update.isRunning()) {
-                // Never finalize a complete image in this diagnostic route.
-                if (Update.isFinished() || firmwareRx.accepted >= firmwareRx.expected) {
-                    Serial.println("Flash test invariant failed; restart without finalization");
-                    Serial.flush();
-                    ESP.restart();
-                    return;
-                }
-                Update.end(false); // verified incomplete: discards buffered data
+        bool active = false, verified = false;
+        uint32_t size = 0, received = 0, accepted = 0, touched = 0;
+        char token[33] = {};
+        uint8_t digest[32] = {}, tail[FW_TAIL] = {};
+    } fwSession;
+    bool firmwareSessionActive() { return fwSession.active; }
+    static void clearFirmwareSession() {
+        if (!fwSession.active) return;
+        if (Update.isRunning()) {
+            if ((Update.isFinished() && !Update.hasError()) || fwSession.accepted >= fwSession.size) {
+                ESP.restart(); for (;;) delay(100);
             }
-            if (Update.isRunning()) {
-                Serial.println("Flash test cleanup failed; restarting");
-                Serial.flush();
-                ESP.restart();
-                return;
-            }
-            Update.clearError();
-            Serial.println("HTTP flash test discarded; no installation scheduled");
+            Update.end(false);
         }
-        if (firmwareRx.owns)
-            FirmwareUpdate::recover(FirmwareUpdate::Owner::Web);
-        firmwareRx = {};
+        if (Update.isRunning()) { ESP.restart(); for (;;) delay(100); }
+        Update.clearError();
+        fwSession = {};
+        FirmwareUpdate::recover(FirmwareUpdate::Owner::Web);
     }
 
     static int firmwareHex(char c)
@@ -1101,192 +1086,229 @@ namespace WebServer
         return -1;
     }
 
-    static void handleFirmwareChunk(bool staging, bool integrity = false, bool install = false)
+    // Verify the signed digest before reserving flash or accepting image data.
+    class FirmwareDigest : public UpdaterHashClass {
+        const uint8_t* digest_;
+    public:
+        explicit FirmwareDigest(const uint8_t* digest) : digest_(digest) {}
+        void begin() override {}
+        void add(const void*, uint32_t) override {}
+        void end() override {}
+        int len() override { return 32; }
+        const void* hash() override { return digest_; }
+        const unsigned char* oid() override { return BR_HASH_OID_SHA256; }
+    };
+
+    static int verifyFirmwareSignature(const String& hex, const uint8_t* digest)
     {
-        HTTPUpload& upload = server.upload();
-        if (upload.status == UPLOAD_FILE_START) {
-            if (firmwareRx.seen) {
-                failFirmwareRx(400, "Only one file allowed"); return;
-            }
-            firmwareRx.seen = true;
-            firmwareRx.staging = staging;
-            firmwareRx.integrity = integrity;
-            firmwareRx.install = install;
-            if (server.header("X-Wordclock-Action") != "firmware-update") {
-                failFirmwareRx(403, "Missing action header"); return;
-            }
-            if (!WebUpdateConfig::ENABLED || strcmp(WebUpdateConfig::PASSWORD, "CHANGE_ME") == 0) {
-                failFirmwareRx(403, "Web update disabled"); return;
-            }
-            if (!server.authenticate(WebUpdateConfig::USERNAME, WebUpdateConfig::PASSWORD)) {
-                failFirmwareRx(401, "Unauthorized"); return;
-            }
-            if (upload.name != "firmware" || !readNumber(server.arg("size"), firmwareRx.expected) || !firmwareRx.expected) {
-                failFirmwareRx(400, "Invalid file field or firmware size"); return;
-            }
-            if (install && server.arg("confirm") != "INSTALL") {
-                failFirmwareRx(400, "Installation confirmation required"); return;
-            }
-            const uint32_t limit = min(ESP.getFreeSketchSpace() & ~uint32_t(4095), uint32_t(1044464));
-            if (firmwareRx.expected > limit) {
-                failFirmwareRx(413, "Firmware too large"); return;
-            }
-            if (staging && firmwareRx.expected < 3 * FLASH_TEST_RESERVE) {
-                failFirmwareRx(400, "Firmware too small for flash test"); return;
-            }
-            if (integrity) {
-                const String hash = server.arg("sha256");
-                if (hash.length() != 64) {
-                    failFirmwareRx(400, "Invalid SHA-256"); return;
-                }
-                for (size_t i = 0; i < 32; ++i) {
-                    const int hi = firmwareHex(hash[2*i]);
-                    const int lo = firmwareHex(hash[2*i+1]);
-                    if (hi < 0 || lo < 0) {
-                        failFirmwareRx(400, "Invalid SHA-256"); return;
-                    }
-                    firmwareRx.expectedHash[i] = uint8_t((hi << 4) | lo);
-                }
-                br_sha256_init(&firmwareHash);
-            }
-            const char* reason = firmwareBlocked(limit);
-            if (reason) { failFirmwareRx(409, reason); return; }
-            if (!FirmwareUpdate::begin(FirmwareUpdate::Owner::Web)) {
-                failFirmwareRx(409, "Update already running"); return;
-            }
-            firmwareRx.owns = true;
-            if (install) {
-                firmwareTail = new (std::nothrow) uint8_t[FLASH_TEST_RESERVE];
-                if (!firmwareTail) { failFirmwareRx(503, "Insufficient memory"); return; }
-            }
-            if (staging) {
-                if (!Update.begin(firmwareRx.expected, U_FLASH)) {
-                    Update.printError(Serial);
-                    failFirmwareRx(500, "Flash begin failed");
-                    return;
-                }
-                firmwareRx.updaterOwned = true;
-            }
-            Serial.printf("HTTP firmware test started: %lu bytes\n", static_cast<unsigned long>(firmwareRx.expected));
-        } else if (upload.status == UPLOAD_FILE_WRITE) {
-            if (!firmwareRx.owns || firmwareRx.error) return;
-            if (upload.currentSize > firmwareRx.expected - firmwareRx.received) {
-                failFirmwareRx(400, "Firmware size mismatch"); return;
-            }
-            if (firmwareRx.integrity && upload.currentSize) {
-                // ESP8266 raw sketch image magic; not a full executable validation.
-                if (!firmwareRx.received && upload.buf[0] != 0xE9) {
-                    failFirmwareRx(400, "Invalid ESP8266 image magic"); return;
-                }
-                br_sha256_update(&firmwareHash, upload.buf, upload.currentSize);
-            }
-            if (firmwareRx.staging) {
-                const uint32_t cap = firmwareRx.expected - FLASH_TEST_RESERVE;
-                const size_t count = min(static_cast<size_t>(cap - firmwareRx.accepted), upload.currentSize);
-                if (count) {
-                    const size_t accepted = Update.write(upload.buf, count);
-                    firmwareRx.accepted += accepted;
-                    if (Update.isRunning()) firmwareRx.written = Update.progress();
-                    if (accepted != count || Update.hasError()) {
-                        Update.printError(Serial);
-                        failFirmwareRx(500, "Flash write failed"); return;
-                    }
-                }
-                if (firmwareRx.install && upload.currentSize > count) {
-                    const size_t tailCount = upload.currentSize - count;
-                    if (!firmwareTail || tailCount > FLASH_TEST_RESERVE - firmwareRx.tailBytes) {
-                        failFirmwareRx(500, "Firmware tail overflow"); return;
-                    }
-                    memcpy(firmwareTail + firmwareRx.tailBytes, upload.buf + count, tailCount);
-                    firmwareRx.tailBytes += tailCount;
-                }
-            }
-            firmwareRx.received += upload.currentSize;
-            FirmwareUpdate::progress(FirmwareUpdate::Owner::Web, firmwareRx.received, firmwareRx.expected);
-        } else if (upload.status == UPLOAD_FILE_END) {
-            firmwareRx.ended = true;
-            if (firmwareRx.owns && firmwareRx.received != firmwareRx.expected)
-                failFirmwareRx(400, "Firmware size mismatch");
-        } else if (upload.status == UPLOAD_FILE_ABORTED) {
-            failFirmwareRx(400, "Transfer interrupted");
+        if (hex.length() != 512) return 422;
+        uint8_t signature[256];
+        for (size_t i = 0; i < sizeof(signature); ++i) {
+            int hi = firmwareHex(hex[2*i]), lo = firmwareHex(hex[2*i+1]);
+            if (hi < 0 || lo < 0) return 422;
+            signature[i] = uint8_t((hi << 4) | lo);
         }
+
+        static_assert(sizeof(WC_RSA_N) == 256, "RSA key size");
+
+        // DER SubjectPublicKeyInfo for RSA-2048, exponent 65537.
+        static const uint8_t prefix[] = {
+            0x30, 0x82, 0x01, 0x22,
+            0x30, 0x0d,
+            0x06, 0x09, 0x2a, 0x86, 0x48, 0x86,
+            0xf7, 0x0d, 0x01, 0x01, 0x01,
+            0x05, 0x00,
+            0x03, 0x82, 0x01, 0x0f, 0x00,
+            0x30, 0x82, 0x01, 0x0a,
+            0x02, 0x82, 0x01, 0x01, 0x00
+        };
+        static const uint8_t suffix[] = {
+            0x02, 0x03, 0x01, 0x00, 0x01
+        };
+
+        uint8_t der[294];
+        static_assert(sizeof(prefix) + sizeof(WC_RSA_N) +
+                      sizeof(suffix) == sizeof(der), "DER size");
+
+        memcpy(der, prefix, sizeof(prefix));
+        memcpy(der + sizeof(prefix), WC_RSA_N, sizeof(WC_RSA_N));
+        memcpy(der + sizeof(prefix) + sizeof(WC_RSA_N),
+               suffix, sizeof(suffix));
+
+        // Leave room for BearSSL's secondary stack and key parsing.
+        if (ESP.getFreeHeap() < 7500 ||
+            ESP.getMaxFreeBlockSize() < 6500) return 503;
+
+        BearSSL::PublicKey key(der, sizeof(der));
+        if (!key.isRSA()) return 503;
+        if (ESP.getFreeHeap() < 7000 || ESP.getMaxFreeBlockSize() < 6400) return 503;
+
+        FirmwareDigest hash(digest);
+
+        bool valid = false;
+        {
+            BearSSL::SigningVerifier verifier(&key);
+            valid = verifier.verify(&hash, signature, sizeof(signature));
+        }
+
+        yield();
+        return valid ? 200 : 422;
     }
 
-    static void handleFirmwareReceiveChunk() { handleFirmwareChunk(false); }
-    static void handleFirmwareFlashChunk() { handleFirmwareChunk(true); }
+    // One short-lived authorization, consumed before flash staging.
+    static struct {
+        char token[33] = {};
+        uint32_t issued = 0;
+        uint32_t size = 0;
+        uint8_t digest[32] = {};
+    } firmwareTicket;
 
-    static void handleFirmwareIntegrityChunk() { handleFirmwareChunk(true, true); }
-
-    static void handleFirmwareInstallChunk() { handleFirmwareChunk(true, true, true); }
-
-    static void handleFirmwareReceive()
+    static void handleFirmwareAuthorize()
     {
         if (server.header("X-Wordclock-Action") != "firmware-update") {
-            sendJson(403, "{\"error\":\"Missing action header\"}"); clearFirmwareRx(); return;
+            sendJson(403, "{\"error\":\"Missing action header\"}"); return;
         }
-        if (!authorizeWebUpdate()) { clearFirmwareRx(); return; }
-        if (!firmwareRx.error && (!firmwareRx.owns || !firmwareRx.ended))
-            failFirmwareRx(400, "Missing or incomplete firmware file");
-        if (!firmwareRx.error && firmwareRx.staging &&
-            (!firmwareRx.updaterOwned || !Update.isRunning() || Update.isFinished() ||
-             firmwareRx.accepted != firmwareRx.expected - FLASH_TEST_RESERVE || !firmwareRx.written))
-            failFirmwareRx(500, "Flash test invariant failed");
-        if (!firmwareRx.error && firmwareRx.integrity) {
-            uint8_t actual[32];
-            br_sha256_out(&firmwareHash, actual);
-            firmwareRx.hashVerified = memcmp(actual, firmwareRx.expectedHash, sizeof(actual)) == 0;
-            if (!firmwareRx.hashVerified)
-                failFirmwareRx(422, "SHA-256 mismatch");
+        if (!authorizeWebUpdate()) return;
+        firmwareTicket = {};
+        const uint32_t limit = min(ESP.getFreeSketchSpace() & ~uint32_t(4095), uint32_t(1044464));
+        uint32_t size = 0;
+        if (server.arg("confirm") != "INSTALL" || !readNumber(server.arg("size"), size) ||
+            size < 3 * FLASH_TEST_RESERVE || size > limit) {
+            sendJson(400, "{\"error\":\"Invalid size or confirmation\"}"); return;
         }
-        if (!firmwareRx.error && firmwareRx.install) {
-            if (server.arg("confirm") != "INSTALL" || !firmwareRx.hashVerified ||
-                !firmwareTail || firmwareRx.tailBytes != FLASH_TEST_RESERVE ||
-                firmwareRx.received != firmwareRx.expected || Update.hasError()) {
-                failFirmwareRx(400, "Installation validation failed");
-            } else {
-                // Only the final HTTP handler may supply the reserved bytes.
-                const size_t count = Update.write(firmwareTail, FLASH_TEST_RESERVE);
-                firmwareRx.accepted += count;
-                delete[] firmwareTail;
-                firmwareTail = nullptr;
-                if (count == FLASH_TEST_RESERVE && !Update.hasError() &&
-                    Update.isFinished() && Update.end(false)) {
-                    firmwareRx.updaterOwned = false;
-                    FirmwareUpdate::validated(FirmwareUpdate::Owner::Web);
-                    Serial.println("HTTP firmware validated; installation scheduled");
-                    // Keep exclusive ownership until reboot. The main loop skips
-                    // WebServer::update while FirmwareUpdate is active.
-                    sendJson(202, "{\"sha256Verified\":true,\"installationScheduled\":true,\"restartPending\":true}");
-                    delay(1500);
-                    Serial.flush();
-                    ESP.restart();
-                    for (;;) delay(100);
-                }
-                Update.printError(Serial);
-                failFirmwareRx(500, "Firmware finalization failed");
-            }
+        const char* reason = firmwareBlocked(limit);
+        if (reason) { sendJson(409, "{\"error\":\"Firmware not ready\"}"); return; }
+        const String hash = server.arg("sha256");
+        uint8_t digest[32];
+        if (hash.length() != 64) { sendJson(400, "{\"error\":\"Invalid SHA-256\"}"); return; }
+        for (size_t i = 0; i < 32; ++i) {
+            int hi = firmwareHex(hash[2*i]), lo = firmwareHex(hash[2*i+1]);
+            if (hi < 0 || lo < 0) { sendJson(400, "{\"error\":\"Invalid SHA-256\"}"); return; }
+            digest[i] = uint8_t((hi << 4) | lo);
         }
-        StaticJsonDocument<768> doc;
-        if (firmwareRx.integrity) doc["sha256Verified"] = firmwareRx.hashVerified;
-        doc["receivedBytes"] = firmwareRx.received;
-        doc["expectedBytes"] = firmwareRx.expected;
-        doc["flashWritten"] = firmwareRx.written > 0;
-        if (firmwareRx.staging) {
-            doc["acceptedBytes"] = firmwareRx.accepted;
-            doc["writtenBytes"] = firmwareRx.written;
-            doc["reservedBytes"] = FLASH_TEST_RESERVE;
-            doc["testOnly"] = !firmwareRx.install;
+        int status = verifyFirmwareSignature(server.arg("signature"), digest);
+        Serial.printf("Firmware authorization: %d, heap=%u, max=%u\n", status,
+                      ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
+        if (status != 200) {
+            sendJson(status, status == 503 ? "{\"error\":\"Insufficient verification memory or key unavailable\"}" :
+                "{\"error\":\"Missing or invalid firmware signature\"}"); return;
         }
-        doc["installed"] = false;
-        if (firmwareRx.error) doc["error"] = firmwareRx.message;
-        else doc["received"] = true;
-        String json;
-        serializeJson(doc, json);
-        const int code = firmwareRx.error ? firmwareRx.error : 200;
-        Serial.printf("HTTP firmware test finished: status=%d, received=%lu\n", code, static_cast<unsigned long>(firmwareRx.received));
-        clearFirmwareRx();
-        if (firmwareRx.seen) return; // emergency restart requested
-        sendJson(code, json);
+        snprintf(firmwareTicket.token, sizeof(firmwareTicket.token), "%08lx%08lx%08lx%08lx",
+                 (unsigned long)os_random(), (unsigned long)os_random(),
+                 (unsigned long)os_random(), (unsigned long)os_random());
+        firmwareTicket.issued = millis();
+        firmwareTicket.size = size;
+        memcpy(firmwareTicket.digest, digest, sizeof(digest));
+        sendJson(200, String("{\"token\":\"") + firmwareTicket.token + "\",\"expiresIn\":60}");
+    }
+
+    static bool firmwareAuth() {
+        if (server.header("X-Wordclock-Action") != "firmware-update") {
+            sendJson(403, "{\"error\":\"Missing action header\"}"); return false;
+        }
+        return authorizeWebUpdate();
+    }
+    static bool firmwareSessionAuth() {
+        if (!firmwareAuth()) return false;
+        if (!fwSession.active || millis()-fwSession.touched >= FW_TIMEOUT ||
+            server.arg("token") != fwSession.token) {
+            sendJson(403, "{\"error\":\"Invalid session\"}"); return false;
+        }
+        return true;
+    }
+    static void firmwareFail(int code, const char* msg) {
+        clearFirmwareSession();
+        sendJson(code, String("{\"error\":\"")+msg+"\",\"installed\":false}");
+    }
+    static void handleFirmwareStart() {
+        if (!firmwareAuth()) return;
+        if (fwSession.active) { sendJson(409,"{\"error\":\"Session active\"}"); return; }
+        auto ticket = firmwareTicket;
+        firmwareTicket = {};
+        if (!ticket.token[0] || millis()-ticket.issued >= 60000 ||
+            server.arg("token") != ticket.token || server.arg("confirm") != "INSTALL") {
+            sendJson(403,"{\"error\":\"Invalid authorization\"}"); return;
+        }
+        const uint32_t limit = min(ESP.getFreeSketchSpace() & ~uint32_t(4095), uint32_t(1044464));
+        if (ESP.getFreeHeap()<7000 || ESP.getMaxFreeBlockSize()<5000) { sendJson(503,"{\"error\":\"Insufficient start memory\"}"); return; }
+        if (ticket.size > limit || firmwareBlocked(limit) || !FirmwareUpdate::begin(FirmwareUpdate::Owner::Web)) {
+            sendJson(409,"{\"error\":\"Firmware not ready\"}"); return;
+        }
+        fwSession = {}; fwSession.active = true; fwSession.size = ticket.size;
+        memcpy(fwSession.digest,ticket.digest,32);
+        snprintf(fwSession.token,sizeof(fwSession.token),"%08lx%08lx%08lx%08lx",
+            (unsigned long)os_random(),(unsigned long)os_random(),(unsigned long)os_random(),(unsigned long)os_random());
+        br_sha256_init(&firmwareHash);
+        if (!Update.begin(ticket.size,U_FLASH)) { firmwareFail(503,"Flash begin failed"); return; }
+        if (ESP.getFreeHeap()<5000 || ESP.getMaxFreeBlockSize()<3000) { firmwareFail(503,"Insufficient transfer memory"); return; }
+        fwSession.touched=millis();
+        Serial.printf("Firmware session: heap=%u max=%u\n",ESP.getFreeHeap(),ESP.getMaxFreeBlockSize());
+        sendJson(200,String("{\"token\":\"")+fwSession.token+"\",\"chunkSize\":512,\"offset\":0}");
+    }
+    static void handleFirmwareBlock() {
+        if (!firmwareSessionAuth()) return;
+        uint32_t offset=0;
+        const String& data=server.arg("plain");
+        const size_t n=data.length();
+        const bool offsetValid=readNumber(server.arg("offset"),offset);
+        const size_t expected=offset<fwSession.size ? min(static_cast<size_t>(FW_CHUNK),static_cast<size_t>(fwSession.size-offset)) : 0;
+        const char* error=nullptr;
+        if (fwSession.verified) error="Session already verified";
+        else if (!offsetValid) error="Invalid offset parameter";
+        else if (offset!=fwSession.received) error="Unexpected offset";
+        else if (!expected || n!=expected) error="Invalid block length";
+        if (error) {
+            Serial.printf("Firmware block rejected: %s offset=%lu expectedOffset=%lu length=%u expectedLength=%u heap=%u max=%u\n",
+                error,(unsigned long)offset,(unsigned long)fwSession.received,(unsigned)n,(unsigned)expected,ESP.getFreeHeap(),ESP.getMaxFreeBlockSize());
+            StaticJsonDocument<384> doc;
+            doc["error"]=error; doc["offset"]=offset; doc["expectedOffset"]=fwSession.received;
+            doc["length"]=n; doc["expectedLength"]=expected;
+            doc["freeHeap"]=ESP.getFreeHeap(); doc["maxFreeBlock"]=ESP.getMaxFreeBlockSize();
+            String json; serializeJson(doc,json); sendJson(409,json); return;
+        }
+        auto* bytes=reinterpret_cast<uint8_t*>(const_cast<char*>(data.c_str()));
+        if (!offset && bytes[0]!=0xe9) { firmwareFail(400,"Invalid image magic"); return; }
+        const uint32_t cap=fwSession.size-FW_TAIL;
+        const size_t count=min(n,static_cast<size_t>(offset<cap?cap-offset:0));
+        br_sha256_update(&firmwareHash,bytes,n);
+        if (count && (Update.write(bytes,count)!=count || Update.hasError())) { firmwareFail(500,"Flash write failed"); return; }
+        fwSession.accepted+=count;
+        if (n>count) memcpy(fwSession.tail+(offset+count-cap),bytes+count,n-count);
+        fwSession.received+=n; fwSession.touched=millis();
+        FirmwareUpdate::progress(FirmwareUpdate::Owner::Web,fwSession.received,fwSession.size);
+        sendJson(200,String("{\"offset\":")+String(fwSession.received)+"}");
+    }
+    static void handleFirmwareStatus() {
+        if (!firmwareSessionAuth()) return;
+        StaticJsonDocument<256> doc;
+        doc["offset"]=fwSession.received; doc["size"]=fwSession.size; doc["verified"]=fwSession.verified;
+        doc["freeHeap"]=ESP.getFreeHeap(); doc["maxFreeBlock"]=ESP.getMaxFreeBlockSize();
+        String json; serializeJson(doc,json); sendJson(200,json);
+    }
+    static void handleFirmwareVerify() {
+        if (!firmwareSessionAuth()) return;
+        if (fwSession.verified) { sendJson(200,"{\"verified\":true}"); return; }
+        if (fwSession.received!=fwSession.size || fwSession.accepted!=fwSession.size-FW_TAIL || !Update.isRunning() || Update.hasError()) {
+            firmwareFail(409,"Incomplete image"); return;
+        }
+        uint8_t digest[32]; br_sha256_out(&firmwareHash,digest);
+        if (memcmp(digest,fwSession.digest,32)) { firmwareFail(422,"SHA-256 mismatch"); return; }
+        fwSession.verified=true; fwSession.touched=millis(); sendJson(200,"{\"verified\":true}");
+    }
+    static void handleFirmwareActivate() {
+        if (!firmwareSessionAuth()) return;
+        if (!fwSession.verified || server.arg("confirm")!="INSTALL") { sendJson(409,"{\"error\":\"Not verified\"}"); return; }
+        if (Update.write(fwSession.tail,FW_TAIL)!=FW_TAIL || Update.hasError() || !Update.isFinished() || !Update.end(false)) {
+            // Never call end again when the final bytes may have been accepted.
+            sendJson(500,"{\"error\":\"Finalization failed\"}"); delay(300); ESP.restart(); for (;;) delay(100);
+        }
+        FirmwareUpdate::validated(FirmwareUpdate::Owner::Web);
+        sendJson(202,"{\"sha256Verified\":true,\"installationScheduled\":true}");
+        delay(1500); ESP.restart(); for (;;) delay(100);
+    }
+    static void handleFirmwareCancel() {
+        if (!firmwareSessionAuth()) return;
+        clearFirmwareSession(); sendJson(200,"{\"cancelled\":true}");
     }
 
     static bool releaseAuthorized() {
@@ -1323,6 +1345,7 @@ namespace WebServer
         sendJson(200,"{\"verified\":true,\"verifiedFiles\":12}");
     }
     static void handleReleaseSwitch() {
+        if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
         if (!releaseAuthorized()) return;
         if (server.arg("confirm") != "SWITCH") { sendJson(400,"{\"error\":\"confirmation-required\"}"); return; }
         const bool rollback = server.uri() == "/api/system/web-update/rollback";
@@ -1341,6 +1364,7 @@ namespace WebServer
 
     static void handleWebUpdate()
     {
+        if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
         if (!authorizeWebUpdate()) return;
         if (WebUpdateManager::active()) { sendJson(409, "{\"error\":\"Web update active\"}"); return; }
         if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
@@ -1355,7 +1379,7 @@ namespace WebServer
         String path=String(root)+"/"+name, temporaryPath=path+".tmp";
         uint32_t offset=0, total=0, expectedCrc=0;
         if (!readNumber(server.arg("offset"),offset) || !readNumber(server.arg("total"),total) ||
-            !readNumber(server.arg("crc"),expectedCrc,16) || !total || total>WebUpdateConfig::MAX_FILE_SIZE || offset>total) {
+            !readNumber(server.arg("crc"),expectedCrc,16) || !total || total>32768u || offset>total) {
             sendJson(400,"{\"error\":\"Invalid transfer parameters\"}"); return;
         }
         if (server.arg("action")=="commit") {
@@ -1427,7 +1451,7 @@ namespace WebServer
             "{\"enabled\":true,\"maxFileSize\":";
 
         json += String(
-            WebUpdateConfig::MAX_FILE_SIZE);
+            32768u);
 
         json += ",\"chunkSize\":1024,\"protocol\":2,\"activeSlot\":\"";
         json += WebSlotManager::activeSlot() == WebSlotManager::Slot::A ? "A" : "B";
@@ -1560,6 +1584,7 @@ namespace WebServer
         });
 
         server.on("/api/themes/custom", HTTP_POST, []() {
+            if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
             if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
             if (!server.hasArg("plain")) { sendJson(400, "{\"error\":\"JSON body required\"}"); return; }
             String body = server.arg("plain");
@@ -1574,6 +1599,7 @@ namespace WebServer
         });
 
         server.on("/api/themes/custom", HTTP_PUT, []() {
+            if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
             if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
             String id = server.arg("id");
             if (!CustomThemeStore::validCustomId(id)) { sendJson(400, "{\"error\":\"Invalid custom theme ID\"}"); return; }
@@ -1599,6 +1625,7 @@ namespace WebServer
         });
 
         server.on("/api/themes/custom", HTTP_DELETE, []() {
+            if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
             if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
             String id = server.arg("id");
             if (!CustomThemeStore::validCustomId(id)) { sendJson(400, "{\"error\":\"Invalid custom theme ID\"}"); return; }
@@ -1614,7 +1641,7 @@ namespace WebServer
         server.on("/api/transitions", HTTP_GET, handleGetTransitions);
         server.on("/api/transitions", HTTP_POST, handleSetTransitions);
 
-        if (WebUpdateConfig::ENABLED)
+        if (true)
         {
 
 
@@ -1629,7 +1656,7 @@ namespace WebServer
             server.on("/api/system/web-update/rollback", HTTP_POST, handleReleaseSwitch);
             server.on("/recovery", HTTP_GET, []() {
                 server.sendHeader("Cache-Control", "no-store");
-                server.send(200,"text/html; charset=utf-8", R"HTML(<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Wordclock - Secours</title><body><h1>Wordclock - Secours</h1><p>Retour a l'interface precedente, si disponible.</p><button id="back">Restaurer</button><pre id="result"></pre><p><a href="/">Ouvrir Wordclock</a></p><script>document.getElementById('back').onclick=async()=>{if(!confirm('Restaurer la version precedente ?'))return;const p=prompt('Mot de passe administrateur');if(p===null)return;try{const r=await fetch('/api/system/web-update/rollback?confirm=SWITCH',{method:'POST',headers:{'X-Wordclock-Action':'web-update','Authorization':'Basic '+btoa('admin:'+p)}});document.getElementById('result').textContent=await r.text();}catch(e){document.getElementById('result').textContent=String(e);}};</script></body></html>)HTML");
+                server.send(200,"text/html; charset=utf-8", R"HTML(<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Wordclock - Secours</title><body><h1>Wordclock - Secours</h1><p>Retour a l'interface precedente, si disponible.</p><button id="back">Restaurer</button><pre id="result"></pre><p><a href="/">Ouvrir Wordclock</a></p><script>document.getElementById('back').onclick=async()=>{if(!confirm('Restaurer la version precedente ?'))return;const p=prompt('Mot de passe administrateur');if(p===null)return;try{const r=await fetch('/api/system/web-update/rollback?confirm=SWITCH',{method:'POST',headers:{'X-Wordclock-Action':'web-update','Authorization':'Basic '+btoa(Array.from(new TextEncoder().encode('admin:'+p),x=>String.fromCharCode(x)).join(''))}});document.getElementById('result').textContent=await r.text();}catch(e){document.getElementById('result').textContent=String(e);}};</script></body></html>)HTML");
             });
 
             server.on(
@@ -1644,10 +1671,14 @@ namespace WebServer
         }
 
         server.on("/api/system/firmware", HTTP_GET, handleFirmwarePreflight);
-        server.on("/api/system/firmware/receive-test", HTTP_POST, handleFirmwareReceive, handleFirmwareReceiveChunk);
-        server.on("/api/system/firmware/flash-test", HTTP_POST, handleFirmwareReceive, handleFirmwareFlashChunk);
-        server.on("/api/system/firmware/integrity-test", HTTP_POST, handleFirmwareReceive, handleFirmwareIntegrityChunk);
-        server.on("/api/system/firmware/install", HTTP_POST, handleFirmwareReceive, handleFirmwareInstallChunk);
+        server.on("/api/system/firmware/authorize", HTTP_POST, handleFirmwareAuthorize);
+        server.on("/api/system/firmware/start", HTTP_POST, handleFirmwareStart);
+        server.on("/api/system/firmware/chunk", HTTP_PUT, handleFirmwareBlock);
+        server.on("/api/system/firmware/status", HTTP_GET, handleFirmwareStatus);
+        server.on("/api/system/firmware/verify", HTTP_POST, handleFirmwareVerify);
+        server.on("/api/system/firmware/activate", HTTP_POST, handleFirmwareActivate);
+        server.on("/api/system/firmware/cancel", HTTP_POST, handleFirmwareCancel);
+        server.on("/api/system/firmware/install", HTTP_POST, [](){ sendJson(410,"{\"error\":\"Use firmware protocol 2\"}"); });
         server.on("/api/system", HTTP_GET, handleSystemInfo);
         server.on("/api/system/restart", HTTP_POST, handleRestart);
         server.on("/api/system/reset-settings", HTTP_POST, handleResetSettings);
@@ -1694,6 +1725,7 @@ namespace WebServer
 
     void update()
     {
+        if (fwSession.active && (millis()-fwSession.touched >= FW_TIMEOUT || !WifiManager::isConnected() || WifiManager::isPortalActive())) clearFirmwareSession();
 
         if (restartPending) {
             if (millis() - restartAt >= 1500) {
@@ -1764,13 +1796,6 @@ namespace WebServer
 
         server.handleClient();
         if (manifestRx.seen || manifestRx.data) clearManifestRx();
-        // A disconnected or malformed multipart request may never reach its
-        // final handler. Never leave the diagnostic receiver owning the LEDs.
-        if (firmwareRx.seen) {
-            Serial.println("HTTP firmware test abandoned; restoring display");
-            clearFirmwareRx();
-        }
-
         if (mdnsRunning)
         {
             MDNS.update();

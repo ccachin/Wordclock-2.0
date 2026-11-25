@@ -8,7 +8,7 @@
 #include "firmware_update.h"
 #include "web_update_manager.h"
 #include "web_server.h"
-#include "ota_config.h"
+#include "credentials_manager.h"
 #include "wifi_manager.h"
 #include "settings_manager.h"
 #include "storage.h"
@@ -28,15 +28,15 @@ namespace OTAManager
 
     void begin()
     {
-        if (!OTAConfig::ENABLED)
+        if (!Credentials::ready())
         {
             Serial.println("OTA disabled");
             return;
         }
 
         if (
-            strlen(OTAConfig::PASSWORD) < 8 ||
-            strcmp(OTAConfig::PASSWORD, "CHANGE_ME") == 0)
+            strlen(Credentials::otaPassword()) < 8 ||
+            strcmp(Credentials::otaPassword(), "CHANGE_ME") == 0)
         {
             Serial.println(
                 "OTA disabled: configure a password");
@@ -44,13 +44,13 @@ namespace OTAManager
         }
 
         ArduinoOTA.setHostname(
-            OTAConfig::HOSTNAME);
+            Credentials::otaHostname());
 
         ArduinoOTA.setPort(
-            OTAConfig::PORT);
+            8266);
 
         ArduinoOTA.setPassword(
-            OTAConfig::PASSWORD);
+            Credentials::otaPassword());
 
         ArduinoOTA.setRebootOnSuccess(true);
 
@@ -229,7 +229,7 @@ namespace OTAManager
 
             Serial.printf(
                 "OTA port: %u\n",
-                OTAConfig::PORT);
+                8266);
 
             Serial.printf(
                 "Current sketch size: %lu bytes\n",
