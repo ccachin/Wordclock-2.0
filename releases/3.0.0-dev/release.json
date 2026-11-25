@@ -1,0 +1,29 @@
+{
+  "format": "wordclock-release",
+  "manifestVersion": 1,
+  "version": "3.0.0-dev",
+  "channel": "development",
+  "firmwareVersion": null,
+  "webVersion": "3.0.0",
+  "compatibility": {
+    "board": "d1",
+    "webApiVersion": 1
+  },
+  "artifacts": {
+    "web": {
+      "path": "web.zip",
+      "size": 43063,
+      "sha256": "79d787c653d7f783610996868e79d1a0c71e28c199215c5c7b5e2736b9e7478e"
+    },
+    "webManifest": {
+      "path": "web-manifest.json",
+      "size": 1926,
+      "sha256": "3557e96b1f3b7b2879ea5abaa47c1a8d2c09af4a1c040cdaeb8a01b12f1fb5b1"
+    },
+    "notes": {
+      "path": "CHANGELOG.md",
+      "size": 395,
+      "sha256": "00ce7ba0143018bfd815f1648a7506f10e68e107e60dc36d2f78f7ab79257dde"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "format": "wordclock-release-catalog",
+  "version": 1,
+  "releases": [
+    {
+      "version": "3.0.0-dev",
+      "channel": "development",
+      "manifest": "releases/3.0.0-dev/release.json",
+      "sha256": "8748f624887ef9dcc9a19c25c404c9f47d6db968fce1838e2091e03fcdf33a31"
+    }
+  ]
+}
