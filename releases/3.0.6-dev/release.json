@@ -1,0 +1,39 @@
+{
+  "format": "wordclock-release",
+  "manifestVersion": 1,
+  "version": "3.0.6-dev",
+  "channel": "development",
+  "firmwareVersion": "3.0.6-dev",
+  "webVersion": "3.0.6",
+  "compatibility": {
+    "board": "d1",
+    "webApiVersion": 1
+  },
+  "artifacts": {
+    "web": {
+      "path": "web.zip",
+      "size": 49176,
+      "sha256": "d15d84b67cc35f8a219bd3a75ce343bcb3564f40a72daccee376dcab64e7e2fa"
+    },
+    "webManifest": {
+      "path": "web-manifest.json",
+      "size": 1927,
+      "sha256": "1f531ca50692808d014aee705f3f32590b9076a11a858ded191b2a4e28e0c1e7"
+    },
+    "notes": {
+      "path": "CHANGELOG.md",
+      "size": 1825,
+      "sha256": "5e79990c8f17326891b62616650ffb1c38b5ae5551835d9d6b3dcd1e56d50677"
+    },
+    "firmware": {
+      "path": "firmware.bin",
+      "size": 594976,
+      "sha256": "1d2adab6572459bb19864815d67840fa27350b35e49cbfab3e3dce2aa2a5d185"
+    },
+    "firmwareSignature": {
+      "path": "firmware.sig",
+      "size": 256,
+      "sha256": "437ddc45d18532fc762f931f82ae8480f7c9d53642f5b5d1193dfde513762351"
+    }
+  }
+}
