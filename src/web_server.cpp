@@ -6,6 +6,7 @@
 #include <ESP8266mDNS.h>
 #include <LittleFS.h>
 #include <Updater.h>
+#include <bearssl/bearssl_hash.h>
 #include <ctype.h>
 #include <stdlib.h>
 
@@ -846,7 +847,11 @@ namespace WebServer
     // Diagnostic multipart receiver with optional incomplete flash staging.
     static constexpr uint32_t FLASH_TEST_RESERVE = 4096;
     // ESP8266WebServer processes multipart uploads synchronously in handleClient().
+    static br_sha256_context firmwareHash;
     static struct {
+        bool integrity = false;
+        bool hashVerified = false;
+        uint8_t expectedHash[32] = {};
         bool seen = false;
         bool owns = false;
         bool ended = false;
@@ -895,7 +900,15 @@ namespace WebServer
         firmwareRx = {};
     }
 
-    static void handleFirmwareChunk(bool staging)
+    static int firmwareHex(char c)
+    {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+    }
+
+    static void handleFirmwareChunk(bool staging, bool integrity = false)
     {
         HTTPUpload& upload = server.upload();
         if (upload.status == UPLOAD_FILE_START) {
@@ -904,6 +917,7 @@ namespace WebServer
             }
             firmwareRx.seen = true;
             firmwareRx.staging = staging;
+            firmwareRx.integrity = integrity;
             if (server.header("X-Wordclock-Action") != "firmware-update") {
                 failFirmwareRx(403, "Missing action header"); return;
             }
@@ -922,6 +936,21 @@ namespace WebServer
             }
             if (staging && firmwareRx.expected < 3 * FLASH_TEST_RESERVE) {
                 failFirmwareRx(400, "Firmware too small for flash test"); return;
+            }
+            if (integrity) {
+                const String hash = server.arg("sha256");
+                if (hash.length() != 64) {
+                    failFirmwareRx(400, "Invalid SHA-256"); return;
+                }
+                for (size_t i = 0; i < 32; ++i) {
+                    const int hi = firmwareHex(hash[2*i]);
+                    const int lo = firmwareHex(hash[2*i+1]);
+                    if (hi < 0 || lo < 0) {
+                        failFirmwareRx(400, "Invalid SHA-256"); return;
+                    }
+                    firmwareRx.expectedHash[i] = uint8_t((hi << 4) | lo);
+                }
+                br_sha256_init(&firmwareHash);
             }
             const char* reason = firmwareBlocked(limit);
             if (reason) { failFirmwareRx(409, reason); return; }
@@ -942,6 +971,13 @@ namespace WebServer
             if (!firmwareRx.owns || firmwareRx.error) return;
             if (upload.currentSize > firmwareRx.expected - firmwareRx.received) {
                 failFirmwareRx(400, "Firmware size mismatch"); return;
+            }
+            if (firmwareRx.integrity && upload.currentSize) {
+                // ESP8266 raw sketch image magic; not a full executable validation.
+                if (!firmwareRx.received && upload.buf[0] != 0xE9) {
+                    failFirmwareRx(400, "Invalid ESP8266 image magic"); return;
+                }
+                br_sha256_update(&firmwareHash, upload.buf, upload.currentSize);
             }
             if (firmwareRx.staging) {
                 const uint32_t cap = firmwareRx.expected - FLASH_TEST_RESERVE;
@@ -970,6 +1006,8 @@ namespace WebServer
     static void handleFirmwareReceiveChunk() { handleFirmwareChunk(false); }
     static void handleFirmwareFlashChunk() { handleFirmwareChunk(true); }
 
+    static void handleFirmwareIntegrityChunk() { handleFirmwareChunk(true, true); }
+
     static void handleFirmwareReceive()
     {
         if (server.header("X-Wordclock-Action") != "firmware-update") {
@@ -982,7 +1020,15 @@ namespace WebServer
             (!firmwareRx.updaterOwned || !Update.isRunning() || Update.isFinished() ||
              firmwareRx.accepted != firmwareRx.expected - FLASH_TEST_RESERVE || !firmwareRx.written))
             failFirmwareRx(500, "Flash test invariant failed");
-        StaticJsonDocument<512> doc;
+        if (!firmwareRx.error && firmwareRx.integrity) {
+            uint8_t actual[32];
+            br_sha256_out(&firmwareHash, actual);
+            firmwareRx.hashVerified = memcmp(actual, firmwareRx.expectedHash, sizeof(actual)) == 0;
+            if (!firmwareRx.hashVerified)
+                failFirmwareRx(422, "SHA-256 mismatch");
+        }
+        StaticJsonDocument<768> doc;
+        if (firmwareRx.integrity) doc["sha256Verified"] = firmwareRx.hashVerified;
         doc["receivedBytes"] = firmwareRx.received;
         doc["expectedBytes"] = firmwareRx.expected;
         doc["flashWritten"] = firmwareRx.written > 0;
@@ -1275,6 +1321,7 @@ namespace WebServer
         server.on("/api/system/firmware", HTTP_GET, handleFirmwarePreflight);
         server.on("/api/system/firmware/receive-test", HTTP_POST, handleFirmwareReceive, handleFirmwareReceiveChunk);
         server.on("/api/system/firmware/flash-test", HTTP_POST, handleFirmwareReceive, handleFirmwareFlashChunk);
+        server.on("/api/system/firmware/integrity-test", HTTP_POST, handleFirmwareReceive, handleFirmwareIntegrityChunk);
         server.on("/api/system", HTTP_GET, handleSystemInfo);
         server.on("/api/system/restart", HTTP_POST, handleRestart);
         server.on("/api/system/reset-settings", HTTP_POST, handleResetSettings);
