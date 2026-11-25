@@ -1,0 +1,6 @@
+#pragma once
+#define WORDCLOCK_FIRMWARE_VERSION "3.0.0-dev"
+#define WORDCLOCK_WEB_VERSION "3.0.0"
+#define WORDCLOCK_RELEASE_VERSION "3.0.0-dev"
+#define WORDCLOCK_WEB_API_VERSION 1
+#define WORDCLOCK_RELEASE_CHANNEL "development"

@@ -5,3 +5,5 @@
 .vscode/ipch
 include/web_update_config.h
 include/ota_config.h
+/dist/
+__pycache__/

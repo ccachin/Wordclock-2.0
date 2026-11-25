@@ -154,7 +154,7 @@ namespace WebServer
             json,
             sizeof(json),
             "{"
-            "\"firmware\":\"3.0.0-dev\","
+            "\"firmware\":\"" WORDCLOCK_FIRMWARE_VERSION "\","
             "\"connected\":%s,"
             "\"timeValid\":%s,"
             "\"time\":\"%s\","
@@ -786,10 +786,44 @@ namespace WebServer
         sendJson(200, json);
     }
 
+    static void appendWebVersion(JsonDocument& doc)
+    {
+        doc["webVersion"] = nullptr;
+        doc["webVersionState"] = "unknown";
+        if (!Storage::isReady()) return;
+        const String root = WebSlotManager::activeRoot();
+        if (LittleFS.exists(root + "/.development")) {
+            doc["webVersionState"] = "development"; return;
+        }
+        File f = LittleFS.open(root + "/web-manifest.json", "r");
+        if (!f) { doc["webVersionState"] = "legacy"; return; }
+        if (!f.size() || f.size() > WebManifest::MaxBytes) {
+            doc["webVersionState"] = "invalid"; return;
+        }
+        // Read only the version metadata, not all asset hashes, on diagnostics.
+        StaticJsonDocument<128> filter;
+        filter["format"] = true;
+        filter["manifestVersion"] = true;
+        filter["version"] = true;
+        filter["compatibility"]["webApiVersion"] = true;
+        StaticJsonDocument<256> meta;
+        const auto error = deserializeJson(meta, f, DeserializationOption::Filter(filter));
+        f.close();
+        const char* version = meta["version"] | "";
+        if (error || strcmp(meta["format"] | "", "wordclock-web") ||
+            meta["manifestVersion"].as<int>() != 1 ||
+            meta["compatibility"]["webApiVersion"].as<int>() != WORDCLOCK_WEB_API_VERSION ||
+            !*version || strlen(version) > 32) {
+            doc["webVersionState"] = "invalid"; return;
+        }
+        doc["webVersion"] = String(version);
+        doc["webVersionState"] = "manifest";
+    }
+
     static void handleSystemInfo()
     {
-        DynamicJsonDocument doc(1024);
-        doc["firmware"] = "3.0.0-dev";
+        DynamicJsonDocument doc(1536);
+        doc["firmware"] = WORDCLOCK_FIRMWARE_VERSION;
         doc["buildId"] = __DATE__ " " __TIME__;
         doc["hostname"] = "wordclock.local";
         doc["ip"] = WiFi.localIP().toString();
@@ -815,6 +849,9 @@ namespace WebServer
         doc["webSlot"] = WebSlotManager::activeSlot() == WebSlotManager::Slot::A ? "A" : "B";
         doc["webSlotSource"] = WebSlotManager::selectionSource();
         doc["webSlotGeneration"] = WebSlotManager::selectionGeneration();
+        doc["webApiVersion"] = WORDCLOCK_WEB_API_VERSION;
+        doc["releaseChannel"] = WORDCLOCK_RELEASE_CHANNEL;
+        appendWebVersion(doc);
         if (doc.overflowed()) { sendJson(503, "{\"error\":\"Insufficient memory\"}"); return; }
         String json;
         serializeJson(doc, json);

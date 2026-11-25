@@ -1,9 +1,10 @@
 #pragma once
 #include <Arduino.h>
+#include "release_version.h"
 
 namespace WebManifest {
 constexpr size_t MaxBytes = 4096;
-constexpr uint16_t ApiVersion = 1;
+constexpr uint16_t ApiVersion = WORDCLOCK_WEB_API_VERSION;
 constexpr size_t AssetCount = 12;
 const char* assetName(size_t index);
 int assetIndex(const char* name);
