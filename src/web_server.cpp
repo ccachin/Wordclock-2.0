@@ -23,6 +23,7 @@
 #include "preview_manager.h"
 #include "settings_manager.h"
 #include "ota_manager.h"
+#include "firmware_update.h"
 
 namespace WebServer
 {
@@ -799,6 +800,20 @@ namespace WebServer
         return true;
     }
 
+    static const char* firmwareBlocked(uint32_t maxBytes)
+    {
+        const char* reason = nullptr;
+        if (!Storage::isReady()) reason = "Storage unavailable";
+        else if (!WifiManager::isConnected() || WifiManager::isPortalActive()) reason = "Network unavailable";
+        else if (ESP.getFlashChipSize() != ESP.getFlashChipRealSize()) reason = "Flash size mismatch";
+        else if (restartPending || wifiAction || factoryResetScheduled) reason = "Maintenance action pending";
+        else if (SettingsManager::savePending() || SettingsManager::saveFailed()) reason = "Settings save pending or failed";
+        else if (PreviewManager::active()) reason = "Preview active";
+        else if (OTAManager::isUpdating() || Update.isRunning()) reason = "Update already running";
+        else if (!maxBytes) reason = "No firmware space";
+        return reason;
+    }
+
     // Read-only preflight. The actual upload must repeat these checks.
     static void handleFirmwarePreflight()
     {
@@ -816,15 +831,7 @@ namespace WebServer
         if (size > maxBytes) {
             sendJson(413, "{\"error\":\"Firmware too large\"}"); return;
         }
-        const char* reason = nullptr;
-        if (!Storage::isReady()) reason = "Storage unavailable";
-        else if (!WifiManager::isConnected() || WifiManager::isPortalActive()) reason = "Network unavailable";
-        else if (ESP.getFlashChipSize() != ESP.getFlashChipRealSize()) reason = "Flash size mismatch";
-        else if (restartPending || wifiAction || factoryResetScheduled) reason = "Maintenance action pending";
-        else if (SettingsManager::savePending() || SettingsManager::saveFailed()) reason = "Settings save pending or failed";
-        else if (PreviewManager::active()) reason = "Preview active";
-        else if (OTAManager::isUpdating() || Update.isRunning()) reason = "Update already running";
-        else if (!maxBytes) reason = "No firmware space";
+        const char* reason = firmwareBlocked(maxBytes);
         StaticJsonDocument<384> doc;
         doc["ready"] = reason == nullptr;
         doc["uploadSupported"] = false;
@@ -834,6 +841,103 @@ namespace WebServer
         String json;
         serializeJson(doc, json);
         sendJson(reason ? 409 : 200, json);
+    }
+
+    // Diagnostic multipart receiver: never calls Update.begin/write/end.
+    // ESP8266WebServer processes multipart uploads synchronously in handleClient().
+    static struct {
+        bool seen = false;
+        bool owns = false;
+        bool ended = false;
+        uint32_t expected = 0;
+        uint32_t received = 0;
+        int error = 0;
+        const char* message = nullptr;
+    } firmwareRx;
+
+    static void failFirmwareRx(int code, const char* message)
+    {
+        if (!firmwareRx.error) {
+            firmwareRx.error = code;
+            firmwareRx.message = message;
+        }
+    }
+
+    static void clearFirmwareRx()
+    {
+        if (firmwareRx.owns)
+            FirmwareUpdate::recover(FirmwareUpdate::Owner::Web);
+        firmwareRx = {};
+    }
+
+    static void handleFirmwareReceiveChunk()
+    {
+        HTTPUpload& upload = server.upload();
+        if (upload.status == UPLOAD_FILE_START) {
+            if (firmwareRx.seen) {
+                failFirmwareRx(400, "Only one file allowed"); return;
+            }
+            firmwareRx.seen = true;
+            if (server.header("X-Wordclock-Action") != "firmware-update") {
+                failFirmwareRx(403, "Missing action header"); return;
+            }
+            if (!WebUpdateConfig::ENABLED || strcmp(WebUpdateConfig::PASSWORD, "CHANGE_ME") == 0) {
+                failFirmwareRx(403, "Web update disabled"); return;
+            }
+            if (!server.authenticate(WebUpdateConfig::USERNAME, WebUpdateConfig::PASSWORD)) {
+                failFirmwareRx(401, "Unauthorized"); return;
+            }
+            if (upload.name != "firmware" || !readNumber(server.arg("size"), firmwareRx.expected) || !firmwareRx.expected) {
+                failFirmwareRx(400, "Invalid file field or firmware size"); return;
+            }
+            const uint32_t limit = min(ESP.getFreeSketchSpace() & ~uint32_t(4095), uint32_t(1044464));
+            if (firmwareRx.expected > limit) {
+                failFirmwareRx(413, "Firmware too large"); return;
+            }
+            const char* reason = firmwareBlocked(limit);
+            if (reason) { failFirmwareRx(409, reason); return; }
+            if (!FirmwareUpdate::begin(FirmwareUpdate::Owner::Web)) {
+                failFirmwareRx(409, "Update already running"); return;
+            }
+            firmwareRx.owns = true;
+            Serial.printf("HTTP firmware test started: %lu bytes\n", static_cast<unsigned long>(firmwareRx.expected));
+        } else if (upload.status == UPLOAD_FILE_WRITE) {
+            if (!firmwareRx.owns || firmwareRx.error) return;
+            if (upload.currentSize > firmwareRx.expected - firmwareRx.received) {
+                failFirmwareRx(400, "Firmware size mismatch"); return;
+            }
+            firmwareRx.received += upload.currentSize;
+            FirmwareUpdate::progress(FirmwareUpdate::Owner::Web, firmwareRx.received, firmwareRx.expected);
+        } else if (upload.status == UPLOAD_FILE_END) {
+            firmwareRx.ended = true;
+            if (firmwareRx.owns && firmwareRx.received != firmwareRx.expected)
+                failFirmwareRx(400, "Firmware size mismatch");
+        } else if (upload.status == UPLOAD_FILE_ABORTED) {
+            failFirmwareRx(400, "Transfer interrupted");
+        }
+    }
+
+    static void handleFirmwareReceive()
+    {
+        if (server.header("X-Wordclock-Action") != "firmware-update") {
+            sendJson(403, "{\"error\":\"Missing action header\"}"); clearFirmwareRx(); return;
+        }
+        if (!authorizeWebUpdate()) { clearFirmwareRx(); return; }
+        if (!firmwareRx.error && (!firmwareRx.owns || !firmwareRx.ended))
+            failFirmwareRx(400, "Missing or incomplete firmware file");
+        StaticJsonDocument<384> doc;
+        doc["receivedBytes"] = firmwareRx.received;
+        doc["expectedBytes"] = firmwareRx.expected;
+        doc["flashWritten"] = false;
+        doc["installed"] = false;
+        if (firmwareRx.error) doc["error"] = firmwareRx.message;
+        else doc["received"] = true;
+        String json;
+        serializeJson(doc, json);
+        const int code = firmwareRx.error ? firmwareRx.error : 200;
+        Serial.printf("HTTP firmware test finished: status=%d, received=%lu\n", code, static_cast<unsigned long>(firmwareRx.received));
+        clearFirmwareRx();
+        sendJson(code, json);
     }
 
     static void handleWebUpdate()
@@ -1105,6 +1209,7 @@ namespace WebServer
         }
 
         server.on("/api/system/firmware", HTTP_GET, handleFirmwarePreflight);
+        server.on("/api/system/firmware/receive-test", HTTP_POST, handleFirmwareReceive, handleFirmwareReceiveChunk);
         server.on("/api/system", HTTP_GET, handleSystemInfo);
         server.on("/api/system/restart", HTTP_POST, handleRestart);
         server.on("/api/system/reset-settings", HTTP_POST, handleResetSettings);
@@ -1220,6 +1325,12 @@ namespace WebServer
         }
 
         server.handleClient();
+        // A disconnected or malformed multipart request may never reach its
+        // final handler. Never leave the diagnostic receiver owning the LEDs.
+        if (firmwareRx.seen) {
+            Serial.println("HTTP firmware test abandoned; restoring display");
+            clearFirmwareRx();
+        }
 
         if (mdnsRunning)
         {
