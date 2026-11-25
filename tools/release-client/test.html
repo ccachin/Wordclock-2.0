@@ -1,0 +1,6 @@
+<!doctype html><meta charset="utf-8"><title>Wordclock distribution test</title>
+<h1>Test de distribution Wordclock</h1><button id="run">Lancer les tests</button><pre id="out"></pre>
+<script>
+const base='https://ccachin.github.io/Wordclock-2.0/';
+run.onclick=async()=>{out.textContent='Origine : '+location.origin+'\n';for(const path of ['catalog.json','releases/3.0.0-dev/release.json','releases/3.0.0-dev/web-manifest.json','releases/3.0.0-dev/web.zip','releases/3.0.0-dev/CHANGELOG.md']){try{const r=await fetch(base+path,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const b=await r.arrayBuffer();out.textContent+=path+' : OK — '+b.byteLength+' octets\n';}catch(e){out.textContent+=path+' : ECHEC — '+e.message+'\n';}}};
+</script>
