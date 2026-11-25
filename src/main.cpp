@@ -6,6 +6,7 @@
 #include "wifi_manager.h"
 #include "web_server.h"
 #include "web_slot_manager.h"
+#include "web_update_manager.h"
 #include "storage.h"
 #include "theme_manager.h"
 #include "render_manager.h"
@@ -90,6 +91,8 @@ void loop()
 {
 
     WifiManager::update();
+
+    WebUpdateManager::update();
 
     OTAManager::update();
 

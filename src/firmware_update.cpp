@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "firmware_update.h"
+#include "web_update_manager.h"
 #include "leds.h"
 #include "config.h"
 
@@ -41,7 +42,7 @@ namespace FirmwareUpdate
 
     bool begin(Owner requested)
     {
-        if (requested == Owner::None || owner != Owner::None) return false;
+        if (requested == Owner::None || owner != Owner::None || WebUpdateManager::active()) return false;
         owner = requested;
         lastProgress = 101;
         savedBrightness = FastLED.getBrightness();

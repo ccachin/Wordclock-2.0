@@ -6,6 +6,8 @@
 
 #include "ota_manager.h"
 #include "firmware_update.h"
+#include "web_update_manager.h"
+#include "web_server.h"
 #include "ota_config.h"
 #include "wifi_manager.h"
 #include "settings_manager.h"
@@ -171,6 +173,11 @@ namespace OTAManager
     {
         if (!configured || (FirmwareUpdate::active() && !updating))
         {
+            return;
+        }
+
+        if (WebUpdateManager::active() || WebServer::maintenancePending()) {
+            stop();
             return;
         }
 

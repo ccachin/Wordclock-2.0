@@ -28,6 +28,7 @@
 #include "firmware_update.h"
 #include "web_slot_manager.h"
 #include "web_manifest.h"
+#include "web_update_manager.h"
 
 namespace WebServer
 {
@@ -45,6 +46,8 @@ namespace WebServer
     static bool restartPending = false;
     static uint32_t restartAt = 0;
     static bool factoryResetScheduled = false;
+
+    bool maintenancePending() { return restartPending || wifiAction || factoryResetScheduled; }
 
     // ==================================================
     // JSON responses
@@ -764,7 +767,7 @@ namespace WebServer
             sendJson(403, "{\"error\":\"Missing action header\"}"); return;
         }
         if (!authorizeWebUpdate()) return;
-        if (restartPending || wifiAction || SettingsManager::savePending() || SettingsManager::saveFailed()) {
+        if (WebUpdateManager::active() || restartPending || wifiAction || SettingsManager::savePending() || SettingsManager::saveFailed()) {
             sendJson(409, "{\"error\":\"Action or settings save pending\"}"); return;
         }
         if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
@@ -798,6 +801,7 @@ namespace WebServer
             sendJson(403, "{\"error\":\"Missing action header\"}"); return;
         }
         if (!authorizeWebUpdate()) return;
+        if (WebUpdateManager::active()) { sendJson(409, "{\"error\":\"Web update active\"}"); return; }
         if (server.arg("confirm") != "ERASE") {
             sendJson(400, "{\"error\":\"Explicit confirmation required\"}"); return;
         }
@@ -822,7 +826,7 @@ namespace WebServer
             return;
         }
         if (!authorizeWebUpdate()) return;
-        if (wifiAction || restartPending) { sendJson(409, "{\"error\":\"Action pending\"}"); return; }
+        if (WebUpdateManager::active() || wifiAction || restartPending) { sendJson(409, "{\"error\":\"Action pending\"}"); return; }
         const String action = server.arg("action");
         if (action != "change" && action != "forget") {
             sendJson(400, "{\"error\":\"Invalid action\"}"); return;
@@ -896,6 +900,7 @@ namespace WebServer
         else if (restartPending || wifiAction || factoryResetScheduled) reason = "Maintenance action pending";
         else if (SettingsManager::savePending() || SettingsManager::saveFailed()) reason = "Settings save pending or failed";
         else if (PreviewManager::active()) reason = "Preview active";
+        else if (WebUpdateManager::active()) reason = "Web update active";
         else if (OTAManager::isUpdating() || Update.isRunning()) reason = "Update already running";
         else if (!maxBytes) reason = "No firmware space";
         return reason;
@@ -1190,6 +1195,7 @@ namespace WebServer
     static void handleWebUpdate()
     {
         if (!authorizeWebUpdate()) return;
+        if (WebUpdateManager::active()) { sendJson(409, "{\"error\":\"Web update active\"}"); return; }
         if (!Storage::isReady()) { sendJson(503, "{\"error\":\"Storage unavailable\"}"); return; }
         String name=server.arg("name");
         if (!isAllowedWebFile(name)) { sendJson(400, "{\"error\":\"File not allowed\"}"); return; }
@@ -1462,6 +1468,7 @@ namespace WebServer
 
         if (WebUpdateConfig::ENABLED)
         {
+
 
             // Manifest diagnostic route disabled after validation (19.6.3.D).
             // Receiver and validator retained for the release update API.
