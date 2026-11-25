@@ -55,6 +55,7 @@ def verify(folder):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--verify', type=Path, help='Verify an existing release folder instead of building')
+    p.add_argument('--web-only', action='store_true', help='Package web assets without compiling or including firmware')
     args = p.parse_args()
     if args.verify:
         verify(args.verify)
@@ -64,16 +65,18 @@ def main():
     dest = ROOT / 'dist' / v['RELEASE_VERSION']
     if dest.exists():
         raise ValueError(f'Output already exists: {dest}; move it before rebuilding')
-    subprocess.run(['pio', 'run', '-e', 'd1', '-t', 'clean'], cwd=ROOT, check=True)
-    subprocess.run(['pio', 'run', '-e', 'd1'], cwd=ROOT, check=True)
+    if not args.web_only:
+        subprocess.run(['pio', 'run', '-e', 'd1', '-t', 'clean'], cwd=ROOT, check=True)
+        subprocess.run(['pio', 'run', '-e', 'd1'], cwd=ROOT, check=True)
     firmware = ROOT / '.pio/build/d1/firmware.bin'
     dest.parent.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(dir=dest.parent) as tmp:
         folder = Path(tmp) / 'release'
         folder.mkdir()
-        shutil.copyfile(firmware, folder / 'firmware.bin')
-        if not 0 < firmware.stat().st_size <= 1044464 or firmware.open('rb').read(1) != b'\xe9':
-            raise ValueError('Unexpected ESP8266 firmware image')
+        if not args.web_only:
+            shutil.copyfile(firmware, folder / 'firmware.bin')
+            if not 0 < firmware.stat().st_size <= 1044464 or firmware.open('rb').read(1) != b'\xe9':
+                raise ValueError('Unexpected ESP8266 firmware image')
         source = ROOT / 'data/www'
         manifest, raw = generate(source, v['WEB_VERSION'], int(v['WEB_API_VERSION']))
         (folder / 'web-manifest.json').write_bytes(raw)
@@ -83,9 +86,9 @@ def main():
         shutil.copyfile(ROOT / 'CHANGELOG.md', folder / 'CHANGELOG.md')
         meta = {'format': 'wordclock-release', 'manifestVersion': 1,
                 'version': v['RELEASE_VERSION'], 'channel': v['RELEASE_CHANNEL'],
-                'firmwareVersion': v['FIRMWARE_VERSION'], 'webVersion': v['WEB_VERSION'],
+                'firmwareVersion': None if args.web_only else v['FIRMWARE_VERSION'], 'webVersion': v['WEB_VERSION'],
                 'compatibility': {'board': 'd1', 'webApiVersion': int(v['WEB_API_VERSION'])},
-                'artifacts': {k: descriptor(folder / name) for k, name in [('firmware','firmware.bin'), ('web','web.zip'), ('webManifest','web-manifest.json'), ('notes','CHANGELOG.md')]}}
+                'artifacts': {k: descriptor(folder / name) for k, name in ([('firmware','firmware.bin')] if not args.web_only else []) + [('web','web.zip'), ('webManifest','web-manifest.json'), ('notes','CHANGELOG.md')]}}
         (folder / 'release.json').write_text(json.dumps(meta, indent=2) + '\n', encoding='utf-8')
         verify(folder)
         folder.rename(dest)

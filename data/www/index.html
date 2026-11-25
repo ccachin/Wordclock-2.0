@@ -283,6 +283,24 @@
             <p class="muted">Les options d’installation et l’icône dépendent du navigateur.</p>
         </section>
 
+        <h2 class="settings-group-title">Mises à jour</h2>
+        <section class="panel" id="updatesPanel">
+          <p id="updateInstalled" class="muted">Lecture des versions…</p>
+          <p id="updateStatus" role="status" aria-live="polite"></p>
+          <details id="updateNotes" hidden><summary id="updateNotesTitle">Notes de version</summary><div id="updateNotesBody"></div></details>
+          <progress id="updateProgress" max="100" value="0" hidden style="width:100%"></progress>
+          <button id="updateCheck" class="action-button" type="button">Rechercher des mises à jour</button>
+          <button id="updateInstall" class="action-button action-primary" type="button" hidden>Installer l’interface</button>
+          <details><summary>Options avancées</summary>
+            <label for="updateChannel">Canal de publication</label>
+            <select id="updateChannel"><option value="stable">Stable</option><option value="development">Expérimental</option></select>
+            <p class="muted">Les versions expérimentales peuvent contenir des erreurs. Le firmware public n’est pas encore disponible.</p>
+            <label for="updateFirmware">Firmware local (.bin)</label><input type="file" id="updateFirmware" accept=".bin">
+            <button id="updateManual" class="action-button" type="button">Installer le firmware local</button>
+            <button id="updateRollback" class="action-button" type="button">Restaurer l’interface précédente</button>
+            <p><a href="/recovery">Page de secours</a></p>
+          </details>
+        </section>
         <h2 class="settings-group-title">Maintenance</h2>
         <section class="panel maintenance-panel">
           <button type="button" data-maintenance="info">Informations système <small>Firmware, réseau, mémoire et stockage.</small></button>
