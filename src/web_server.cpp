@@ -681,6 +681,9 @@ namespace WebServer
         doc["savePending"] = SettingsManager::savePending();
         doc["saveFailed"] = SettingsManager::saveFailed();
         doc["restartPending"] = restartPending;
+        doc["webSlot"] = WebSlotManager::activeSlot() == WebSlotManager::Slot::A ? "A" : "B";
+        doc["webSlotSource"] = WebSlotManager::selectionSource();
+        doc["webSlotGeneration"] = WebSlotManager::selectionGeneration();
         if (doc.overflowed()) { sendJson(503, "{\"error\":\"Insufficient memory\"}"); return; }
         String json;
         serializeJson(doc, json);
