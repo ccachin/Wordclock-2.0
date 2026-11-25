@@ -5,6 +5,7 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <LittleFS.h>
+#include <Updater.h>
 #include <ctype.h>
 #include <stdlib.h>
 
@@ -21,6 +22,7 @@
 #include "custom_theme_store.h"
 #include "preview_manager.h"
 #include "settings_manager.h"
+#include "ota_manager.h"
 
 namespace WebServer
 {
@@ -797,6 +799,43 @@ namespace WebServer
         return true;
     }
 
+    // Read-only preflight. The actual upload must repeat these checks.
+    static void handleFirmwarePreflight()
+    {
+        if (server.header("X-Wordclock-Action") != "firmware-update") {
+            sendJson(403, "{\"error\":\"Missing action header\"}"); return;
+        }
+        if (!authorizeWebUpdate()) return;
+        const uint32_t freeBytes = ESP.getFreeSketchSpace();
+        // Conservative limit for the current PlatformIO d1 image layout.
+        const uint32_t maxBytes = min(freeBytes & ~uint32_t(4095), uint32_t(1044464));
+        uint32_t size = 0;
+        if (server.hasArg("size") && (!readNumber(server.arg("size"), size) || !size)) {
+            sendJson(400, "{\"error\":\"Invalid firmware size\"}"); return;
+        }
+        if (size > maxBytes) {
+            sendJson(413, "{\"error\":\"Firmware too large\"}"); return;
+        }
+        const char* reason = nullptr;
+        if (!Storage::isReady()) reason = "Storage unavailable";
+        else if (!WifiManager::isConnected() || WifiManager::isPortalActive()) reason = "Network unavailable";
+        else if (ESP.getFlashChipSize() != ESP.getFlashChipRealSize()) reason = "Flash size mismatch";
+        else if (restartPending || wifiAction || factoryResetScheduled) reason = "Maintenance action pending";
+        else if (SettingsManager::savePending() || SettingsManager::saveFailed()) reason = "Settings save pending or failed";
+        else if (PreviewManager::active()) reason = "Preview active";
+        else if (OTAManager::isUpdating() || Update.isRunning()) reason = "Update already running";
+        else if (!maxBytes) reason = "No firmware space";
+        StaticJsonDocument<384> doc;
+        doc["ready"] = reason == nullptr;
+        doc["uploadSupported"] = false;
+        doc["maxBytes"] = maxBytes;
+        doc["freeSketchBytes"] = freeBytes;
+        if (reason) doc["reason"] = reason;
+        String json;
+        serializeJson(doc, json);
+        sendJson(reason ? 409 : 200, json);
+    }
+
     static void handleWebUpdate()
     {
         if (!authorizeWebUpdate()) return;
@@ -1065,6 +1104,7 @@ namespace WebServer
                 handleWebUpdate);
         }
 
+        server.on("/api/system/firmware", HTTP_GET, handleFirmwarePreflight);
         server.on("/api/system", HTTP_GET, handleSystemInfo);
         server.on("/api/system/restart", HTTP_POST, handleRestart);
         server.on("/api/system/reset-settings", HTTP_POST, handleResetSettings);
