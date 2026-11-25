@@ -1285,6 +1285,16 @@ namespace WebServer
         if (error) { sendJson(strcmp(error,"sha256-mismatch")==0?422:409,String("{\"verified\":false,\"error\":\"")+error+"\"}"); return; }
         sendJson(200,"{\"verified\":true,\"verifiedFiles\":12}");
     }
+    static void handleReleaseSwitch() {
+        if (!releaseAuthorized()) return;
+        if (server.arg("confirm") != "SWITCH") { sendJson(400,"{\"error\":\"confirmation-required\"}"); return; }
+        const bool rollback = server.uri() == "/api/system/web-update/rollback";
+        uint32_t id=0;
+        if (!rollback && !readNumber(server.arg("id"),id)) { sendJson(400,"{\"error\":\"parameters\"}"); return; }
+        const char* error=rollback ? WebUpdateManager::rollback() : WebUpdateManager::activate(id);
+        if (error) { sendJson(409,String("{\"error\":\"")+error+"\"}"); return; }
+        sendJson(200,String("{\"activated\":true,\"webSlot\":\"")+(WebSlotManager::activeSlot()==WebSlotManager::Slot::A?"A":"B")+"\",\"generation\":"+String(WebSlotManager::selectionGeneration())+"}");
+    }
     static void handleReleaseCancel() {
         if (!releaseAuthorized()) return;
         uint32_t id=0;
@@ -1578,6 +1588,12 @@ namespace WebServer
             server.on("/api/system/web-update/chunk", HTTP_PUT, handleReleaseChunk);
             server.on("/api/system/web-update/cancel", HTTP_POST, handleReleaseCancel);
             server.on("/api/system/web-update/verify", HTTP_POST, handleReleaseVerify);
+            server.on("/api/system/web-update/activate", HTTP_POST, handleReleaseSwitch);
+            server.on("/api/system/web-update/rollback", HTTP_POST, handleReleaseSwitch);
+            server.on("/recovery", HTTP_GET, []() {
+                server.sendHeader("Cache-Control", "no-store");
+                server.send(200,"text/html; charset=utf-8", R"HTML(<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Wordclock - Secours</title><body><h1>Wordclock - Secours</h1><p>Retour a l'interface precedente, si disponible.</p><button id="back">Restaurer</button><pre id="result"></pre><p><a href="/">Ouvrir Wordclock</a></p><script>document.getElementById('back').onclick=async()=>{if(!confirm('Restaurer la version precedente ?'))return;const p=prompt('Mot de passe administrateur');if(p===null)return;try{const r=await fetch('/api/system/web-update/rollback?confirm=SWITCH',{method:'POST',headers:{'X-Wordclock-Action':'web-update','Authorization':'Basic '+btoa('admin:'+p)}});document.getElementById('result').textContent=await r.text();}catch(e){document.getElementById('result').textContent=String(e);}};</script></body></html>)HTML");
+            });
 
             server.on(
                 "/api/dev/web",

@@ -1,4 +1,4 @@
-"""Stage a web release without activating it. Test transport only."""
+"""Transfer, verify and optionally activate a web release."""
 import argparse
 import base64
 import getpass
@@ -18,8 +18,24 @@ def main():
     p.add_argument('--source', type=Path, default=Path('data/www'))
     p.add_argument('--keep', action='store_true', help='Leave the completed test session until timeout or manual cancellation')
     p.add_argument('--test', choices=['corrupt','incomplete','unknown'], help='Expect device rejection')
+    p.add_argument('--activate', action='store_true')
+    p.add_argument('--rollback', action='store_true')
     a = p.parse_args()
+    if (a.activate or a.rollback) and (a.test or a.keep) or (a.activate and a.rollback): p.error('Incompatible options')
     if a.test and a.keep: p.error('--test and --keep are incompatible')
+    token = base64.b64encode(('admin:' + getpass.getpass('Admin password: ')).encode()).decode()
+    base = a.host.rstrip('/') + '/api/system/web-update/'
+    def request(route, method='GET', body=None, mime='text/plain'):
+        req = urllib.request.Request(base + route, data=body, method=method, headers={
+            'Authorization': 'Basic ' + token, 'X-Wordclock-Action': 'web-update',
+            'Content-Type': mime, 'Connection': 'close'})
+        with urllib.request.urlopen(req, timeout=20) as response:
+            return json.load(response)
+    if a.rollback:
+        if input('Restore previous interface? Type SWITCH: ') != 'SWITCH': return 1
+        print(request('rollback?confirm=SWITCH', 'POST', b''))
+        return 0
+    if a.activate and input('Activate verified interface? Type SWITCH: ') != 'SWITCH': return 1
     raw = a.manifest.read_bytes()
     manifest = json.loads(raw)
     assets = []
@@ -31,14 +47,6 @@ def main():
         if len(data) != item['size'] or hashlib.sha256(data).hexdigest() != item['sha256']:
             raise ValueError(f'{name}: regenerate manifest')
         assets.append((name, data))
-    token = base64.b64encode(('admin:' + getpass.getpass('Admin password: ')).encode()).decode()
-    base = a.host.rstrip('/') + '/api/system/web-update/'
-    def request(route, method='GET', body=None, mime='text/plain'):
-        req = urllib.request.Request(base + route, data=body, method=method, headers={
-            'Authorization': 'Basic ' + token, 'X-Wordclock-Action': 'web-update',
-            'Content-Type': mime, 'Connection': 'close'})
-        with urllib.request.urlopen(req, timeout=20) as response:
-            return json.load(response)
     boundary = uuid.uuid4().hex
     body = (f'--{boundary}\r\nContent-Disposition: form-data; name="manifest"; filename="web-manifest.json"\r\nContent-Type: application/json\r\n\r\n'.encode() + raw + f'\r\n--{boundary}--\r\n'.encode())
     session = None
@@ -88,7 +96,14 @@ def main():
                 state = request('status')
                 if not result['verified'] or not state['verified'] or state['verifiedFiles'] != len(assets):
                     raise ValueError('Verification incomplete')
-                print('SHA-256 verified: all assets. NOT activated.')
+                print('SHA-256 verified: all assets.')
+                if a.activate:
+                    result = request('activate?' + urllib.parse.urlencode(dict(id=session,confirm='SWITCH')), 'POST', b'')
+                    if not result.get('activated'): raise ValueError('Activation not confirmed')
+                    session = None
+                    print(result)
+                else:
+                    print('NOT activated.')
         success = True
     except (Exception, KeyboardInterrupt) as exc:
         print(f'Transfer stopped: {exc}')

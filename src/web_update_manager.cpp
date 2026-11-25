@@ -167,4 +167,29 @@ const char* verify(uint32_t id) {
     return nullptr;
 }
 
+const char* activate(uint32_t id) {
+    if (!touch(id) || !session.verified || session.verifiedFiles != WebManifest::AssetCount) return "not-verified";
+    if (FirmwareUpdate::active() || Update.isRunning() || WebServer::maintenancePending()) return "operation-active";
+    if (const char* error = verify(id)) return error;
+    const auto target = session.target;
+    const String marker = pathFor(".incomplete");
+    if (!LittleFS.remove(marker) || LittleFS.exists(marker)) return "marker-remove";
+    // From this point the slot contains a fully verified interface. Never clean it
+    // on a selection write failure: a valid record may already be on flash.
+    const bool selected = WebSlotManager::persistSelection(target);
+    clear(selected ? nullptr : "selection-failed");
+    return selected ? nullptr : "selection-failed";
+}
+const char* rollback() {
+    if (active() || FirmwareUpdate::active() || Update.isRunning() || WebServer::maintenancePending()) return "operation-active";
+    const auto target = WebSlotManager::inactiveSlot();
+    if (!WebSlotManager::hasEntryPoint(target)) return "backup-unavailable";
+    for (size_t i=0;i<WebManifest::AssetCount;++i) {
+        File f=LittleFS.open(String(WebSlotManager::root(target))+"/"+WebManifest::assetName(i),"r");
+        if (!f || f.isDirectory() || !f.size()) return "backup-incomplete";
+        f.close();
+    }
+    return WebSlotManager::persistSelection(target) ? nullptr : "selection-failed";
+}
+
 }

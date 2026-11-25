@@ -29,6 +29,8 @@ bool start(const WebManifest::Result& manifest, uint32_t& id);
 bool storeManifest(uint32_t id, const char* data, size_t length);
 bool chunk(uint32_t id, const char* name, uint32_t offset, const uint8_t* data, size_t length);
 const char* verify(uint32_t id);
+const char* activate(uint32_t id);
+const char* rollback();
 bool touch(uint32_t id);
 bool cancel(uint32_t id);
 void update();
