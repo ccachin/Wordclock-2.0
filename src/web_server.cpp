@@ -843,12 +843,17 @@ namespace WebServer
         sendJson(reason ? 409 : 200, json);
     }
 
-    // Diagnostic multipart receiver: never calls Update.begin/write/end.
+    // Diagnostic multipart receiver with optional incomplete flash staging.
+    static constexpr uint32_t FLASH_TEST_RESERVE = 4096;
     // ESP8266WebServer processes multipart uploads synchronously in handleClient().
     static struct {
         bool seen = false;
         bool owns = false;
         bool ended = false;
+        bool staging = false;
+        bool updaterOwned = false;
+        uint32_t accepted = 0;
+        uint32_t written = 0;
         uint32_t expected = 0;
         uint32_t received = 0;
         int error = 0;
@@ -865,12 +870,32 @@ namespace WebServer
 
     static void clearFirmwareRx()
     {
+        if (firmwareRx.updaterOwned) {
+            if (Update.isRunning()) {
+                // Never finalize a complete image in this diagnostic route.
+                if (Update.isFinished() || firmwareRx.accepted >= firmwareRx.expected) {
+                    Serial.println("Flash test invariant failed; restart without finalization");
+                    Serial.flush();
+                    ESP.restart();
+                    return;
+                }
+                Update.end(false); // verified incomplete: discards buffered data
+            }
+            if (Update.isRunning()) {
+                Serial.println("Flash test cleanup failed; restarting");
+                Serial.flush();
+                ESP.restart();
+                return;
+            }
+            Update.clearError();
+            Serial.println("HTTP flash test discarded; no installation scheduled");
+        }
         if (firmwareRx.owns)
             FirmwareUpdate::recover(FirmwareUpdate::Owner::Web);
         firmwareRx = {};
     }
 
-    static void handleFirmwareReceiveChunk()
+    static void handleFirmwareChunk(bool staging)
     {
         HTTPUpload& upload = server.upload();
         if (upload.status == UPLOAD_FILE_START) {
@@ -878,6 +903,7 @@ namespace WebServer
                 failFirmwareRx(400, "Only one file allowed"); return;
             }
             firmwareRx.seen = true;
+            firmwareRx.staging = staging;
             if (server.header("X-Wordclock-Action") != "firmware-update") {
                 failFirmwareRx(403, "Missing action header"); return;
             }
@@ -894,17 +920,41 @@ namespace WebServer
             if (firmwareRx.expected > limit) {
                 failFirmwareRx(413, "Firmware too large"); return;
             }
+            if (staging && firmwareRx.expected < 3 * FLASH_TEST_RESERVE) {
+                failFirmwareRx(400, "Firmware too small for flash test"); return;
+            }
             const char* reason = firmwareBlocked(limit);
             if (reason) { failFirmwareRx(409, reason); return; }
             if (!FirmwareUpdate::begin(FirmwareUpdate::Owner::Web)) {
                 failFirmwareRx(409, "Update already running"); return;
             }
             firmwareRx.owns = true;
+            if (staging) {
+                if (!Update.begin(firmwareRx.expected, U_FLASH)) {
+                    Update.printError(Serial);
+                    failFirmwareRx(500, "Flash begin failed");
+                    return;
+                }
+                firmwareRx.updaterOwned = true;
+            }
             Serial.printf("HTTP firmware test started: %lu bytes\n", static_cast<unsigned long>(firmwareRx.expected));
         } else if (upload.status == UPLOAD_FILE_WRITE) {
             if (!firmwareRx.owns || firmwareRx.error) return;
             if (upload.currentSize > firmwareRx.expected - firmwareRx.received) {
                 failFirmwareRx(400, "Firmware size mismatch"); return;
+            }
+            if (firmwareRx.staging) {
+                const uint32_t cap = firmwareRx.expected - FLASH_TEST_RESERVE;
+                const size_t count = min(static_cast<size_t>(cap - firmwareRx.accepted), upload.currentSize);
+                if (count) {
+                    const size_t accepted = Update.write(upload.buf, count);
+                    firmwareRx.accepted += accepted;
+                    if (Update.isRunning()) firmwareRx.written = Update.progress();
+                    if (accepted != count || Update.hasError()) {
+                        Update.printError(Serial);
+                        failFirmwareRx(500, "Flash write failed"); return;
+                    }
+                }
             }
             firmwareRx.received += upload.currentSize;
             FirmwareUpdate::progress(FirmwareUpdate::Owner::Web, firmwareRx.received, firmwareRx.expected);
@@ -917,6 +967,9 @@ namespace WebServer
         }
     }
 
+    static void handleFirmwareReceiveChunk() { handleFirmwareChunk(false); }
+    static void handleFirmwareFlashChunk() { handleFirmwareChunk(true); }
+
     static void handleFirmwareReceive()
     {
         if (server.header("X-Wordclock-Action") != "firmware-update") {
@@ -925,10 +978,20 @@ namespace WebServer
         if (!authorizeWebUpdate()) { clearFirmwareRx(); return; }
         if (!firmwareRx.error && (!firmwareRx.owns || !firmwareRx.ended))
             failFirmwareRx(400, "Missing or incomplete firmware file");
-        StaticJsonDocument<384> doc;
+        if (!firmwareRx.error && firmwareRx.staging &&
+            (!firmwareRx.updaterOwned || !Update.isRunning() || Update.isFinished() ||
+             firmwareRx.accepted != firmwareRx.expected - FLASH_TEST_RESERVE || !firmwareRx.written))
+            failFirmwareRx(500, "Flash test invariant failed");
+        StaticJsonDocument<512> doc;
         doc["receivedBytes"] = firmwareRx.received;
         doc["expectedBytes"] = firmwareRx.expected;
-        doc["flashWritten"] = false;
+        doc["flashWritten"] = firmwareRx.written > 0;
+        if (firmwareRx.staging) {
+            doc["acceptedBytes"] = firmwareRx.accepted;
+            doc["writtenBytes"] = firmwareRx.written;
+            doc["reservedBytes"] = FLASH_TEST_RESERVE;
+            doc["testOnly"] = true;
+        }
         doc["installed"] = false;
         if (firmwareRx.error) doc["error"] = firmwareRx.message;
         else doc["received"] = true;
@@ -937,6 +1000,7 @@ namespace WebServer
         const int code = firmwareRx.error ? firmwareRx.error : 200;
         Serial.printf("HTTP firmware test finished: status=%d, received=%lu\n", code, static_cast<unsigned long>(firmwareRx.received));
         clearFirmwareRx();
+        if (firmwareRx.seen) return; // emergency restart requested
         sendJson(code, json);
     }
 
@@ -1210,6 +1274,7 @@ namespace WebServer
 
         server.on("/api/system/firmware", HTTP_GET, handleFirmwarePreflight);
         server.on("/api/system/firmware/receive-test", HTTP_POST, handleFirmwareReceive, handleFirmwareReceiveChunk);
+        server.on("/api/system/firmware/flash-test", HTTP_POST, handleFirmwareReceive, handleFirmwareFlashChunk);
         server.on("/api/system", HTTP_GET, handleSystemInfo);
         server.on("/api/system/restart", HTTP_POST, handleRestart);
         server.on("/api/system/reset-settings", HTTP_POST, handleResetSettings);
