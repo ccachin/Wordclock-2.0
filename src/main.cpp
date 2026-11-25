@@ -5,6 +5,7 @@
 #include "status_manager.h"
 #include "wifi_manager.h"
 #include "web_server.h"
+#include "web_slot_manager.h"
 #include "storage.h"
 #include "theme_manager.h"
 #include "render_manager.h"
@@ -73,6 +74,7 @@ void setup()
     WifiManager::begin();
 
     Serial.println("Boot: web server");
+    WebSlotManager::begin();
     WebServer::begin();
 
     Serial.println("Boot: OTA");
