@@ -1115,6 +1115,10 @@ namespace WebServer
         String name=server.arg("name");
         if (!isAllowedWebFile(name)) { sendJson(400, "{\"error\":\"File not allowed\"}"); return; }
         const char* root = WebSlotManager::activeRoot();
+        const char* slot = WebSlotManager::activeSlot() == WebSlotManager::Slot::A ? "A" : "B";
+        if (server.hasArg("slot") && server.arg("slot") != slot) {
+            sendJson(409, "{\"error\":\"Active slot changed\"}"); return;
+        }
         String path=String(root)+"/"+name, temporaryPath=path+".tmp";
         uint32_t offset=0, total=0, expectedCrc=0;
         if (!readNumber(server.arg("offset"),offset) || !readNumber(server.arg("total"),total) ||
@@ -1138,6 +1142,15 @@ namespace WebServer
             }
             f.close();
             if (count!=total || (crc^0xffffffffu)!=expectedCrc) { sendJson(409,"{\"error\":\"CRC or size mismatch\"}"); return; }
+            // Mark before replacing any active asset, including on interrupted updates.
+            const String marker = String(root) + "/.development";
+            if (!LittleFS.exists(marker)) {
+                File dirty = LittleFS.open(marker, "w");
+                if (!dirty) { sendJson(500,"{\"error\":\"Cannot mark development slot\"}"); return; }
+                const size_t marked = dirty.write(static_cast<uint8_t>(1));
+                dirty.close();
+                if (marked != 1 || !LittleFS.exists(marker)) { sendJson(500,"{\"error\":\"Cannot mark development slot\"}"); return; }
+            }
             if (!LittleFS.rename(temporaryPath,path)) { sendJson(500,"{\"error\":\"Cannot replace file\"}"); return; }
             sendJson(200,String("{\"ok\":true,\"size\":")+String(total)+"}"); return;
         }
@@ -1183,7 +1196,11 @@ namespace WebServer
         json += String(
             WebUpdateConfig::MAX_FILE_SIZE);
 
-        json += ",\"chunkSize\":1024,\"protocol\":2}";
+        json += ",\"chunkSize\":1024,\"protocol\":2,\"activeSlot\":\"";
+        json += WebSlotManager::activeSlot() == WebSlotManager::Slot::A ? "A" : "B";
+        json += "\",\"development\":";
+        json += LittleFS.exists(String(WebSlotManager::activeRoot()) + "/.development") ? "true" : "false";
+        json += "}";
 
         sendJson(200, json);
     }

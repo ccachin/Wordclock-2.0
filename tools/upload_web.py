@@ -46,6 +46,11 @@ def main():
         limit = int(info['maxFileSize'])
         if info.get('protocol') != 2:
             raise ValueError('Install firmware with web upload protocol 2 first')
+        slot = info.get('activeSlot')
+        if slot not in ('A', 'B'):
+            raise ValueError('Install firmware with A/B web upload support first')
+        print(f'Active slot: {slot} (development upload)')
+        print(f'Development marker: {info.get("development")}')
         chunk_size = min(1024, int(info['chunkSize']))
         if chunk_size <= 0:
             raise ValueError('Invalid chunk size')
@@ -53,6 +58,7 @@ def main():
         for name, data in assets:
             if not 0 < len(data) <= limit:
                 raise ValueError(f'{name} invalid size ({len(data)} bytes, maximum {limit})')
+        changed = 0
         for name, data in assets:
             if not args.force:
                 try:
@@ -62,7 +68,7 @@ def main():
                     if exc.code != 404:
                         raise
             try:
-                params = {'name': name, 'total': len(data), 'crc': f'{zlib.crc32(data):08x}'}
+                params = {'slot': slot, 'name': name, 'total': len(data), 'crc': f'{zlib.crc32(data):08x}'}
                 for offset in range(0, len(data), chunk_size):
                     chunk = data[offset:offset + chunk_size]
                     query = urllib.parse.urlencode(dict(params, action='chunk', offset=offset))
@@ -82,8 +88,12 @@ def main():
             time.sleep(0.5)
             if request('/' if name == 'index.html' else '/' + name) != data:
                 raise ValueError(f'{name}: verification mismatch')
+            changed += 1
             print(f'{name}: uploaded and verified ({len(data)} bytes)')
-        print('Web update successful.')
+        final = json.loads(request('/api/dev/web'))
+        if final.get('activeSlot') != slot or (changed and final.get('development') is not True):
+            raise ValueError('Final slot or development marker verification failed')
+        print(f'Web update successful. Slot {slot}; {changed} file(s) uploaded. Development marker: {final.get("development")}')
         return 0
     except Exception as exc:
         print(f'Error: {exc}\nWeb update failed.')
