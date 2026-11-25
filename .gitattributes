@@ -1,0 +1,3 @@
+# Preserve exact release artifact bytes
+/releases/** -text
+/catalog.json -text
