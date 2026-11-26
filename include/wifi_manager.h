@@ -10,6 +10,7 @@ namespace WifiManager
 
     bool isConnected();
     bool isPortalActive();
+    bool isOfflineAP();
 
     void startConfigPortal();
     void forgetNetwork();

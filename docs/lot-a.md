@@ -1,0 +1,15 @@
+# Lot A — 3.1.0-dev
+
+Base: 6c5409a78e7a7aa24de998619d0a4baa61c5bbc6 (3.0.5-dev).
+
+The embedded editor and community UI have been removed. The complete original web sources are preserved in `studio-legacy/` as a reference, not as a working standalone Studio. Local theme selection, quick settings, individual JSON export, collection export/import and deletion remain. No existing themes are removed and the existing firmware limit of 30 is retained to avoid migration/data loss.
+
+`prepare_release.py` builds a temporary distribution with one JS bundle and versioned URLs. The twelve API-1 manifest names stay unchanged: unused entries are placeholders, except `community.js` and `night.js`, which contain gzip representations of `app.js` and `style.css` respectively. These two names are not linked by the new HTML. The firmware selects them only for versioned requests matching the active release and an explicit gzip accept token; old firmware and older slots use normal uncompressed assets. The originals are always present. This deliberately trades a small amount of flash for backward compatibility. Do not manually upload only the companion files or use the source directory with a packaged manifest. Development `data/www` remains modular and uncompressed. A cache lifetime of five minutes is enabled only for matching versioned assets, not for HTML or JSON API responses. Static short writes are reported to Serial. The UI polls status every five seconds and night state every thirty seconds; seconds are interpolated locally between valid status reads.
+
+ArduinoOTA remains enabled in `d1_ota` and `d1_migration`; it is disabled in the distributed `d1` build. USB and signed HTTP updates remain available. No changes were made to signature verification, web-slot validation, credentials or settings storage.
+
+## Build and deploy
+
+From the repository root, `python tools/prepare_release.py` builds/signs/packages a full release with the existing private signing key. `python tools/validate.py` validates the package. Use the existing Pages staging tool to publish the full development release, then install both components using the existing local interface. USB is the recovery alternative if needed; do not erase or uploadfs. For a direct web upload, extract the generated `web.zip` and pass that directory as `--source` together with its `web-manifest.json` to `tools/upload_web_release.py`.
+
+After deployment, close browser tabs and run `python tools/validate.py --host http://192.168.1.87`. This read-only campaign checks twenty sets of concurrent linked HTTP resources, their decoded bytes, the JSON APIs, gzip negotiation, plain fallback and sampled uptime/heap. It is not a full browser or interruption test. The firmware was not compiled in the patch authoring environment (PlatformIO unavailable); the local package and JS syntax were checked, but the browser smoke run was blocked by the environment. Physical and signed full-update tests are still required. Do not publish as stable.

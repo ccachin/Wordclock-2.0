@@ -245,6 +245,16 @@
         <h2 class="settings-group-title">Configuration</h2>
         <section class="panel" id="devicePanel"><h2>Mon horloge</h2><div class="device-fields"><label for="deviceName">Nom de votre horloge</label><input id="deviceName" type="text" maxlength="48" autocomplete="off" disabled><label for="deviceZone">Fuseau horaire</label><select id="deviceZone" disabled></select></div><p id="deviceSummary" role="status" aria-live="polite">Chargement…</p><button type="button" id="setupOpen" disabled class="action-button">Relancer la configuration</button></section>
 
+        <section class="panel" id="clockPanel">
+            <h2>Heure et date</h2>
+            <p id="clockSource" class="muted" role="status">Chargement…</p>
+            <button type="button" id="clockPhone" disabled class="action-button">Synchroniser avec cet appareil</button>
+            <label for="clockManual">Date et heure locales (fuseau de l’horloge)</label>
+            <input type="datetime-local" id="clockManual" step="1" min="2020-01-01T00:00:00" max="2099-12-31T23:59:59" disabled>
+            <button type="button" id="clockApply" disabled class="action-button">Appliquer l’heure manuellement</button>
+            <p class="muted">Internet permet une synchronisation automatique NTP. Sans Internet, l’heure reste valide tant que l’horloge est alimentée.</p>
+            <p id="clockMessage" class="muted" role="status"></p>
+        </section>
         <section class="panel">
             <h2>Connexion Wi-Fi</h2>
             <div class="setting"><span>Réseau actuel</span><strong id="wifiSsid">—</strong></div>

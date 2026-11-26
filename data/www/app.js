@@ -960,9 +960,9 @@ appearanceToggle.addEventListener('click',()=>{darkAppearance=!darkAppearance;se
                 const data = await request("/api/wifi");
                 el("wifiSsid").textContent = data.ssid || "—";
                 el("wifiIp").textContent = data.ip;
-                el("wifiHost").textContent = data.hostname;
-                el("wifiState").textContent = data.connected ? "Connectée" : "Déconnectée";
-                enable(data.connected);
+                el("wifiHost").textContent = data.connected ? data.hostname : "—";
+                el("wifiState").textContent = data.connected ? "Connectée" : data.offlineAP ? "Accès direct (sans routeur)" : "Déconnectée";
+                enable(data.connected || data.offlineAP);
             } catch (_) { el("wifiState").textContent = "Indisponible"; enable(false); }
         }
         async function act(action) {
@@ -1002,7 +1002,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function refreshAccess() {
         try {
             const data = await request('/api/wifi');
-            ip.value = data.connected && /^\d{1,3}(\.\d{1,3}){3}$/.test(data.ip) ? 'http://' + data.ip + '/' : '';
+            ip.value = (data.connected || data.offlineAP) && /^\d{1,3}(\.\d{1,3}){3}$/.test(data.ip) ? 'http://' + data.ip + '/' : '';
         } catch (_) { ip.value = ''; }
         el('copyIp').disabled = !ip.value;
     }
@@ -1013,4 +1013,41 @@ document.addEventListener('DOMContentLoaded', () => {
     platform.addEventListener('change', updateHelp); updateHelp();
     el('settingsTab').addEventListener('click', refreshAccess);
     refreshAccess();
+});
+
+
+// Clock control: UTC epoch for phone sync; manual date interpreted in the clock timezone.
+document.addEventListener('DOMContentLoaded', () => {
+    const el = id => document.getElementById(id);
+    const phone = el('clockPhone'), manual = el('clockManual'), apply = el('clockApply');
+    const source = el('clockSource'), message = el('clockMessage');
+    let busy = false;
+    function show(data, fill) {
+        source.textContent = !data.valid ? 'Heure non réglée' : 'Source : ' + ({ntp:'Internet (NTP)',manual:'Réglage local',unknown:'Non déterminée'}[data.source] || 'Non déterminée');
+        if (fill && document.activeElement !== manual) manual.value = data.local || '';
+    }
+    function lock(value) { phone.disabled = manual.disabled = apply.disabled = value; }
+    async function refresh() {
+        if (busy) return;
+        try { show(await request('/api/clock'), true); lock(false); }
+        catch (_) { source.textContent = 'Réglage de l’heure indisponible'; lock(true); }
+    }
+    async function save(fields) {
+        if (busy) return;
+        busy = true; lock(true);
+        try {
+            show(await request('/api/clock',{method:'POST',headers:{'X-Wordclock-Action':'clock'},body:new URLSearchParams(fields)}),true);
+            message.textContent = 'Heure synchronisée.';
+        } catch (e) { message.textContent = 'Réglage non confirmé : '+e.message; }
+        finally { busy = false; lock(false); }
+    }
+    phone.addEventListener('click', () => save({epoch:String(Math.floor(Date.now()/1000))}));
+    apply.addEventListener('click', () => {
+        const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(manual.value);
+        if (!m || !manual.checkValidity()) { message.textContent = 'Date ou heure invalide.'; return; }
+        const [_,year,month,day,hour,minute,second='00'] = m;
+        save({year,month,day,hour,minute,second});
+    });
+    el('settingsTab').addEventListener('click', refresh);
+    refresh();
 });

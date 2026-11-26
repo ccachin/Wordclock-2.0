@@ -184,7 +184,7 @@ namespace WebServer
 
         bool valid = TimeManager::getTime(now);
 
-        char timeString[9] = "";
+        char timeString[12] = "";
 
         if (valid)
         {
@@ -839,12 +839,57 @@ namespace WebServer
         sendJson(status, json);
     }
 
+    static void handleClockInfo() {
+        char local[24] = "";
+        TimeManager::localDateTime(local, sizeof(local));
+        char json[128];
+        snprintf(json, sizeof(json), "{\"valid\":%s,\"local\":\"%s\",\"source\":\"%s\"}",
+                 TimeManager::isValid() ? "true" : "false", local, TimeManager::source());
+        sendJson(200, json);
+    }
+
+    static bool clockDecimal(const String& value, uint64_t& number) {
+        if (!value.length() || value.length() > 10) return false;
+        number = 0;
+        for (size_t i = 0; i < value.length(); ++i) {
+            char c = value[i];
+            if (c < '0' || c > '9') return false;
+            number = number * 10 + (c - '0');
+        }
+        return true;
+    }
+
+    static void handleClockSet() {
+        if (firmwareSessionActive() || WebUpdateManager::active() || restartPending || wifiAction) {
+            sendJson(409, "{\"error\":\"Maintenance active\"}"); return;
+        }
+        if (server.header("X-Wordclock-Action") != "clock") {
+            sendJson(403, "{\"error\":\"Missing action header\"}"); return;
+        }
+        bool ok = false;
+        if (server.hasArg("epoch")) {
+            uint64_t epoch;
+            ok = clockDecimal(server.arg("epoch"), epoch) && TimeManager::setEpoch(epoch);
+        } else {
+            const char* fields[] = {"year", "month", "day", "hour", "minute", "second"};
+            uint64_t values[6]{};
+            bool valid = true;
+            for (size_t i = 0; i < 6; ++i)
+                valid = valid && clockDecimal(server.arg(fields[i]), values[i]);
+            if (valid && values[0] >= 2020 && values[0] <= 2099 && values[1] <= 12 && values[2] <= 31 && values[3] <= 23 && values[4] <= 59 && values[5] <= 59)
+                ok = TimeManager::setTime(values[0], values[1], values[2], values[3], values[4], values[5]);
+        }
+        if (!ok) { sendJson(400, "{\"error\":\"Invalid date or time\"}"); return; }
+        handleClockInfo();
+    }
+
     static void handleWifiInfo()
     {
         DynamicJsonDocument doc(512);
-        doc["ssid"] = WiFi.SSID();
+        doc["ssid"] = WifiManager::isConnected() ? WiFi.SSID() : (WifiManager::isOfflineAP() ? WiFi.softAPSSID() : String());
+        doc["offlineAP"] = WifiManager::isOfflineAP();
         doc["connected"] = WifiManager::isConnected();
-        doc["ip"] = WiFi.localIP().toString();
+        doc["ip"] = WifiManager::getIPAddress();
         doc["hostname"] = "wordclock.local";
         String json;
         serializeJson(doc, json);
@@ -891,7 +936,7 @@ namespace WebServer
         doc["firmware"] = WORDCLOCK_FIRMWARE_VERSION;
         doc["buildId"] = __DATE__ " " __TIME__;
         doc["hostname"] = "wordclock.local";
-        doc["ip"] = WiFi.localIP().toString();
+        doc["ip"] = WifiManager::getIPAddress();
         doc["rssi"] = WiFi.RSSI();
         doc["uptime"] = millis() / 1000;
         doc["freeHeap"] = ESP.getFreeHeap();
@@ -991,7 +1036,7 @@ namespace WebServer
             sendJson(403, "{\"error\":\"Missing action header\"}");
             return;
         }
-        if (!authorizeWebUpdate()) return;
+        if (!(WifiManager::isOfflineAP() && !WifiManager::isConnected() && !Credentials::ready() && server.arg("action") == "change") && !authorizeWebUpdate()) return;
         if (WebUpdateManager::active() || wifiAction || restartPending) { sendJson(409, "{\"error\":\"Action pending\"}"); return; }
         const String action = server.arg("action");
         if (action != "change" && action != "forget") {
@@ -1734,6 +1779,8 @@ namespace WebServer
         server.on("/api/system/restart", HTTP_POST, handleRestart);
         server.on("/api/system/reset-settings", HTTP_POST, handleResetSettings);
         server.on("/api/system/factory-reset", HTTP_POST, handleFactoryReset);
+        server.on("/api/clock", HTTP_GET, handleClockInfo);
+        server.on("/api/clock", HTTP_POST, handleClockSet);
         server.on("/api/wifi", HTTP_GET, handleWifiInfo);
         server.on("/api/wifi", HTTP_POST, handleWifiAction);
         // Read-only handoff probe; only the setup portal gets cross-origin access.
@@ -1798,7 +1845,7 @@ namespace WebServer
         }
 
         bool available =
-            WifiManager::isConnected() &&
+            (WifiManager::isConnected() || WifiManager::isOfflineAP()) &&
             !WifiManager::isPortalActive();
 
         if (!available)
@@ -1823,14 +1870,14 @@ namespace WebServer
         }
 
         const IPAddress currentAddress = WiFi.localIP();
-        if (mdnsRunning && currentAddress != mdnsAddress) {
+        if (mdnsRunning && (!WifiManager::isConnected() || currentAddress != mdnsAddress)) {
             MDNS.close();
             mdnsRunning = false;
             mdnsAttempted = false;
             Serial.println("mDNS restarting: IP changed");
         }
 
-        if (!mdnsRunning && (!mdnsAttempted ||
+        if (WifiManager::isConnected() && !mdnsRunning && (!mdnsAttempted ||
                 millis() - mdnsAttemptAt >= MDNS_RETRY_MS)) {
             mdnsAttempted = true;
             mdnsAttemptAt = millis();

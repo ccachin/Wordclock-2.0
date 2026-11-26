@@ -1,6 +1,8 @@
 #include "time_manager.h"
 #include <time.h>
 #include <sys/time.h>
+#include <coredecls.h>
+#include <limits>
 
 namespace TimeManager
 {
@@ -40,11 +42,32 @@ namespace TimeManager
     // January 1st, 2020
     constexpr time_t MIN_VALID_TIME = 1577836800;
 
+    static const char* timeSource = "unknown";
+
+    const char* source() { return isValid() ? timeSource : "unknown"; }
+
+    bool localDateTime(char* out, size_t size) {
+        if (!isValid()) return false;
+        const time_t now = time(nullptr);
+        struct tm local{};
+        return localtime_r(&now, &local) && strftime(out, size, "%Y-%m-%dT%H:%M:%S", &local) != 0;
+    }
+
+    bool setEpoch(uint64_t epoch) {
+        if (epoch < MIN_VALID_TIME || epoch > 4102444799ULL || epoch > static_cast<uint64_t>((std::numeric_limits<time_t>::max)())) return false;
+        struct timeval tv{};
+        tv.tv_sec = static_cast<time_t>(epoch);
+        if (settimeofday(&tv, nullptr) != 0) return false;
+        timeSource = "manual";
+        return true;
+    }
+
     void begin()
     {
 
         setenv("TZ", activeRule, 1);
         tzset();
+        settimeofday_cb([](bool fromSntp) { if (fromSntp && isValid()) timeSource = "ntp"; });
     }
 
     void startNtp()
@@ -134,12 +157,7 @@ namespace TimeManager
             return false;
         }
 
-        struct timeval tv = {};
-
-        tv.tv_sec = timestamp;
-        tv.tv_usec = 0;
-
-        return settimeofday(&tv, nullptr) == 0;
+        return setEpoch(static_cast<uint64_t>(timestamp));
     }
 
 }

@@ -137,7 +137,7 @@ void loop()
 
     wasConnected = connected;
 
-    if (WifiManager::isPortalActive())
+    if (WifiManager::isPortalActive() && !timeValid)
     {
 
         StatusManager::setState(

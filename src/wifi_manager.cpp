@@ -10,7 +10,7 @@ namespace WifiManager
     constexpr char AP_NAME[] = "Wordclock-Setup";
     constexpr char AP_PASSWORD[] = "Wordclock123";
     constexpr uint32_t STARTUP_TIMEOUT = 30000;
-    constexpr uint32_t RECONNECT_TIMEOUT = 300000;
+    constexpr uint32_t RECONNECT_TIMEOUT = 30000;
     constexpr uint32_t PORTAL_RETRY = 15000;
 
     // Visual styling only. Keep native forms, scripts and routes intact.
@@ -183,9 +183,27 @@ document.addEventListener('DOMContentLoaded',function(){
     static uint32_t disconnectedSince = 0;
     static uint32_t lastPortalAttempt = 0;
 
+    static bool offlineAP = false;
+    bool isOfflineAP() { return offlineAP; }
+    static void stopOfflineAP() {
+        if (!offlineAP) return;
+        WiFi.softAPdisconnect(true);
+        offlineAP = false;
+    }
+    static bool startOfflineAP() {
+        if (offlineAP) return true;
+        char name[24];
+        snprintf(name, sizeof(name), "Wordclock-%06X", static_cast<unsigned>(ESP.getChipId()));
+        WiFi.mode(WIFI_AP_STA);
+        offlineAP = WiFi.softAP(name, AP_PASSWORD);
+        if (!offlineAP) WiFi.mode(WIFI_STA);
+        else Serial.println("Offline access: http://192.168.4.1");
+        return offlineAP;
+    }
+
     bool isConnected() { return WiFi.status() == WL_CONNECTED; }
     bool isPortalActive() { return manager.getConfigPortalActive(); }
-    String getIPAddress() { return WiFi.localIP().toString(); }
+    String getIPAddress() { return (isConnected() ? WiFi.localIP() : WiFi.softAPIP()).toString(); }
 
     static void openPortal(bool manual)
     {
@@ -199,6 +217,7 @@ document.addEventListener('DOMContentLoaded',function(){
         // Release application listeners before WiFiManager binds port 80.
         OTAManager::stop();
         WebServer::stop();
+        stopOfflineAP();
         Serial.println("Starting Wi-Fi setup portal");
         manager.startConfigPortal(AP_NAME, AP_PASSWORD);
         lastPortalAttempt = millis();
@@ -215,6 +234,7 @@ document.addEventListener('DOMContentLoaded',function(){
         WiFi.hostname("wordclock");
         WiFi.setAutoReconnect(true);
         manager.setConfigPortalBlocking(false);
+        manager.setConfigPortalTimeout(120);
         manager.setTitle("Wordclock");
         manager.setCustomHeadElement(PORTAL_STYLE);
         const char* menu[] = {"wifi"};
@@ -308,6 +328,7 @@ document.addEventListener('DOMContentLoaded',function(){
         const bool connected = isConnected();
         if (connected)
         {
+            if (offlineAP && WiFi.softAPgetStationNum() == 0 && !WebServer::firmwareSessionActive()) stopOfflineAP();
             if (!wasConnected)
             {
                 Serial.println("Wi-Fi connected");
@@ -341,11 +362,13 @@ document.addEventListener('DOMContentLoaded',function(){
             }
             const uint32_t now = millis();
             const uint32_t timeout = everConnected ? RECONNECT_TIMEOUT : STARTUP_TIMEOUT;
-            if (!isPortalActive() &&
+            if (!isPortalActive() && !offlineAP &&
                 (needsSetup || now - disconnectedSince >= timeout) &&
                 (!portalAttempted || now - lastPortalAttempt >= PORTAL_RETRY))
             {
-                openPortal(false);
+                portalAttempted = true;
+                lastPortalAttempt = now;
+                startOfflineAP();
             }
         }
         wasConnected = connected;

@@ -12,7 +12,7 @@ import subprocess
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 import zipfile
-from prepare_release import verify, ROOT
+from prepare_release import verify, ROOT, versions
 
 class Assets(HTMLParser):
     def __init__(self): super().__init__(); self.paths=[]
@@ -26,7 +26,7 @@ def links(html):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--release',type=Path,default=ROOT/'dist/3.1.0-dev')
+    p.add_argument('--release',type=Path,default=ROOT/'dist'/versions()['RELEASE_VERSION'])
     p.add_argument('--host',help='Local HTTP origin, e.g. http://192.168.1.87')
     p.add_argument('--repeat',type=int,default=20,choices=range(1,51),metavar='1-50')
     a=p.parse_args(); meta=verify(a.release)
@@ -54,7 +54,7 @@ def main():
     before=api('/api/system'); assert before['webVersion']==meta['webVersion'],before
     if meta['firmwareVersion']: assert before['firmware']==meta['firmwareVersion'],before
     minheap=before['freeHeap']; minblock=before['maxFreeBlock']; prev=before['uptime']; failures=[]
-    endpoints=['/api/status','/api/theme','/api/themes?version=3','/api/device','/api/appearance','/api/night','/api/transitions']
+    endpoints=['/api/status','/api/theme','/api/themes?version=3','/api/device','/api/appearance','/api/night','/api/transitions','/api/clock','/api/wifi']
     def asset(path):
         data,compressed=get(path); name=urlsplit(path).path[1:]; assert data==files[name],f'Asset mismatch: {name}'
         if name in ('app.js','style.css'): assert compressed,f'Gzip missing: {name}'
@@ -62,7 +62,12 @@ def main():
         try:
             html,_=get('/'); assert html==files['index.html'],'HTML mismatch'
             with ThreadPoolExecutor(max_workers=4) as ex: list(ex.map(asset,paths))
-            for ep in endpoints: api(ep)
+            for ep in endpoints:
+                result=api(ep)
+                if ep=='/api/clock':
+                    assert isinstance(result['valid'],bool) and result['source'] in ('unknown','manual','ntp'),result
+                    assert (bool(re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}',result['local'])) if result['valid'] else result['local']==''),result
+                if ep=='/api/wifi': assert isinstance(result['offlineAP'],bool),result
             state=api('/api/system'); assert state['uptime']>=prev,'Unexpected restart'; assert state['buildId']==before['buildId'],'Build changed'; assert state['webSlotGeneration']==before['webSlotGeneration'],'Slot changed'
             prev=state['uptime'];minheap=min(minheap,state['freeHeap']);minblock=min(minblock,state['maxFreeBlock']);print(f'PASS {i+1}/{a.repeat} RAM={state["freeHeap"]} max={state["maxFreeBlock"]}')
         except Exception as e: failures.append((i+1,str(e)));print(f'FAIL {i+1}/{a.repeat}: {e}')

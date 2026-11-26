@@ -1,3 +1,10 @@
+## 3.2.0-dev
+
+- Offline access point and local clock control.
+- Phone timestamp synchronization and manual local date/time.
+- NTP source indication and existing timezone/DST rules retained.
+- HTTP validation includes clock and Wi-Fi endpoints.
+
 ## 3.1.0-dev
 
 - Interface locale allégée : bibliothèque et import/export JSON, Studio séparé.

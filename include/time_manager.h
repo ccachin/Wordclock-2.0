@@ -18,6 +18,9 @@ namespace TimeManager
     bool setTimezone(const String &zone);
 
     bool isValid();
+    const char* source();
+    bool setEpoch(uint64_t epoch);
+    bool localDateTime(char* out, size_t size);
 
     bool getTime(ClockTime &result);
 
