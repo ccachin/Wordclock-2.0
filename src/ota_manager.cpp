@@ -1,3 +1,4 @@
+#if defined(WORDCLOCK_ENABLE_ARDUINO_OTA)
 
 #include <Arduino.h>
 #include <ArduinoOTA.h>
@@ -283,3 +284,14 @@ namespace OTAManager
         return updating || FirmwareUpdate::active();
     }
 }
+
+#else
+#include "ota_manager.h"
+#include "firmware_update.h"
+namespace OTAManager {
+void begin() {}
+void update() {}
+void stop() {}
+bool isUpdating() { return FirmwareUpdate::active(); }
+}
+#endif

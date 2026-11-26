@@ -22,7 +22,7 @@
             catch(e){el('nightStatus').textContent='Indisponible';el('nightStatus').classList.remove('active'); if(!ready) message('Mode nuit inaccessible : '+e.message,true);}
             finally {busy=false;}
         }
-        setTimeout(poll,10000);
+        setTimeout(poll,30000);
     }
     function schedule() { dirty=true;preview();clearTimeout(timer);message('Enregistrement en attente…');timer=setTimeout(save,500); }
     el('nightForm').addEventListener('input',schedule);

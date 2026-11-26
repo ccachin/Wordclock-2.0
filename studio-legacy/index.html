@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Wordclock</title>
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <link rel="manifest" href="/manifest.json">
+
+    <link rel="stylesheet" href="/style.css">
+
+    <script src="/app.js" defer>
+    </script>
+
+    <script src="/night.js" defer></script>
+    <script src="/theme-rules.js" defer></script>
+    <script src="/studio-visual.js" defer></script>
+    <script src="/studio.js" defer></script>
+    <script src="/community.js" defer></script>
+    <script src="/setup.js" defer></script>
+    <script src="/maintenance.js" defer></script>
+</head>
+
+<body>
+
+    <main>
+
+        <header>
+
+            <h1>wordclock.</h1>
+
+            <button id="appearanceToggle" type="button" aria-pressed="false">Mode sombre</button>
+            <span id="status">
+                Connexion...
+            </span>
+
+        </header>
+
+        <nav class="main-nav" aria-label="Navigation principale">
+            <button id="homeTab" type="button" aria-pressed="true">Accueil</button>
+            <button id="themesTab" type="button" aria-pressed="false">Thèmes</button>
+            <button id="settingsTab" type="button" aria-pressed="false">Réglages</button>
+        </nav>
+        <div id="homeView">
+        <section class="clock">
+
+            <div id="time">
+                --:--:--
+            </div>
+
+        </section>
+
+        <section class="panel"><div class="section-header"><h2>Ambiance active</h2><span id="homeTheme">Chargement…</span></div>
+            <div class="home-preview" aria-hidden="true"></div>
+            <button id="powerToggle" type="button" class="action-button" disabled>Éteindre</button>
+            <div class="setting">
+
+                <label for="brightness">
+                    Luminosité générale
+                </label>
+
+                <span id="brightnessValue">
+                    3 %
+                </span>
+
+            </div>
+
+            <input type="range" id="brightness" min="0" max="255" value="8" disabled>
+
+
+            <p id="message" role="status"></p>
+
+        </section>
+
+        </div>
+        <nav id="themesNav" class="studio-nav" aria-label="Navigation des thèmes" hidden>
+            <button type="button" id="libraryTab" aria-pressed="true" aria-controls="libraryView">Bibliothèque</button>
+            <button type="button" id="communityTab" aria-pressed="false" aria-controls="communityView">Communauté</button>
+            <button id="studioTab" type="button" aria-pressed="false" aria-controls="studioView">Studio</button>
+        </nav>
+        <div id="libraryView" hidden>
+        <section class="panel">
+
+            <div class="section-header">
+
+                <h2>Thèmes</h2>
+
+                <span id="activeTheme">
+                    Chargement...
+                </span>
+
+            </div>
+
+            <button id="libraryCreate" class="library-action primary" type="button">Créer un thème</button>
+            <p id="libraryMessage" role="status" class="muted"></p>
+            <div id="themeList">
+
+                <p class="muted">
+                    Chargement des thèmes...
+                </p>
+
+            </div>
+
+        </section>
+
+        <section class="panel">
+
+            <h2>Réglages rapides de l’ambiance</h2>
+
+            <div class="setting">
+
+                <label for="frontColor">
+                    Couleur avant
+                </label>
+
+                <input type="color" id="frontColor" value="#ffe1b4" disabled>
+
+            </div>
+
+            <div class="harmony-setting">
+
+                <label for="harmony">
+                    Harmonie des couleurs
+                </label>
+
+                <select id="harmony" disabled>
+
+                    <option value="manual">
+                        Indépendante
+                    </option>
+
+                    <option value="identical">
+                        Identique
+                    </option>
+
+                    <option value="complementary">
+                        Complémentaire
+                    </option>
+
+                    <option value="analogous-plus">
+                        Analogique +30°
+                    </option>
+
+                    <option value="analogous-minus">
+                        Analogique -30°
+                    </option>
+
+                    <option value="triadic">
+                        Triadique
+                    </option>
+
+                </select>
+
+                <p id="harmonyDescription" class="muted">
+                </p>
+
+            </div>
+
+            <div class="setting" id="manualRearRow">
+
+                <label for="rearColor">
+                    Couleur arrière
+                </label>
+
+                <input type="color" id="rearColor" value="#3c64b4" disabled>
+
+            </div>
+
+            <div class="setting" id="automaticRearRow" hidden>
+
+                <div>
+
+                    <span>Couleur arrière</span>
+
+                    <p class="muted">
+                        Calculée automatiquement
+                    </p>
+
+                </div>
+
+                <div class="color-preview" id="effectiveRearColor">
+                </div>
+
+            </div>
+
+            <div class="palette-preview">
+
+                <div id="frontPreview">
+                    Avant
+                </div>
+
+                <div id="rearPreview">
+                    Arrière
+                </div>
+
+            </div>
+
+            <div class="separator"></div>
+<div class="animation-setting"><label for="frontEffect">Animation avant</label><select id="frontEffect" disabled><option value="solid">Fixe</option><option value="breathing">Respiration</option><option value="color-cycle">Cycle de couleurs</option></select><div id="frontSpeedRow" hidden><div class="setting"><label for="frontSpeed">Vitesse</label><span id="frontSpeedValue">50 %</span></div><input type="range" id="frontSpeed" min="0" max="100" value="50" disabled></div></div>
+<div class="animation-setting"><label for="rearEffect">Animation arrière</label><select id="rearEffect" disabled><option value="solid">Fixe</option><option value="breathing">Respiration</option><option value="color-cycle">Cycle de couleurs</option><option value="rainbow">Arc-en-ciel</option><option value="chase">Chenillard</option></select><div id="rearSpeedRow" hidden><div class="setting"><label for="rearSpeed">Vitesse</label><span id="rearSpeedValue">50 %</span></div><input type="range" id="rearSpeed" min="0" max="100" value="50" disabled></div></div>
+            <div class="separator"></div>
+
+        </section>
+        </div>
+        <div id="settingsView" hidden>
+        <h2 class="settings-group-title">Usage quotidien</h2>
+        <section class="panel" id="nightPanel">
+            <div class="section-header"><h2>Mode nuit</h2><span id="nightStatus" class="muted">Chargement…</span></div>
+            <form id="nightForm">
+                <fieldset id="nightFields" disabled>
+                    <div class="setting"><label for="nightEnabled">Activer le mode nuit</label><input type="checkbox" id="nightEnabled"></div>
+                    <div class="night-times">
+                        <label>Début<input type="time" id="nightStart" value="22:30" required></label>
+                        <label>Fin<input type="time" id="nightEnd" value="07:00" required></label>
+                    </div>
+                    <div class="animation-setting"><label for="nightMode">Comportement nocturne</label><select id="nightMode"><option value="0">Luminosité réduite</option><option value="1">Heure uniquement</option><option value="2">Extinction complète</option></select></div>
+                    <div id="nightBrightnessRow"><div class="setting"><label for="nightBrightness">Luminosité maximale</label><span id="nightBrightnessValue">5 %</span></div><input type="range" id="nightBrightness" min="1" max="255" value="13"></div>
+                    <p class="muted" id="nightHint"></p>
+                    <div class="night-actions"><button type="button" id="nightReset" class="action-button">Valeurs par défaut</button></div>
+                </fieldset>
+            </form>
+            <p id="nightMessage" class="muted" role="status"></p>
+        </section>
+
+        <h2 class="settings-group-title">Personnalisation</h2>
+        <section class="panel">
+            <h2>Apparence de l’horloge</h2>
+            <p class="muted">Adapte les aperçus à la couleur réelle de la façade. Les LED restent inchangées.</p>
+            <div id="faceSample" class="theme-preview" style="--front:#FFE1B4;--rear:transparent;margin:24px auto;width:140px;height:140px"></div>
+            <fieldset id="faceFields" disabled>
+                <div id="facePresets" class="face-presets"></div>
+                <div class="setting"><label for="facePicker">Couleur personnalisée</label><input type="color" id="facePicker" value="#151515"></div>
+                
+            </fieldset>
+            <p id="faceMessage" class="muted" role="status"></p>
+        </section>
+
+        <section class="panel">
+            <h2>Transitions entre les thèmes</h2>
+            <div class="setting"><label for="transitionEnabled">Activer les transitions</label><input type="checkbox" id="transitionEnabled" disabled></div>
+            <div class="setting"><label for="transitionDuration">Durée du fondu</label><span id="transitionValue">1,5 s</span></div>
+            <input type="range" id="transitionDuration" min="100" max="5000" step="100" value="1500" disabled>
+            <button type="button" id="transitionReset" disabled class="action-button">Rétablir les valeurs par défaut</button>
+            <p class="muted" id="transitionMessage" role="status"></p>
+        </section>
+
+        <h2 class="settings-group-title">Configuration</h2>
+        <section class="panel" id="devicePanel"><h2>Mon horloge</h2><div class="device-fields"><label for="deviceName">Nom de votre horloge</label><input id="deviceName" type="text" maxlength="48" autocomplete="off" disabled><label for="deviceZone">Fuseau horaire</label><select id="deviceZone" disabled></select></div><p id="deviceSummary" role="status" aria-live="polite">Chargement…</p><button type="button" id="setupOpen" disabled class="action-button">Relancer la configuration</button></section>
+
+        <section class="panel">
+            <h2>Connexion Wi-Fi</h2>
+            <div class="setting"><span>Réseau actuel</span><strong id="wifiSsid">—</strong></div>
+            <div class="setting"><span>Adresse IP</span><span id="wifiIp">—</span></div>
+            <div class="setting"><span>Adresse locale</span><span id="wifiHost">—</span></div>
+            <div class="setting"><span>État</span><span id="wifiState">Chargement…</span></div>
+            <button type="button" id="wifiChange" disabled class="action-button">Changer de réseau Wi-Fi</button>
+            <p class="muted">Ouvre le portail de configuration sans effacer volontairement les identifiants actuels.</p>
+            <button type="button" id="wifiForget" disabled class="action-button action-danger">Oublier le réseau Wi-Fi</button>
+            <p class="muted">Efface les identifiants Wi-Fi et redémarre. Les thèmes et réglages sont conservés.</p>
+            <p id="wifiMessage" class="muted" role="status"></p>
+        </section>
+
+        <section class="panel" id="accessPanel">
+            <h2>Accéder à mon horloge</h2>
+            <p class="muted">Utilisez cette adresse depuis votre réseau domestique. L’adresse IP peut changer.</p>
+            <label for="accessHost">Adresse locale recommandée</label>
+            <input id="accessHost" type="text" readonly value="http://wordclock.local/">
+            <button type="button" id="copyHost" class="action-button">Copier l’adresse locale</button>
+            <label for="accessIp">Adresse IP actuelle (secours)</label>
+            <input id="accessIp" type="text" readonly placeholder="Indisponible">
+            <button type="button" id="copyIp" disabled class="action-button">Copier l’adresse IP</button>
+            <p id="accessMessage" class="muted" role="status"></p>
+            <div class="access-brand"><img src="/icon.svg" alt="" width="64" height="64"><div><strong>Ma Wordclock</strong><p class="muted">Ajoutez un raccourci pour retrouver votre horloge.</p></div></div>
+            <p><a href="http://wordclock.local/">Ouvrir l’adresse locale recommandée</a> avant de créer le raccourci.</p>
+            <button type="button" id="accessInstall" class="action-button action-primary">Ajouter l’application à l’écran d’accueil</button>
+            <label for="accessPlatform">Votre appareil</label>
+            <select id="accessPlatform"><option value="android">Android</option><option value="ios">iPhone / iPad</option><option value="windows">Windows</option></select>
+            <p id="accessHelp"></p>
+            <p class="muted">Les options d’installation et l’icône dépendent du navigateur.</p>
+        </section>
+
+        <h2 class="settings-group-title">Mises à jour</h2>
+        <section class="panel" id="updatesPanel">
+          <p id="updateInstalled" class="muted">Lecture des versions…</p>
+          <p id="updateAvailable" class="muted"></p>
+          <p id="updateStatus" role="status" aria-live="polite"></p>
+          <details id="updateNotes" hidden><summary id="updateNotesTitle">Notes de version</summary><div id="updateNotesBody"></div></details>
+          <progress id="updateProgress" max="100" value="0" hidden style="width:100%"></progress>
+          <button id="updateCheck" class="action-button" type="button">Rechercher des mises à jour</button>
+          <button id="updateInstall" class="action-button action-primary" type="button" hidden>Installer la mise à jour</button>
+          <details><summary>Options avancées</summary>
+            <label for="updateChannel">Canal de publication</label>
+            <select id="updateChannel"><option value="stable">Stable</option><option value="development">Expérimental</option></select>
+            <p class="muted">Les versions expérimentales peuvent contenir des erreurs. Les firmwares expérimentaux sont signés ; la version stable reste en préparation.</p>
+            <label for="updateFirmware">Firmware local (.bin)</label><input type="file" id="updateFirmware" accept=".bin">
+            <label for="updateSignature">Signature du firmware (.sig)</label><input type="file" id="updateSignature" accept=".sig">
+            <button id="updateManual" class="action-button" type="button">Installer le firmware local</button>
+            <button id="updateRollback" class="action-button" type="button">Restaurer l’interface précédente</button>
+            <p><a href="/recovery">Page de secours</a></p>
+          </details>
+        </section>
+        <h2 class="settings-group-title">Maintenance</h2>
+        <section class="panel maintenance-panel">
+          <button type="button" data-maintenance="info">Informations système <small>Firmware, réseau, mémoire et stockage.</small></button>
+          <button type="button" data-maintenance="restart">Redémarrer l’horloge <small>Aucune donnée ne sera perdue.</small></button>
+        </section>
+        <h2 class="settings-group-title">Réinitialisation</h2>
+        <section class="panel maintenance-panel">
+          <button type="button" data-maintenance="reset-settings">Réinitialiser les réglages <small>Restaurer les réglages d’éclairage par défaut.</small></button>
+          <button type="button" data-maintenance="factory-reset" class="maintenance-danger">Restaurer les paramètres d’usine <small>Effacer les données personnelles et recommencer l’installation.</small></button>
+        </section>
+        </div>
+        <section class="panel" id="studioView" hidden>
+            <div class="section-header"><h2>Studio</h2><span class="muted">Aperçu en direct</span></div>
+            <p class="muted">Créez votre ambiance lumineuse.</p>
+            <p class="muted" id="studioLiveStatus" role="status">Connexion à l’aperçu physique…</p>
+            <div class="studio-previews">
+                <div><div id="studioFrontPreview" class="studio-front" aria-label="Face avant"></div><p>Face avant</p></div>
+                <div><div id="studioRearPreview" class="studio-rear" aria-label="Face arrière"><svg viewBox="0 0 100 100" class="studio-rear-frame" aria-hidden="true"></svg></div><p>Face arrière</p></div>
+            </div>
+            <div class="studio-fields">
+                <label for="studioSource">Thème de départ</label>
+                <select id="studioSource"><option value="">Choisir un thème</option></select>
+                <div class="night-actions studio-actions"><button id="studioNew" type="button">Nouveau</button><button id="studioCopy" type="button" disabled>Dupliquer</button><button id="studioDelete" type="button" disabled>Supprimer</button></div>
+                <p id="studioMode" class="muted">Nouveau thème</p>
+                <label for="studioName">Nom du thème</label><input id="studioName" type="text" maxlength="48" placeholder="Nouveau thème">
+                <label for="studioAuthor">Auteur</label><input id="studioAuthor" type="text" maxlength="48">
+                <label for="studioDescription">Description</label><textarea id="studioDescription" rows="3" maxlength="200"></textarea>
+                <div class="separator"></div>
+                <h2>Couleurs</h2>
+                <div class="setting"><label for="studioFrontColor">Face avant</label><input id="studioFrontColor" type="color" value="#ffe1b4"></div>
+                <label for="studioHarmony">Harmonie des couleurs</label>
+                <select id="studioHarmony"><option value="manual">Indépendante</option><option value="identical">Identique</option><option value="complementary">Complémentaire</option><option value="analogous-plus">Analogique +30°</option><option value="analogous-minus">Analogique -30°</option><option value="triadic">Triadique</option></select>
+                <div class="setting" id="studioManualRear"><label for="studioRearColor">Face arrière</label><input id="studioRearColor" type="color" value="#0055ff"></div>
+                <div class="setting" id="studioAutoRear" hidden><span>Couleur arrière calculée</span><div class="color-preview" id="studioEffectiveRear"></div></div>
+                <div class="separator"></div>
+                <h2>Luminosités du thème</h2><div class="setting"><label for="studioFrontBrightness">Face avant</label><output id="studioFrontBrightnessValue">100 %</output></div><input type="range" id="studioFrontBrightness" min="0" max="100" value="100"><div class="setting"><label for="studioRearBrightness">Face arrière</label><output id="studioRearBrightnessValue">100 %</output></div><input type="range" id="studioRearBrightness" min="0" max="100" value="100"><p class="muted">Aperçu graphique relatif au thème ; l’horloge conserve sa luminosité générale et son mode nuit.</p><div class="separator"></div><h2>Animations</h2><div class="animation-setting"><label for="studioFrontEffect">Face avant</label><select id="studioFrontEffect"><option value="solid">Fixe</option><option value="breathing">Respiration</option><option value="color-cycle">Cycle de couleurs</option></select><div id="studioFrontSpeedRow" hidden><div class="setting"><label for="studioFrontSpeed">Vitesse</label><output id="studioFrontSpeedValue">50 %</output></div><input type="range" id="studioFrontSpeed" min="0" max="100" value="50"><p class="muted" id="studioFrontPeriod"></p></div></div><div class="animation-setting"><label for="studioRearEffect">Face arrière</label><select id="studioRearEffect"><option value="solid">Fixe</option><option value="breathing">Respiration</option><option value="color-cycle">Cycle de couleurs</option><option value="rainbow">Arc-en-ciel</option><option value="chase">Chenillard</option></select><div id="studioRearSpeedRow" hidden><div class="setting"><label for="studioRearSpeed">Vitesse</label><output id="studioRearSpeedValue">50 %</output></div><input type="range" id="studioRearSpeed" min="0" max="100" value="50"><p class="muted" id="studioRearPeriod"></p></div></div>
+                <div class="night-actions studio-actions"><button id="studioSave" type="button">Enregistrer et appliquer</button><button id="studioCancel" type="button">Annuler</button></div>
+                <div class="night-actions studio-actions"><button id="studioShare" type="button" disabled>Partager</button><button id="studioMore" type="button" aria-expanded="false" aria-controls="studioMorePanel">Plus</button></div>
+                <div id="studioMorePanel" class="night-actions studio-actions" hidden><button id="studioExport" type="button" disabled>Exporter le thème</button><button id="studioImport" type="button">Importer un thème</button><button id="studioExportAll" type="button" disabled>Sauvegarder mes thèmes</button><button id="studioImportAll" type="button">Restaurer mes thèmes</button><input id="studioImportFile" type="file" accept=".json,application/json" hidden><input id="studioCollectionFile" type="file" accept=".json,application/json" hidden></div>
+                <section id="studioSharePanel" hidden>
+                    <h3>Partager un thème</h3>
+                    <p id="studioShareInfo" class="muted"></p>
+                    <label><input id="studioShareConsent" type="checkbox"> Je suis autorisé à partager ce thème et j’accepte sa publication sous licence CC0 1.0.</label>
+                    <p class="muted">La demande sera publique sur GitHub, où un compte est requis. Vérifiez votre pseudonyme et votre description.</p>
+                    <p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer">Consulter la licence CC0 1.0</a></p>
+                    <div class="night-actions"><button id="studioShareSubmit" type="button" disabled>Ouvrir la demande GitHub</button><button id="studioShareCancel" type="button">Annuler</button></div>
+                </section>
+                <p id="studioSaveStatus" role="status" class="muted"></p>
+            </div>
+        </section>
+        <section class="panel" id="communityView" hidden>
+            <h2>Communauté</h2>
+            <p class="muted" id="communityStatus" role="status"></p>
+            <div class="community-toolbar night-actions"><input type="search" id="communitySearch" placeholder="Rechercher un thème…" aria-label="Rechercher un thème"><button type="button" id="communityReload">Actualiser</button></div>
+            <div id="communityList" class="community-list"></div>
+            <div id="communityDetails" hidden><h3 id="communityName"></h3><p id="communityDescription"></p><p id="communityBrightness" class="muted"></p><p id="communityExisting" class="muted"></p><div class="night-actions"><button id="communityAdd" type="button">Ajouter à ma bibliothèque</button><button id="communityEdit" type="button">Modifier dans le Studio</button></div></div>
+            <p id="communityPreviewStatus" class="muted" role="status"></p><p id="communityActionStatus" role="status"></p>
+        </section>
+        <footer>
+            Wordclock 3.0
+        </footer>
+
+    </main>
+
+<dialog id="libraryDialog" aria-labelledby="libraryTitle"><div class="setup-inner">
+<h2 id="libraryTitle"></h2><div id="libraryActions"></div>
+<section id="libraryShare" hidden><p id="libraryShareInfo"></p><label><input type="checkbox" id="libraryConsent"> Je suis autorisé à partager ce thème et j’accepte sa publication sous licence CC0 1.0.</label><p class="muted">La demande sera publique sur GitHub, où un compte est requis.</p><p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer">Consulter la licence CC0 1.0</a></p><button class="library-action primary" id="librarySubmit" type="button" disabled>Ouvrir la demande GitHub</button></section>
+<p id="libraryDialogMessage" role="status"></p><button class="library-action" id="libraryClose" type="button">Fermer</button></div></dialog>
+<dialog id="setupDialog" aria-labelledby="setupTitle">
+ <div class="setup-inner">
+ <p class="muted" id="setupProgress"></p><progress id="setupBar" max="4" value="1"></progress>
+ <h2 id="setupTitle">Bienvenue</h2>
+ <section data-setup-step="0"><p>Personnalisez votre Wordclock.</p><label for="setupName">Nom de votre horloge</label><input id="setupName" type="text" maxlength="48" autocomplete="off"><p class="muted">48 octets maximum.</p></section>
+ <section data-setup-step="1" hidden><label for="setupZone">Fuseau horaire</label><select id="setupZone"></select><p class="muted">L’heure est synchronisée automatiquement par Internet.</p></section>
+ <section data-setup-step="2" hidden><p>Choisissez la couleur réelle de votre façade.</p><div id="setupFace" class="theme-preview" style="--front:#FFE1B4;--rear:transparent;width:200px;height:200px;margin:24px auto"></div><div id="setupPresets" class="face-presets"></div><label for="setupColor">Couleur personnalisée</label><input id="setupColor" type="color"><p class="muted">Cette couleur modifie uniquement les aperçus.</p></section>
+ <section data-setup-step="3" hidden><p id="setupSummary"></p><p>Les paramètres restent modifiables dans les réglages.</p></section>
+ <p id="setupMessage" role="status" aria-live="polite"></p>
+ <div class="setup-actions"><button type="button" id="setupBack" class="action-button">Retour</button><button type="button" id="setupNext" class="action-button action-primary">Continuer</button></div>
+ <button type="button" id="setupSkip" class="action-button">Passer la configuration</button>
+ </div></dialog>
+<dialog id="shortcutDialog" aria-labelledby="shortcutTitle">
+ <div class="setup-inner">
+ <h2 id="shortcutTitle">Votre Wordclock à portée de main</h2>
+ <p>Souhaitez-vous ajouter un raccourci à votre écran d’accueil ?</p>
+ <p id="shortcutHelp" hidden></p>
+ <p id="shortcutAddressHelp" class="muted" hidden></p>
+ <button type="button" id="shortcutAdd" class="action-button action-primary">Ajouter l’application à l’écran d’accueil</button>
+ <button type="button" id="shortcutClose" class="action-button">Plus tard</button>
+ </div></dialog>
+<dialog id="maintenanceDialog" aria-labelledby="maintenanceTitle">
+ <div class="setup-inner">
+ <h2 id="maintenanceTitle">Maintenance</h2>
+ <p id="maintenanceDescription"></p>
+ <div id="maintenanceInfo" hidden><dl id="maintenanceValues"></dl><progress id="maintenanceStorage" max="100" value="0"></progress><button id="maintenanceCopy" type="button" class="action-button">Copier le diagnostic</button><button id="maintenanceRefresh" type="button" class="action-button">Actualiser</button></div>
+ <form id="maintenanceForm" hidden autocomplete="off">
+ <label for="maintenancePassword">Mot de passe administrateur</label><input id="maintenancePassword" type="password" autocomplete="off" required>
+ <div id="maintenanceConfirmWrap" hidden><label for="maintenanceConfirm">Saisissez EFFACER pour confirmer</label><input id="maintenanceConfirm" type="text" autocomplete="off" spellcheck="false"></div>
+ <button id="maintenanceSubmit" type="submit" class="action-button action-primary">Confirmer</button>
+ </form>
+ <p id="maintenanceMessage" role="status" aria-live="polite"></p>
+ <button id="maintenanceClose" type="button" class="action-button">Fermer</button>
+ </div>
+</dialog>
+</body>
+
+</html>

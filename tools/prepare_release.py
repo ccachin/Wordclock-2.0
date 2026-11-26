@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import zipfile
 from generate_web_manifest import ROOT, generate
+from build_web import build
 
 
 def versions():
@@ -112,7 +113,8 @@ def main():
                 raise ValueError('Unexpected ESP8266 firmware image')
             import sys
             subprocess.run([sys.executable, str(ROOT / 'tools/firmware_signing.py'), 'sign', '--image', str(folder / 'firmware.bin')], check=True)
-        source = ROOT / 'data/www'
+        source = Path(tmp) / 'web'
+        build(ROOT / 'data/www', source, v['WEB_VERSION'])
         manifest, raw = generate(source, v['WEB_VERSION'], int(v['WEB_API_VERSION']))
         (folder / 'web-manifest.json').write_bytes(raw)
         with zipfile.ZipFile(folder / 'web.zip', 'w', zipfile.ZIP_DEFLATED) as z:

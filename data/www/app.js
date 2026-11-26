@@ -164,8 +164,17 @@ function showMessage(text, error = false) {
 // System status
 // ======================================================
 
+let clockAnchor = null;
+function tickLocalClock() {
+    if (!clockAnchor) return;
+    const sec=(clockAnchor.seconds+Math.floor((performance.now()-clockAnchor.at)/1000))%86400;
+    const h=Math.floor(sec/3600),m=Math.floor(sec/60)%60;
+    homeTime=[h,m];
+    timeElement.textContent=[h,m,sec%60].map(n=>String(n).padStart(2,'0')).join(':');
+}
+setInterval(tickLocalClock,1000);
 async function updateStatus() {
-    if (window.WordclockLocal.busy || document.hidden) { setTimeout(updateStatus,1000); return; }
+    if (window.WordclockLocal.busy || document.hidden) { setTimeout(updateStatus,5000); return; }
     try {
 
         const data =
@@ -178,6 +187,8 @@ async function updateStatus() {
 
         const match=data.timeValid&&/^(\d{2}):(\d{2})/.exec(data.time);
         homeTime=match?[Number(match[1]),Number(match[2])]:[-1,-1];
+        const full=data.timeValid&&/^(\d{2}):(\d{2}):(\d{2})$/.exec(data.time);
+        clockAnchor=full?{seconds:Number(full[1])*3600+Number(full[2])*60+Number(full[3]),at:performance.now()}:null;
         statusElement.textContent =
             "Connectée";
 
@@ -192,13 +203,14 @@ async function updateStatus() {
         statusElement.style.color =
             "var(--error)";
 
+        clockAnchor=null;
         homeTime=[-1,-1];
         timeElement.textContent =
             "--:--:--";
 
     } finally {
 
-        setTimeout(updateStatus, 1000);
+        setTimeout(updateStatus, 5000);
     }
 }
 

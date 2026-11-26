@@ -20,7 +20,6 @@
     <script src="/theme-rules.js" defer></script>
     <script src="/studio-visual.js" defer></script>
     <script src="/studio.js" defer></script>
-    <script src="/community.js" defer></script>
     <script src="/setup.js" defer></script>
     <script src="/maintenance.js" defer></script>
 </head>
@@ -77,11 +76,6 @@
         </section>
 
         </div>
-        <nav id="themesNav" class="studio-nav" aria-label="Navigation des thèmes" hidden>
-            <button type="button" id="libraryTab" aria-pressed="true" aria-controls="libraryView">Bibliothèque</button>
-            <button type="button" id="communityTab" aria-pressed="false" aria-controls="communityView">Communauté</button>
-            <button id="studioTab" type="button" aria-pressed="false" aria-controls="studioView">Studio</button>
-        </nav>
         <div id="libraryView" hidden>
         <section class="panel">
 
@@ -95,7 +89,7 @@
 
             </div>
 
-            <button id="libraryCreate" class="library-action primary" type="button">Créer un thème</button>
+            <div class="night-actions"><button id="libraryImport" class="library-action primary" type="button">Importer un thème</button><button id="libraryBackup" type="button">Exporter mes thèmes</button><input id="libraryFile" type="file" accept=".json,application/json" hidden></div><p class="muted">Le Studio de création sera disponible séparément. Les thèmes JSON restent compatibles.</p>
             <p id="libraryMessage" role="status" class="muted"></p>
             <div id="themeList">
 
@@ -314,62 +308,15 @@
           <button type="button" data-maintenance="factory-reset" class="maintenance-danger">Restaurer les paramètres d’usine <small>Effacer les données personnelles et recommencer l’installation.</small></button>
         </section>
         </div>
-        <section class="panel" id="studioView" hidden>
-            <div class="section-header"><h2>Studio</h2><span class="muted">Aperçu en direct</span></div>
-            <p class="muted">Créez votre ambiance lumineuse.</p>
-            <p class="muted" id="studioLiveStatus" role="status">Connexion à l’aperçu physique…</p>
-            <div class="studio-previews">
-                <div><div id="studioFrontPreview" class="studio-front" aria-label="Face avant"></div><p>Face avant</p></div>
-                <div><div id="studioRearPreview" class="studio-rear" aria-label="Face arrière"><svg viewBox="0 0 100 100" class="studio-rear-frame" aria-hidden="true"></svg></div><p>Face arrière</p></div>
-            </div>
-            <div class="studio-fields">
-                <label for="studioSource">Thème de départ</label>
-                <select id="studioSource"><option value="">Choisir un thème</option></select>
-                <div class="night-actions studio-actions"><button id="studioNew" type="button">Nouveau</button><button id="studioCopy" type="button" disabled>Dupliquer</button><button id="studioDelete" type="button" disabled>Supprimer</button></div>
-                <p id="studioMode" class="muted">Nouveau thème</p>
-                <label for="studioName">Nom du thème</label><input id="studioName" type="text" maxlength="48" placeholder="Nouveau thème">
-                <label for="studioAuthor">Auteur</label><input id="studioAuthor" type="text" maxlength="48">
-                <label for="studioDescription">Description</label><textarea id="studioDescription" rows="3" maxlength="200"></textarea>
-                <div class="separator"></div>
-                <h2>Couleurs</h2>
-                <div class="setting"><label for="studioFrontColor">Face avant</label><input id="studioFrontColor" type="color" value="#ffe1b4"></div>
-                <label for="studioHarmony">Harmonie des couleurs</label>
-                <select id="studioHarmony"><option value="manual">Indépendante</option><option value="identical">Identique</option><option value="complementary">Complémentaire</option><option value="analogous-plus">Analogique +30°</option><option value="analogous-minus">Analogique -30°</option><option value="triadic">Triadique</option></select>
-                <div class="setting" id="studioManualRear"><label for="studioRearColor">Face arrière</label><input id="studioRearColor" type="color" value="#0055ff"></div>
-                <div class="setting" id="studioAutoRear" hidden><span>Couleur arrière calculée</span><div class="color-preview" id="studioEffectiveRear"></div></div>
-                <div class="separator"></div>
-                <h2>Luminosités du thème</h2><div class="setting"><label for="studioFrontBrightness">Face avant</label><output id="studioFrontBrightnessValue">100 %</output></div><input type="range" id="studioFrontBrightness" min="0" max="100" value="100"><div class="setting"><label for="studioRearBrightness">Face arrière</label><output id="studioRearBrightnessValue">100 %</output></div><input type="range" id="studioRearBrightness" min="0" max="100" value="100"><p class="muted">Aperçu graphique relatif au thème ; l’horloge conserve sa luminosité générale et son mode nuit.</p><div class="separator"></div><h2>Animations</h2><div class="animation-setting"><label for="studioFrontEffect">Face avant</label><select id="studioFrontEffect"><option value="solid">Fixe</option><option value="breathing">Respiration</option><option value="color-cycle">Cycle de couleurs</option></select><div id="studioFrontSpeedRow" hidden><div class="setting"><label for="studioFrontSpeed">Vitesse</label><output id="studioFrontSpeedValue">50 %</output></div><input type="range" id="studioFrontSpeed" min="0" max="100" value="50"><p class="muted" id="studioFrontPeriod"></p></div></div><div class="animation-setting"><label for="studioRearEffect">Face arrière</label><select id="studioRearEffect"><option value="solid">Fixe</option><option value="breathing">Respiration</option><option value="color-cycle">Cycle de couleurs</option><option value="rainbow">Arc-en-ciel</option><option value="chase">Chenillard</option></select><div id="studioRearSpeedRow" hidden><div class="setting"><label for="studioRearSpeed">Vitesse</label><output id="studioRearSpeedValue">50 %</output></div><input type="range" id="studioRearSpeed" min="0" max="100" value="50"><p class="muted" id="studioRearPeriod"></p></div></div>
-                <div class="night-actions studio-actions"><button id="studioSave" type="button">Enregistrer et appliquer</button><button id="studioCancel" type="button">Annuler</button></div>
-                <div class="night-actions studio-actions"><button id="studioShare" type="button" disabled>Partager</button><button id="studioMore" type="button" aria-expanded="false" aria-controls="studioMorePanel">Plus</button></div>
-                <div id="studioMorePanel" class="night-actions studio-actions" hidden><button id="studioExport" type="button" disabled>Exporter le thème</button><button id="studioImport" type="button">Importer un thème</button><button id="studioExportAll" type="button" disabled>Sauvegarder mes thèmes</button><button id="studioImportAll" type="button">Restaurer mes thèmes</button><input id="studioImportFile" type="file" accept=".json,application/json" hidden><input id="studioCollectionFile" type="file" accept=".json,application/json" hidden></div>
-                <section id="studioSharePanel" hidden>
-                    <h3>Partager un thème</h3>
-                    <p id="studioShareInfo" class="muted"></p>
-                    <label><input id="studioShareConsent" type="checkbox"> Je suis autorisé à partager ce thème et j’accepte sa publication sous licence CC0 1.0.</label>
-                    <p class="muted">La demande sera publique sur GitHub, où un compte est requis. Vérifiez votre pseudonyme et votre description.</p>
-                    <p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer">Consulter la licence CC0 1.0</a></p>
-                    <div class="night-actions"><button id="studioShareSubmit" type="button" disabled>Ouvrir la demande GitHub</button><button id="studioShareCancel" type="button">Annuler</button></div>
-                </section>
-                <p id="studioSaveStatus" role="status" class="muted"></p>
-            </div>
-        </section>
-        <section class="panel" id="communityView" hidden>
-            <h2>Communauté</h2>
-            <p class="muted" id="communityStatus" role="status"></p>
-            <div class="community-toolbar night-actions"><input type="search" id="communitySearch" placeholder="Rechercher un thème…" aria-label="Rechercher un thème"><button type="button" id="communityReload">Actualiser</button></div>
-            <div id="communityList" class="community-list"></div>
-            <div id="communityDetails" hidden><h3 id="communityName"></h3><p id="communityDescription"></p><p id="communityBrightness" class="muted"></p><p id="communityExisting" class="muted"></p><div class="night-actions"><button id="communityAdd" type="button">Ajouter à ma bibliothèque</button><button id="communityEdit" type="button">Modifier dans le Studio</button></div></div>
-            <p id="communityPreviewStatus" class="muted" role="status"></p><p id="communityActionStatus" role="status"></p>
-        </section>
         <footer>
-            Wordclock 3.0
+            Wordclock 3.1
         </footer>
 
     </main>
 
 <dialog id="libraryDialog" aria-labelledby="libraryTitle"><div class="setup-inner">
 <h2 id="libraryTitle"></h2><div id="libraryActions"></div>
-<section id="libraryShare" hidden><p id="libraryShareInfo"></p><label><input type="checkbox" id="libraryConsent"> Je suis autorisé à partager ce thème et j’accepte sa publication sous licence CC0 1.0.</label><p class="muted">La demande sera publique sur GitHub, où un compte est requis.</p><p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer">Consulter la licence CC0 1.0</a></p><button class="library-action primary" id="librarySubmit" type="button" disabled>Ouvrir la demande GitHub</button></section>
+
 <p id="libraryDialogMessage" role="status"></p><button class="library-action" id="libraryClose" type="button">Fermer</button></div></dialog>
 <dialog id="setupDialog" aria-labelledby="setupTitle">
  <div class="setup-inner">

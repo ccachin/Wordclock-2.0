@@ -78,6 +78,8 @@ namespace WebServer
     // Static files
     // ==================================================
 
+    static void appendWebVersion(JsonDocument& doc);
+
     static void serveWebFile(
         const char *name,
         const char *contentType)
@@ -98,27 +100,69 @@ namespace WebServer
             server.send(503, "text/plain", "Web interface incomplete");
             return;
         }
-        const String path = String(WebSlotManager::activeRoot()) + "/" + name;
-        File file = LittleFS.open(path, "r");
-
-        if (!file)
-        {
-
-            server.send(
-                404,
-                "text/plain",
-                "File not found");
-
+        const String root = WebSlotManager::activeRoot();
+        bool cacheable = false;
+        if (strcmp(name, "index.html") && server.hasArg("v") &&
+            !LittleFS.exists(root + "/.development")) {
+            // Refresh once per slot switch, before opening the response file.
+            static uint32_t cachedGeneration = 0;
+            static bool cached = false;
+            static char cachedVersion[33] = {};
+            const uint32_t generation = WebSlotManager::selectionGeneration();
+            if (!cached || generation != cachedGeneration) {
+                StaticJsonDocument<384> metadata;
+                appendWebVersion(metadata);
+                const char* version = metadata["webVersion"] | "";
+                strlcpy(cachedVersion, version, sizeof(cachedVersion));
+                cachedGeneration = generation;
+                cached = true;
+            }
+            cacheable = cachedVersion[0] && server.arg("v") == cachedVersion;
+        }
+        // Plain originals are always retained for older firmware and clients.
+        // Companion files occupy existing, now unused API-1 manifest entries.
+        const char* companion = !strcmp(name, "app.js") ? "community.js" :
+                                !strcmp(name, "style.css") ? "night.js" : nullptr;
+        bool compressed = false;
+        File file;
+        if (cacheable && companion) {
+            const String& encoding = server.header("Accept-Encoding");
+            // Ordinary browsers advertise an explicit gzip token. A token with
+            // q=0 or an unrecognised quality parameter falls back to plain.
+            int pos = 0;
+            bool acceptsGzip = false;
+            while (pos < (int)encoding.length()) {
+                int end = encoding.indexOf(',', pos);
+                if (end < 0) end = encoding.length();
+                String token = encoding.substring(pos, end);
+                token.trim();
+                if (token.equalsIgnoreCase("gzip")) { acceptsGzip = true; break; }
+                pos = end + 1;
+            }
+            if (acceptsGzip) {
+                file = LittleFS.open(root + "/" + companion, "r");
+                if (file && file.size() >= 18 && file.read() == 0x1f &&
+                    file.read() == 0x8b && file.read() == 8 && file.seek(0, SeekSet)) {
+                    compressed = true;
+                } else if (file) { file.close(); }
+            }
+        }
+        if (!compressed) file = LittleFS.open(root + "/" + name, "r");
+        if (!file) {
+            server.send(404, "text/plain", "File not found");
             return;
         }
-
-        server.sendHeader(
-            "Cache-Control",
-            "no-store");
-
-        server.streamFile(file, contentType);
-
+        server.sendHeader("Cache-Control", cacheable ? "private, max-age=300" : "no-store");
+        if (companion) server.sendHeader("Vary", "Accept-Encoding");
+        if (compressed) server.sendHeader("Content-Encoding", "gzip");
+        const size_t expected = file.size();
+        const size_t sent = server.streamFile(file, contentType);
         file.close();
+        if (sent != expected) {
+            Serial.printf("Static transfer incomplete: %s sent=%u expected=%u heap=%u maxBlock=%u\n",
+                          name, (unsigned)sent, (unsigned)expected,
+                          (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxFreeBlockSize());
+        }
     }
 
     static void handleRoot()
@@ -1707,7 +1751,7 @@ namespace WebServer
             server.sendHeader("Access-Control-Allow-Private-Network", "true");
             server.send(204, "text/plain", "");
         });
-        server.collectHeaders("X-Wordclock-Action");
+        server.collectHeaders("X-Wordclock-Action", "Accept-Encoding");
         server.onNotFound(handleNotFound);
     }
 

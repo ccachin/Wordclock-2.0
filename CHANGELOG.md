@@ -1,3 +1,10 @@
+## 3.1.0-dev
+
+- Interface locale allégée : bibliothèque et import/export JSON, Studio séparé.
+- Ressources regroupées à la publication, cache versionné et diagnostic HTTP.
+- Interrogations moins fréquentes, ArduinoOTA réservé au développement.
+- Validation matérielle requise.
+
 ## 3.0.5-dev
 
 - Analyse du manifeste web sans allocation dynamique.
