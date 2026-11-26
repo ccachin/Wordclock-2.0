@@ -380,6 +380,51 @@ namespace WebServer
         handleGetTransitions();
     }
 
+    static void handleGetAnimations() {
+        const auto& a = AnimationManager::frontSettings();
+        char json[200];
+        snprintf(json,sizeof(json),"{\"enabled\":%s,\"hourlyColor\":%s,\"transition\":%u,\"chime\":%u,\"spatial\":%u,\"spatialSpeed\":%u,\"intensity\":%u,\"duration\":%u}",
+            a.enabled?"true":"false", a.hourlyColor?"true":"false", unsigned(a.transition), unsigned(a.chime),
+            unsigned(a.spatial), unsigned(a.spatialSpeed), unsigned(a.intensity), unsigned(a.duration));
+        sendJson(200,json);
+    }
+    static bool animationActionAllowed() {
+        if (firmwareSessionActive() || WebUpdateManager::active() || maintenancePending() || FirmwareUpdate::active()) {
+            sendJson(409,"{\"error\":\"Maintenance active\"}"); return false;
+        }
+        if (server.header("X-Wordclock-Action") != "animations") {
+            sendJson(403,"{\"error\":\"Missing action header\"}"); return false;
+        }
+        return true;
+    }
+    static void handleSetAnimations() {
+        if (!animationActionAllowed()) return;
+        auto a=AnimationManager::frontSettings();
+        unsigned enabled,hourly,transition,chime,spatial,spatialSpeed,intensity,duration;
+        if (!nightNumber("enabled",1,enabled) || !nightNumber("hourlyColor",1,hourly) ||
+            !nightNumber("transition",FrontEffects::Burst,transition) || !nightNumber("chime",2,chime) ||
+            !nightNumber("spatial",2,spatial) || !nightNumber("spatialSpeed",100,spatialSpeed) || !nightNumber("intensity",100,intensity) || !nightNumber("duration",5000,duration)) {
+            sendJson(400,"{\"error\":\"Invalid animation settings\"}"); return;
+        }
+        a.enabled=enabled; a.hourlyColor=hourly; a.transition=transition; a.chime=chime;
+        a.spatial=spatial; a.spatialSpeed=spatialSpeed; a.intensity=intensity; a.duration=duration;
+        if (!AnimationManager::setFrontSettings(a)) { sendJson(400,"{\"error\":\"Invalid animation settings\"}"); return; }
+        handleGetAnimations();
+    }
+    static void handleTestAnimation() {
+        if (!animationActionAllowed()) return;
+        unsigned kind;
+        if (!nightNumber("kind",FrontEffects::Cuckoo,kind) || !kind) { sendJson(400,"{\"error\":\"Invalid animation\"}"); return; }
+        TimeManager::ClockTime now{};
+        const auto& theme=ThemeManager::getTheme();
+        if (!TimeManager::getTime(now) || NightManager::isActive(true,now.hour,now.minute) ||
+            PreviewManager::active() || !theme.brightness || !theme.frontBrightness ||
+            !AnimationManager::startFrontEffect(static_cast<FrontEffects::Kind>(kind),millis())) {
+            sendJson(409,"{\"error\":\"Animation unavailable (night, clock off, preview or disabled)\"}"); return;
+        }
+        sendJson(200,"{\"ok\":true}");
+    }
+
     static void handleGetDevice() {
         const auto value = SettingsManager::deviceSettings();
         StaticJsonDocument<512> doc;
@@ -999,6 +1044,8 @@ namespace WebServer
         ThemeManager::begin();
         NightManager::setSettings(NightManager::Settings());
         TransitionManager::setDuration(TransitionManager::DEFAULT_DURATION);
+        AnimationManager::setFrontSettings(FrontEffects::Settings());
+        AnimationManager::cancelFrontEffect();
         SettingsManager::markChanged();
         Serial.println("Maintenance: settings reset accepted; save pending");
         sendJson(202, "{\"ok\":true,\"savePending\":true,\"saveFailed\":false}");
@@ -1736,6 +1783,9 @@ namespace WebServer
         server.on("/api/night", HTTP_POST, handleSetNight);
         server.on("/api/transitions", HTTP_GET, handleGetTransitions);
         server.on("/api/transitions", HTTP_POST, handleSetTransitions);
+        server.on("/api/animations", HTTP_GET, handleGetAnimations);
+        server.on("/api/animations", HTTP_POST, handleSetAnimations);
+        server.on("/api/animations/test", HTTP_POST, handleTestAnimation);
 
         if (true)
         {

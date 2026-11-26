@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <FastLED.h>
+#include "front_effects.h"
 
 namespace AnimationManager
 {
@@ -24,6 +25,15 @@ namespace AnimationManager
 
         uint8_t speed = 50;
     };
+
+    const FrontEffects::Settings& frontSettings();
+    bool setFrontSettings(const FrontEffects::Settings& value);
+    uint32_t frontRevision();
+    bool startFrontEffect(FrontEffects::Kind kind, uint32_t now);
+    void cancelFrontEffect();
+    bool frontEffectActive(uint32_t now);
+    void applyFrontEffect(uint32_t now, const CRGB& color);
+    CRGB hourlyPalette(const CRGB& base, uint8_t hour);
 
     bool isAnimated(
         const Animation &animation);

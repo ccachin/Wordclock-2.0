@@ -242,6 +242,25 @@
             <p class="muted" id="transitionMessage" role="status"></p>
         </section>
 
+        <section class="panel" id="effectsPanel">
+            <h2>Animations de l’horloge</h2>
+            <fieldset id="effectsFields" disabled>
+                <div class="setting"><label for="effectsEnabled">Activer les animations</label><input type="checkbox" id="effectsEnabled" checked></div>
+                <div class="animation-setting"><label for="effectsTransition">Transition des mots (toutes les cinq minutes)</label><select id="effectsTransition"><option value="0">Aucune</option><option value="1">Fondu</option><option value="2">Balayage</option><option value="3">Matrix</option><option value="4">Apparition progressive</option><option value="5">Explosion lumineuse</option></select></div>
+                <div class="animation-setting"><label for="effectsSpatial">Effet permanent sur les lettres</label><select id="effectsSpatial"><option value="0">Selon le thème</option><option value="1">Arc-en-ciel</option><option value="2">Chenillard</option></select></div>
+                <div class="setting"><label for="effectsSpatialSpeed">Vitesse de l’arc-en-ciel et du chenillard</label><span id="effectsSpatialSpeedValue">50 %</span></div><input type="range" id="effectsSpatialSpeed" min="0" max="100" value="50">
+                <div class="setting"><label for="effectsHourly">Palette différente chaque heure</label><input type="checkbox" id="effectsHourly"></div>
+                <div class="animation-setting"><label for="effectsChime">Coucou lumineux</label><select id="effectsChime"><option value="0">Désactivé</option><option value="1">Midi et minuit</option><option value="2">Chaque heure pleine</option></select></div>
+                <div class="setting"><label for="effectsDuration">Durée des effets ponctuels</label><span id="effectsDurationValue">2,5 s</span></div><input type="range" id="effectsDuration" min="1000" max="5000" step="100" value="2500">
+                <div class="setting"><label for="effectsIntensity">Intensité des effets ponctuels et de la palette horaire</label><span id="effectsIntensityValue">60 %</span></div><input type="range" id="effectsIntensity" min="0" max="100" value="60">
+                <button type="button" class="action-button" id="effectsSave">Enregistrer les animations</button>
+                <div class="animation-setting"><label for="effectsTestKind">Tester sur l’horloge</label><select id="effectsTestKind"><option value="1">Fondu</option><option value="2">Balayage</option><option value="3">Matrix</option><option value="4">Apparition progressive</option><option value="5">Explosion lumineuse</option><option value="6">Coucou</option></select></div>
+                <button type="button" class="action-button" id="effectsTest">Tester</button>
+            </fieldset>
+            <p class="muted">Les effets ponctuels, la palette horaire et les effets permanents supplémentaires sont suspendus en mode nuit. La vitesse de respiration et du cycle de couleurs reste celle du thème. L’aperçu à l’écran représente le thème, pas les effets physiques supplémentaires.</p>
+            <p class="muted" id="effectsMessage" role="status"></p>
+        </section>
+
         <h2 class="settings-group-title">Configuration</h2>
         <section class="panel" id="devicePanel"><h2>Mon horloge</h2><div class="device-fields"><label for="deviceName">Nom de votre horloge</label><input id="deviceName" type="text" maxlength="48" autocomplete="off" disabled><label for="deviceZone">Fuseau horaire</label><select id="deviceZone" disabled></select></div><p id="deviceSummary" role="status" aria-live="polite">Chargement…</p><button type="button" id="setupOpen" disabled class="action-button">Relancer la configuration</button></section>
 

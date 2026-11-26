@@ -1051,3 +1051,35 @@ document.addEventListener('DOMContentLoaded', () => {
     el('settingsTab').addEventListener('click', refresh);
     refresh();
 });
+
+// Load only when settings are opened, not during initial HTTP startup.
+(() => {
+    const el=id=>document.getElementById(id), fields=el('effectsFields'), message=el('effectsMessage');
+    let busy=false, loaded=false, dirty=false;
+    const values=()=>({enabled:el('effectsEnabled').checked?1:0,hourlyColor:el('effectsHourly').checked?1:0,
+        transition:el('effectsTransition').value,chime:el('effectsChime').value,spatial:el('effectsSpatial').value,spatialSpeed:el('effectsSpatialSpeed').value,
+        duration:el('effectsDuration').value,intensity:el('effectsIntensity').value});
+    const labels=()=>{
+        el('effectsDurationValue').textContent=(Number(el('effectsDuration').value)/1000).toLocaleString('fr-CH')+' s';
+        el('effectsIntensityValue').textContent=el('effectsIntensity').value+' %';
+        el('effectsSpatialSpeedValue').textContent=el('effectsSpatialSpeed').value+' %';
+    };
+    const show=a=>{
+        el('effectsEnabled').checked=a.enabled;el('effectsHourly').checked=a.hourlyColor;
+        for(const k of ['transition','chime','spatial','spatialSpeed','duration','intensity'])el('effects'+k[0].toUpperCase()+k.slice(1)).value=a[k];
+        labels();dirty=false;loaded=true;
+    };
+    async function run(work) {
+        if(busy)return;busy=true;fields.disabled=true;
+        try{await work();}catch(e){message.textContent='Impossible de terminer : '+e.message;}
+        finally{busy=false;fields.disabled=!loaded;}
+    }
+    function post(path,body){return request(path,{method:'POST',headers:{'X-Wordclock-Action':'animations'},body:new URLSearchParams(body)});}
+    el('settingsTab').addEventListener('click',()=>{if(!dirty)run(async()=>{show(await request('/api/animations'));message.textContent='';});});
+    for(const key of ['Enabled','Hourly','Transition','Chime','Spatial','SpatialSpeed','Duration','Intensity'])el('effects'+key).addEventListener('input',()=>{dirty=true;labels();message.textContent='Modifications non enregistrées.';});
+    el('effectsSave').addEventListener('click',()=>run(async()=>{show(await post('/api/animations',values()));message.textContent='Réglages appliqués.';}));
+    el('effectsTest').addEventListener('click',()=>{
+        if(dirty){message.textContent='Enregistre les réglages avant le test.';return;}
+        run(async()=>{await post('/api/animations/test',{kind:el('effectsTestKind').value});message.textContent='Animation lancée sur l’horloge.';});
+    });
+})();

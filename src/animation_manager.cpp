@@ -2,9 +2,59 @@
 #include "animation_manager.h"
 
 #include "color_manager.h"
+#include "settings_manager.h"
+#include "leds.h"
+#include "config.h"
 
 namespace AnimationManager
 {
+
+    static FrontEffects::Settings frontConfig;
+    static uint32_t revision = 0, effectStart = 0;
+    static FrontEffects::Kind running = FrontEffects::None;
+    const FrontEffects::Settings& frontSettings() { return frontConfig; }
+    uint32_t frontRevision() { return revision; }
+    bool setFrontSettings(const FrontEffects::Settings& value) {
+        if (!FrontEffects::valid(value)) return false;
+        if (FrontEffects::pack(value) != FrontEffects::pack(frontConfig)) {
+            frontConfig=value; running=FrontEffects::None; ++revision;
+            SettingsManager::markChanged();
+        }
+        return true;
+    }
+    bool startFrontEffect(FrontEffects::Kind kind, uint32_t now) {
+        if (!frontConfig.enabled || !frontConfig.intensity || kind <= FrontEffects::None || kind > FrontEffects::Cuckoo) return false;
+        running=kind; effectStart=now; ++revision; return true;
+    }
+    void cancelFrontEffect() { if (running != FrontEffects::None) { running=FrontEffects::None; ++revision; } }
+    bool frontEffectActive(uint32_t now) {
+        if (running != FrontEffects::None && now-effectStart >= frontConfig.duration) cancelFrontEffect();
+        return running != FrontEffects::None;
+    }
+    CRGB hourlyPalette(const CRGB& base, uint8_t hour) {
+        if (!frontConfig.enabled || !frontConfig.hourlyColor) return base;
+        const uint8_t peak=base.r>base.g ? (base.r>base.b?base.r:base.b) : (base.g>base.b?base.g:base.b);
+        CRGB target; hsv2rgb_rainbow(CHSV(uint8_t(hour*256U/24U),255,peak),target);
+        return ColorManager::interpolate(base,target,frontConfig.intensity/100.0f);
+    }
+    void applyFrontEffect(uint32_t now, const CRGB& color) {
+        if (!frontEffectActive(now)) return;
+        const uint8_t p=FrontEffects::progress(now-effectStart,frontConfig.duration);
+        for (uint16_t i=0;i<Config::FRONT_LED_COUNT-4;++i) {
+            CRGB c=Leds::getPixel(i);
+            if (c != CRGB::Black) {
+                // Keep time legible; even a full-strength transition retains a 25% floor.
+                const unsigned reveal=FrontEffects::reveal(running,i,p);
+                const uint8_t level=255-(255-reveal)*frontConfig.intensity*75UL/10000UL;
+                c.nscale8_video(level);
+            } else {
+                const uint8_t level=FrontEffects::overlay(running,i,p)*frontConfig.intensity/100U;
+                if (!level) continue;
+                c=color; c.nscale8_video(level);
+            }
+            Leds::setPixel(i,c);
+        }
+    }
 
     // ==================================================
     // Configuration

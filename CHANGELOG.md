@@ -1,3 +1,10 @@
+## 3.3.0-dev
+
+- Animations de façade : fondu, balayage, Matrix, apparition progressive, explosion, coucou lumineux.
+- Arc-en-ciel et chenillard sur les lettres, palette horaire, réglages persistants et test ponctuel.
+- Effets calculés à la volée, sans nouveau tableau d’images ; nouvelles options désactivées par défaut.
+- Tests natifs du moteur et contrôle HTTP de la nouvelle API. Validation matérielle requise.
+
 ## 3.2.0-dev
 
 - Offline access point and local clock control.

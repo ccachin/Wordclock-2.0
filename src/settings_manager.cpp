@@ -129,7 +129,7 @@ namespace SettingsManager
     static bool readSettingsFile(
         const char *path,
         ThemeManager::Theme &theme,
-        int *loadedVersion = nullptr, uint16_t *transitionDuration = nullptr, NightManager::Settings *nightOut = nullptr, uint32_t *faceOut = nullptr, DeviceSettings *deviceOut = nullptr)
+        int *loadedVersion = nullptr, uint16_t *transitionDuration = nullptr, NightManager::Settings *nightOut = nullptr, uint32_t *faceOut = nullptr, DeviceSettings *deviceOut = nullptr, FrontEffects::Settings *effectsOut = nullptr)
     {
 
         File file = LittleFS.open(path, "r");
@@ -288,6 +288,11 @@ namespace SettingsManager
             loadedDevice.setupComplete = doc["setupComplete"].as<bool>();
             if (!validDeviceSettings(loadedDevice)) return false;
         }
+        FrontEffects::Settings effects;
+        if (doc.containsKey("frontBehavior")) {
+            if (!doc["frontBehavior"].is<uint32_t>() || !FrontEffects::unpack(doc["frontBehavior"].as<uint32_t>(),effects)) return false;
+        }
+        if (effectsOut) *effectsOut=effects;
         if (deviceOut) *deviceOut = loadedDevice;
         if (faceOut) *faceOut = (uint32_t(face.r)<<16) | (uint32_t(face.g)<<8) | face.b;
         if (nightOut) *nightOut = night;
@@ -319,16 +324,18 @@ namespace SettingsManager
         int version = 0;
         NightManager::Settings night;
         uint16_t duration = TransitionManager::DEFAULT_DURATION;
+        FrontEffects::Settings effects;
 
         if (readSettingsFile(
                 SETTINGS_PATH,
                 theme,
-                &version, &duration, &night, &faceRgb, &device))
+                &version, &duration, &night, &faceRgb, &device, &effects))
         {
 
             ThemeManager::setTheme(theme);
             TransitionManager::setDuration(duration);
             NightManager::setSettings(night);
+            AnimationManager::setFrontSettings(effects);
 
             migrationNeeded =
                 version < SETTINGS_VERSION;
@@ -343,12 +350,13 @@ namespace SettingsManager
         if (readSettingsFile(
                 TEMP_PATH,
                 theme,
-                &version, &duration, &night, &faceRgb, &device))
+                &version, &duration, &night, &faceRgb, &device, &effects))
         {
 
             ThemeManager::setTheme(theme);
             TransitionManager::setDuration(duration);
             NightManager::setSettings(night);
+            AnimationManager::setFrontSettings(effects);
 
             migrationNeeded = true;
 
@@ -375,12 +383,13 @@ namespace SettingsManager
         if (readSettingsFile(
                 BACKUP_PATH,
                 theme,
-                &version, &duration, &night, &faceRgb, &device))
+                &version, &duration, &night, &faceRgb, &device, &effects))
         {
 
             ThemeManager::setTheme(theme);
             TransitionManager::setDuration(duration);
             NightManager::setSettings(night);
+            AnimationManager::setFrontSettings(effects);
 
             migrationNeeded = true;
 
@@ -456,6 +465,7 @@ namespace SettingsManager
         doc["nightBrightness"] = night.brightness;
         doc["nightMode"] = static_cast<uint8_t>(night.mode);
         doc["transitionDuration"] = TransitionManager::getDuration();
+        doc["frontBehavior"] = FrontEffects::pack(AnimationManager::frontSettings());
         doc["front"] = front;
         doc["rear"] = rear;
         doc["brightness"] = theme.brightness;
@@ -508,10 +518,11 @@ namespace SettingsManager
         NightManager::Settings verifiedNight;
         uint32_t verifiedFace = 0;
         DeviceSettings verifiedDevice;
+        FrontEffects::Settings verifiedEffects;
 
         if (!readSettingsFile(
                 TEMP_PATH,
-                verified, nullptr, &verifiedDuration, &verifiedNight, &verifiedFace, &verifiedDevice))
+                verified, nullptr, &verifiedDuration, &verifiedNight, &verifiedFace, &verifiedDevice, &verifiedEffects))
         {
 
             Serial.println(
@@ -527,6 +538,7 @@ namespace SettingsManager
             verifiedFace != faceRgb ||
             !NightManager::equals(night, verifiedNight) ||
             verifiedDuration != TransitionManager::getDuration() ||
+            FrontEffects::pack(verifiedEffects) != FrontEffects::pack(AnimationManager::frontSettings()) ||
             verified.frontColor != theme.frontColor ||
             verified.rearColor != theme.rearColor ||
             verified.brightness != theme.brightness ||

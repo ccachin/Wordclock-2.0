@@ -12,6 +12,7 @@
 #include "night_manager.h"
 #include "preview_manager.h"
 #include "firmware_update.h"
+#include "web_update_manager.h"
 
 
 namespace RenderManager
@@ -44,6 +45,8 @@ namespace RenderManager
     static bool lastNightActive = false;
     static uint32_t lastNightRevision = 0;
     static uint32_t lastPreviewRevision = 0;
+    static uint32_t lastFrontRevision = 0;
+    static bool lastFrontAllowed = false, lastMaintenance = false;
 
     static StatusManager::State lastStatus =
 
@@ -223,8 +226,30 @@ namespace RenderManager
         const bool previewChanged = previewRevision != lastPreviewRevision;
         if (previewActive || previewChanged) TransitionManager::cancel();
         const auto theme = PreviewManager::renderTheme();
-        const auto &frontAnimation = theme.frontAnimation;
-        const auto &rearAnimation = theme.rearAnimation;
+        const auto& effects = AnimationManager::frontSettings();
+        const bool maintenance = WebUpdateManager::active();
+        const bool allowed = effects.enabled && !nightActive && timeValid && !previewActive &&
+            theme.brightness && theme.frontBrightness && !maintenance;
+        if (!allowed) AnimationManager::cancelFrontEffect();
+        if (allowed && lastTimeValid && timeChanged && !nightChanged && !previewChanged) {
+            if (FrontEffects::chimeDue(effects.chime,lastHour,lastMinute,now.hour,now.minute,now.second))
+                AnimationManager::startFrontEffect(FrontEffects::Cuckoo,currentMillis);
+            else if (!AnimationManager::frontEffectActive(currentMillis) &&
+                (now.hour!=lastHour || now.minute/5!=lastMinute/5))
+                AnimationManager::startFrontEffect(static_cast<FrontEffects::Kind>(effects.transition),currentMillis);
+        }
+        auto frontAnimation = theme.frontAnimation;
+        auto rearAnimation = theme.rearAnimation;
+        if (!effects.enabled || maintenance) {
+            frontAnimation.effect=rearAnimation.effect=AnimationManager::Effect::Solid;
+            TransitionManager::cancel();
+        } else if (allowed && effects.spatial) {
+            frontAnimation.effect=effects.spatial==1 ? AnimationManager::Effect::Rainbow : AnimationManager::Effect::Chase;
+            frontAnimation.speed=effects.spatialSpeed;
+        }
+        const bool overlayActive=AnimationManager::frontEffectActive(currentMillis);
+        const uint32_t frontRevision=AnimationManager::frontRevision();
+
         if (frontAnimation.effect != previousFront.effect || frontAnimation.speed != previousFront.speed)
             frontStartedAt = currentMillis;
         if (rearAnimation.effect != previousRear.effect || rearAnimation.speed != previousRear.speed)
@@ -238,13 +263,14 @@ namespace RenderManager
         if (waiting && !lastWaiting) waitingStartedAt = currentMillis;
         // Do not blend a theme transition into the waiting indicator.
         if (!timeValid) TransitionManager::cancel();
-        const bool fadeInTime = timeValid && lastWaiting && !previewActive && !nightActive;
+        const bool fadeInTime = effects.enabled && !maintenance && timeValid && lastWaiting && !previewActive && !nightActive;
         if (fadeInTime) TransitionManager::request();
 
         // Render only when necessary.
 
         bool needsRender =
 
+            overlayActive || frontRevision != lastFrontRevision || allowed != lastFrontAllowed || maintenance != lastMaintenance ||
             waiting ||
             waiting != lastWaiting ||
             previewChanged ||
@@ -273,6 +299,7 @@ namespace RenderManager
         // ==============================================
         // Front
         // ==============================================
+        const CRGB frontBase=allowed ? AnimationManager::hourlyPalette(theme.frontColor,now.hour) : theme.frontColor;
 
         if (timeValid)
         {
@@ -283,7 +310,13 @@ namespace RenderManager
 
                 now.minute,
 
-                AnimationManager::getColor(theme.frontColor, frontAnimation, currentMillis - frontStartedAt));
+                AnimationManager::getColor(frontBase, frontAnimation, currentMillis - frontStartedAt));
+            if (frontAnimation.effect == AnimationManager::Effect::Rainbow || frontAnimation.effect == AnimationManager::Effect::Chase) {
+                for (uint16_t i=0;i<Config::FRONT_LED_COUNT-4;++i) {
+                    if (Leds::getPixel(i)!=CRGB::Black)
+                        Leds::setPixel(i,AnimationManager::getColor(frontBase,frontAnimation,currentMillis-frontStartedAt,i,Config::FRONT_LED_COUNT-4));
+                }
+            }
 
             lastHour = now.hour;
 
@@ -314,7 +347,7 @@ namespace RenderManager
 
         renderRear(
 
-            ColorManager::resolveRearColor(theme.frontColor, theme.rearColor, theme.harmony),
+            ColorManager::resolveRearColor(frontBase, theme.rearColor, theme.harmony),
 
             rearAnimation,
 
@@ -329,6 +362,7 @@ namespace RenderManager
         uint8_t rearBrightness = theme.rearBrightness;
         if (!previewActive && !previewChanged) TransitionManager::apply(currentMillis, timeChanged, brightness, frontBrightness, rearBrightness);
         TransitionManager::remember(brightness, frontBrightness, rearBrightness);
+        if (overlayActive && allowed) AnimationManager::applyFrontEffect(currentMillis,frontBase);
 
         if (nightActive) {
             const auto& night = NightManager::getSettings();
@@ -395,6 +429,9 @@ namespace RenderManager
         lastNightActive = nightActive;
         lastNightRevision = nightRevision;
         lastPreviewRevision = previewRevision;
+        lastFrontRevision = frontRevision;
+        lastFrontAllowed = allowed;
+        lastMaintenance = maintenance;
 
         ThemeManager::markRendered();
     }
