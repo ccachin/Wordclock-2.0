@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 #include "leds.h"
+#include "automation_manager.h"
 #include "time_manager.h"
 #include "status_manager.h"
 #include "wifi_manager.h"
@@ -68,6 +69,7 @@ void setup()
     ThemeManager::begin();
 
     SettingsManager::begin();
+    AutomationManager::begin();
 
     ColorManager::runDiagnostics();
     CustomThemeStore::runDiagnostics();

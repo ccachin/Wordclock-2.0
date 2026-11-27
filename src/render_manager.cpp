@@ -2,6 +2,7 @@
 #include "render_manager.h"
 
 #include "theme_manager.h"
+#include "automation_manager.h"
 #include "time_manager.h"
 #include "status_manager.h"
 #include "animation_manager.h"
@@ -45,7 +46,7 @@ namespace RenderManager
     static bool lastNightActive = false;
     static uint32_t lastNightRevision = 0;
     static uint32_t lastPreviewRevision = 0;
-    static uint32_t lastFrontRevision = 0;
+    static uint32_t lastFrontRevision = 0, lastRuleRevision = 0;
     static bool lastFrontAllowed = false, lastMaintenance = false;
 
     static StatusManager::State lastStatus =
@@ -225,14 +226,18 @@ namespace RenderManager
         const uint32_t previewRevision = PreviewManager::revision();
         const bool previewChanged = previewRevision != lastPreviewRevision;
         if (previewActive || previewChanged) TransitionManager::cancel();
-        const auto theme = PreviewManager::renderTheme();
+        auto theme = PreviewManager::renderTheme();
         const auto& effects = AnimationManager::frontSettings();
         const bool maintenance = WebUpdateManager::active();
+        const bool rulesAllowed = !nightActive && timeValid && !previewActive && !maintenance;
+        AutomationManager::update(currentMillis,rulesAllowed && theme.brightness && theme.frontBrightness && effects.enabled);
+        AutomationManager::apply(theme,rulesAllowed);
+        const uint32_t ruleRevision=AutomationManager::revision();
         const bool allowed = effects.enabled && !nightActive && timeValid && !previewActive &&
             theme.brightness && theme.frontBrightness && !maintenance;
         if (!allowed) AnimationManager::cancelFrontEffect();
         if (allowed && lastTimeValid && timeChanged && !nightChanged && !previewChanged) {
-            if (FrontEffects::chimeDue(effects.chime,lastHour,lastMinute,now.hour,now.minute,now.second))
+            if (!AnimationManager::frontEffectActive(currentMillis) && FrontEffects::chimeDue(effects.chime,lastHour,lastMinute,now.hour,now.minute,now.second))
                 AnimationManager::startFrontEffect(FrontEffects::Cuckoo,currentMillis);
             else if (!AnimationManager::frontEffectActive(currentMillis) &&
                 (now.hour!=lastHour || now.minute/5!=lastMinute/5))
@@ -270,7 +275,7 @@ namespace RenderManager
 
         bool needsRender =
 
-            overlayActive || frontRevision != lastFrontRevision || allowed != lastFrontAllowed || maintenance != lastMaintenance ||
+            ruleRevision != lastRuleRevision || overlayActive || frontRevision != lastFrontRevision || allowed != lastFrontAllowed || maintenance != lastMaintenance ||
             waiting ||
             waiting != lastWaiting ||
             previewChanged ||
@@ -430,6 +435,7 @@ namespace RenderManager
         lastNightRevision = nightRevision;
         lastPreviewRevision = previewRevision;
         lastFrontRevision = frontRevision;
+        lastRuleRevision = ruleRevision;
         lastFrontAllowed = allowed;
         lastMaintenance = maintenance;
 

@@ -58,7 +58,7 @@ namespace Storage
 
     bool clearFactoryUserData() {
         if (!factoryResetPending()) return false;
-        const char* paths[] = {"/config/settings.json", "/config/settings.tmp", "/config/settings.bak"};
+        const char* paths[] = {"/config/settings.json", "/config/settings.tmp", "/config/settings.bak", "/config/rules.dat", "/config/rules.tmp", "/config/rules.bak"};
         for (const char* path : paths) {
             if (LittleFS.exists(path) && !LittleFS.remove(path)) return false;
         }

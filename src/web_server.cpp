@@ -1,3 +1,4 @@
+#include "automation_manager.h"
 #include <BearSSLHelpers.h>
 #include <new>
 extern "C" {
@@ -402,7 +403,7 @@ namespace WebServer
         auto a=AnimationManager::frontSettings();
         unsigned enabled,hourly,transition,chime,spatial,spatialSpeed,intensity,duration;
         if (!nightNumber("enabled",1,enabled) || !nightNumber("hourlyColor",1,hourly) ||
-            !nightNumber("transition",FrontEffects::Burst,transition) || !nightNumber("chime",2,chime) ||
+            !nightNumber("transition",FrontEffects::Circle,transition) || !nightNumber("chime",2,chime) ||
             !nightNumber("spatial",2,spatial) || !nightNumber("spatialSpeed",100,spatialSpeed) || !nightNumber("intensity",100,intensity) || !nightNumber("duration",5000,duration)) {
             sendJson(400,"{\"error\":\"Invalid animation settings\"}"); return;
         }
@@ -414,7 +415,7 @@ namespace WebServer
     static void handleTestAnimation() {
         if (!animationActionAllowed()) return;
         unsigned kind;
-        if (!nightNumber("kind",FrontEffects::Cuckoo,kind) || !kind) { sendJson(400,"{\"error\":\"Invalid animation\"}"); return; }
+        if (!nightNumber("kind",FrontEffects::Circle,kind) || !kind) { sendJson(400,"{\"error\":\"Invalid animation\"}"); return; }
         TimeManager::ClockTime now{};
         const auto& theme=ThemeManager::getTheme();
         if (!TimeManager::getTime(now) || NightManager::isActive(true,now.hour,now.minute) ||
@@ -423,6 +424,19 @@ namespace WebServer
             sendJson(409,"{\"error\":\"Animation unavailable (night, clock off, preview or disabled)\"}"); return;
         }
         sendJson(200,"{\"ok\":true}");
+    }
+
+    static void handleGetRules() {
+        char hex[AutomationRules::HexLength+1]; AutomationManager::encode(hex);
+        char json[AutomationRules::HexLength+40];
+        snprintf(json,sizeof(json),"{\"version\":1,\"rules\":\"%s\"}",hex); sendJson(200,json);
+    }
+    static void handleSetRules() {
+        if (firmwareSessionActive() || WebUpdateManager::active() || maintenancePending() || FirmwareUpdate::active()) { sendJson(409,"{\"error\":\"Maintenance active\"}"); return; }
+        if (server.header("X-Wordclock-Action") != "automations") { sendJson(403,"{\"error\":\"Missing action header\"}"); return; }
+        const String& hex=server.arg("rules");
+        if (!AutomationManager::replace(hex.c_str(),hex.length())) { sendJson(400,"{\"error\":\"Invalid rules or storage failure\"}"); return; }
+        handleGetRules();
     }
 
     static void handleGetDevice() {
@@ -1041,6 +1055,7 @@ namespace WebServer
             sendJson(409, "{\"error\":\"Action, preview or settings save pending\"}"); return;
         }
         TransitionManager::cancel();
+        if (!AutomationManager::reset()) { sendJson(503,"{\"error\":\"Cannot reset automations\"}"); return; }
         ThemeManager::begin();
         NightManager::setSettings(NightManager::Settings());
         TransitionManager::setDuration(TransitionManager::DEFAULT_DURATION);
@@ -1783,6 +1798,8 @@ namespace WebServer
         server.on("/api/night", HTTP_POST, handleSetNight);
         server.on("/api/transitions", HTTP_GET, handleGetTransitions);
         server.on("/api/transitions", HTTP_POST, handleSetTransitions);
+        server.on("/api/automations", HTTP_GET, handleGetRules);
+        server.on("/api/automations", HTTP_POST, handleSetRules);
         server.on("/api/animations", HTTP_GET, handleGetAnimations);
         server.on("/api/animations", HTTP_POST, handleSetAnimations);
         server.on("/api/animations/test", HTTP_POST, handleTestAnimation);

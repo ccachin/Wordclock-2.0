@@ -700,3 +700,25 @@ select{background:var(--control)}.community-card{border-radius:6px}.studio-nav b
 
 /* Improve simulated light contrast without changing physical LED output. */
 .home-preview.matrix-preview:not(.front-off) svg text.lit {font-weight:700;filter:drop-shadow(0 0 1px var(--front));}
+
+/* Settings sections: lightweight native controls, responsive and reduced-motion aware. */
+.settings-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0 20px}
+.settings-nav button{font:inherit;font-size:.9rem;padding:12px 5px;min-height:48px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);cursor:pointer;overflow-wrap:anywhere;transition:background .15s,border-color .15s}
+.settings-nav button[aria-pressed=true]{background:var(--selected);border-color:var(--accent);font-weight:600}
+.settings-section:not([hidden]){animation:settings-enter .18s ease-out}
+@keyframes settings-enter{from{opacity:.5;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.settings-save{display:flex;gap:8px;position:sticky;bottom:0;z-index:2;background:var(--panel);padding:8px 0;border-top:1px solid var(--border)}.settings-save button{flex:1;margin:0}
+.effect-demo{text-align:center;margin:12px 0 20px}.effect-demo .theme-preview{width:min(220px,85%);height:auto;aspect-ratio:1;margin:12px auto 18px}.theme-state{display:block;font-size:.78rem;color:var(--muted);margin-top:6px}.theme-card.active .theme-state{font-weight:600;color:var(--text)}
+@media(max-width:360px){.settings-nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(prefers-reduced-motion:reduce){.settings-section:not([hidden]){animation:none}.settings-nav button{transition:none}}
+
+.menu-description{color:var(--muted);font-size:.9rem;line-height:1.5;margin:8px 0 18px}
+#themeList .theme-preview{width:min(112px,90%);height:auto;aspect-ratio:1;margin:5px auto}.theme-effect-label{font-size:.75rem;color:var(--muted);line-height:1.4;min-height:2em}
+#themeList .theme-preview[data-rear-effect=breathing]{animation:tile-pulse var(--rear-period) ease-in-out infinite}
+#themeList .theme-preview[data-rear-effect=color-cycle],#themeList .theme-preview[data-rear-effect=rainbow]{animation:tile-colors var(--rear-period) linear infinite}
+#themeList .theme-preview[data-front-effect=breathing] .lit{animation:tile-front var(--front-period) ease-in-out infinite}
+@keyframes tile-pulse{0%,100%{box-shadow:0 0 15px var(--rear),0 0 5px var(--rear)}50%{box-shadow:0 0 3px var(--rear)}}
+@keyframes tile-colors{0%,100%{box-shadow:0 0 15px #ae64ff}20%{box-shadow:0 0 15px #ff6868}40%{box-shadow:0 0 15px #ffca55}60%{box-shadow:0 0 15px #55e5a7}80%{box-shadow:0 0 15px #559aff}}
+@keyframes tile-front{50%{opacity:.25}}
+@media(prefers-reduced-motion:reduce){#themeList .theme-preview,#themeList .theme-preview .lit{animation:none!important}}
+#rulesList{display:grid;gap:12px;margin:12px 0}.rule-card{border:1px solid var(--border);border-radius:8px;padding:14px}.rule-card p{margin:8px 0}.rule-buttons{display:flex;gap:8px;flex-wrap:wrap}.rule-buttons button{flex:1}#rulesAdd{width:100%}#rulesFields{border:1px solid var(--border);border-radius:8px;padding:14px;margin:18px 0;min-width:0;display:grid;gap:10px}#rulesFields label{display:block;font-size:.9rem}#rulesFields input:not([type=checkbox]),#rulesFields select{width:100%;box-sizing:border-box;background:var(--control);color:var(--text);border:1px solid var(--border);border-radius:6px;font:inherit;padding:10px;min-height:42px}#ruleEndRow,#ruleValueRow,#ruleCapRow,#ruleDateFields{display:grid;gap:8px}#ruleDays{display:flex;gap:8px;flex-wrap:wrap}#ruleDays label{display:flex;align-items:center;gap:4px;padding:7px;border:1px solid var(--border);border-radius:6px}

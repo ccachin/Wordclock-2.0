@@ -1,0 +1,5 @@
+# 3.4.1-dev — ergonomie et effets
+
+Six sections de réglages, navigation sans rechargement. Les thèmes restent sélectionnables, sans import/export ni menu Options. Les états de sélection manuelle ne prétendent pas représenter une automatisation active. Les confirmations de sauvegarde différée utilisent /api/system avec un nombre limité de lectures. L'aperçu local montre une simulation de la transition des mots, à 8 h 25, sans envoyer de commandes ; le test physique reste distinct. Les règles et animations possèdent leurs propres boutons enregistrer/annuler, les autres paramètres restent en sauvegarde automatique.
+
+Nouveaux identifiants 7–11 : dissolution, diagonale, scanner, étincelles, onde circulaire. Le format historique frontBehavior garde un fondu de repli pour les nouveaux effets, frontTransitionExtended conserve le choix exact. Les anciennes interfaces ne proposent pas les nouveaux effets ; les règles existantes restent limitées aux animations 1–6. Une recompilation du firmware est nécessaire. La fluidité physique et l'interface sur navigateur réel restent à vérifier. Le mode nuit et les limites existantes restent inchangés.

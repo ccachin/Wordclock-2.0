@@ -50,6 +50,12 @@ def main():
             subprocess.run([compiler,'-std=c++11','-Wall','-Wextra','-Werror','-I',str(ROOT/'include'),str(ROOT/'test/effects_native/test.cpp'),'-o',str(exe)],check=True)
             subprocess.run([str(exe)],check=True)
     else: print('SKIP native effects tests: host C++ compiler absent')
+    if compiler:
+        with tempfile.TemporaryDirectory() as tmp:
+            exe=Path(tmp)/'rules-test.exe'
+            subprocess.run([compiler,'-std=c++11','-Wall','-Wextra','-Werror','-I',str(ROOT/'include'),str(ROOT/'test/rules_native/test.cpp'),'-o',str(exe)],check=True)
+            subprocess.run([str(exe)],check=True)
+    else: print('SKIP native automation tests: host C++ compiler absent')
     if not a.host:return
     host=a.host.rstrip('/'); u=urlsplit(host)
     if u.scheme!='http' or not u.hostname or u.path or u.query or u.fragment or u.username: p.error('Use a local HTTP origin')
@@ -62,7 +68,7 @@ def main():
     before=api('/api/system'); assert before['webVersion']==meta['webVersion'],before
     if meta['firmwareVersion']: assert before['firmware']==meta['firmwareVersion'],before
     minheap=before['freeHeap']; minblock=before['maxFreeBlock']; prev=before['uptime']; failures=[]
-    endpoints=['/api/status','/api/theme','/api/themes?version=3','/api/device','/api/appearance','/api/night','/api/transitions','/api/clock','/api/wifi','/api/animations']
+    endpoints=['/api/status','/api/theme','/api/themes?version=3','/api/device','/api/appearance','/api/night','/api/transitions','/api/clock','/api/wifi','/api/animations','/api/automations']
     def asset(path):
         try: data,compressed=get(path)
         except Exception as e: raise RuntimeError(f'{path}: {e}') from e
@@ -79,11 +85,13 @@ def main():
                     assert isinstance(result['valid'],bool) and result['source'] in ('unknown','manual','ntp'),result
                     assert (bool(re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}',result['local'])) if result['valid'] else result['local']==''),result
                 if ep=='/api/wifi': assert isinstance(result['offlineAP'],bool),result
+                if ep=='/api/automations':
+                    assert result['version']==1 and re.fullmatch(r'[0-9a-f]{288}',result['rules']),result
                 if ep=='/api/animations':
                     assert isinstance(result['enabled'],bool) and isinstance(result['hourlyColor'],bool),result
-                    for key,lo,hi in [('transition',0,5),('chime',0,2),('spatial',0,2),('spatialSpeed',0,100),('intensity',0,100),('duration',1000,5000)]:
+                    for key,lo,hi in [('transition',0,11),('chime',0,2),('spatial',0,2),('spatialSpeed',0,100),('intensity',0,100),('duration',1000,5000)]:
                         assert type(result[key]) is int and lo<=result[key]<=hi,result
-                    assert result['duration']%100==0,result
+                    assert result['duration']%100==0 and result['transition']!=6,result
             state=api('/api/system'); assert state['uptime']>=prev,'Unexpected restart'; assert state['buildId']==before['buildId'],'Build changed'; assert state['webSlotGeneration']==before['webSlotGeneration'],'Slot changed'
             prev=state['uptime'];minheap=min(minheap,state['freeHeap']);minblock=min(minblock,state['maxFreeBlock']);print(f'PASS {i+1}/{a.repeat} RAM={state["freeHeap"]} max={state["maxFreeBlock"]}')
         except Exception as e: failures.append((i+1,str(e)));print(f'FAIL {i+1}/{a.repeat}: {e}')

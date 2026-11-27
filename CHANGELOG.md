@@ -1,3 +1,21 @@
+## 3.4.2-dev
+
+- Descriptions des menus, catalogue limité aux thèmes usine et aperçus animés indicatifs.
+- Programmation par cartes, ajout, modification et suppression, sans import/export. Firmware 3.4.1-dev inchangé.
+
+## 3.4.1-dev
+
+- Réglages en six sections, aperçu local animé, états de sauvegarde confirmés, annulation des brouillons.
+- Dissolution, diagonale, scanner, étincelles et onde circulaire ; fondu et enveloppes adoucis.
+
+## 3.4.0-dev
+
+- Bibliothèque locale simplifiée : sélection des thèmes uniquement, sans import/export ni menu Options.
+
+- Automatisations locales : 16 règles, plages horaires, jours et dates, thèmes usine, plafond de luminosité, animations ponctuelles.
+- Import/export JSON, stockage séparé avec contrôle d’intégrité et récupération.
+- Priorité au mode nuit et à l’arrêt manuel ; pas de service météo ni solaire dans cette version.
+
 ## 3.3.0-dev
 
 - Animations de façade : fondu, balayage, Matrix, apparition progressive, explosion, coucou lumineux.

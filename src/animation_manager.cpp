@@ -23,7 +23,7 @@ namespace AnimationManager
         return true;
     }
     bool startFrontEffect(FrontEffects::Kind kind, uint32_t now) {
-        if (!frontConfig.enabled || !frontConfig.intensity || kind <= FrontEffects::None || kind > FrontEffects::Cuckoo) return false;
+        if (!frontConfig.enabled || !frontConfig.intensity || kind <= FrontEffects::None || kind > FrontEffects::Circle) return false;
         running=kind; effectStart=now; ++revision; return true;
     }
     void cancelFrontEffect() { if (running != FrontEffects::None) { running=FrontEffects::None; ++revision; } }

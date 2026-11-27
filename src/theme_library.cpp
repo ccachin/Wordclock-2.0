@@ -94,14 +94,20 @@ namespace ThemeLibrary
             return applyResolvedTheme(entry.theme, id);
         }
 
-        for (const auto& record : FACTORY_THEMES) {
-            if (id != record.id) continue;
-            DynamicJsonDocument doc(768);
-            if (deserializeJson(doc, record.json)) return false;
-            JsonObject entry = doc.as<JsonObject>();
+        for (size_t i=0;i<factoryCount();++i) {
+            if (id != FACTORY_THEMES[i].id) continue;
+            ThemeManager::Theme theme = ThemeManager::getTheme();
+            if (!resolveFactory(i,theme)) return false;
+            return applyResolvedTheme(theme,id);
+        }
+        return false;
+    }
 
-            ThemeManager::Theme theme =
-                ThemeManager::getTheme();
+    bool resolveFactory(size_t index, ThemeManager::Theme& theme) {
+            if (index>=factoryCount()) return false;
+            DynamicJsonDocument doc(768);
+            if (deserializeJson(doc, FACTORY_THEMES[index].json)) return false;
+            JsonObject entry = doc.as<JsonObject>();
 
             CRGB front;
             CRGB rear;
@@ -142,10 +148,7 @@ namespace ThemeLibrary
             if (fs < 0 || fs > 100 || rs < 0 || rs > 100) return false;
             theme.frontAnimation.speed = fs;
             theme.rearAnimation.speed = rs;
-            return applyResolvedTheme(theme, id);
-        }
-
-        return false;
+            return true;
     }
 
 }

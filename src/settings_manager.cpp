@@ -292,6 +292,12 @@ namespace SettingsManager
         if (doc.containsKey("frontBehavior")) {
             if (!doc["frontBehavior"].is<uint32_t>() || !FrontEffects::unpack(doc["frontBehavior"].as<uint32_t>(),effects)) return false;
         }
+        // Keep the legacy packed setting readable by firmware 3.4.0.
+        if (doc.containsKey("frontTransitionExtended")) {
+            if (!doc["frontTransitionExtended"].is<uint8_t>()) return false;
+            effects.transition=doc["frontTransitionExtended"].as<uint8_t>();
+            if (!FrontEffects::valid(effects)) return false;
+        }
         if (effectsOut) *effectsOut=effects;
         if (deviceOut) *deviceOut = loadedDevice;
         if (faceOut) *faceOut = (uint32_t(face.r)<<16) | (uint32_t(face.g)<<8) | face.b;
@@ -465,7 +471,12 @@ namespace SettingsManager
         doc["nightBrightness"] = night.brightness;
         doc["nightMode"] = static_cast<uint8_t>(night.mode);
         doc["transitionDuration"] = TransitionManager::getDuration();
-        doc["frontBehavior"] = FrontEffects::pack(AnimationManager::frontSettings());
+        auto legacyEffects=AnimationManager::frontSettings();
+        if (legacyEffects.transition >= FrontEffects::Dissolve) {
+            doc["frontTransitionExtended"] = legacyEffects.transition;
+            legacyEffects.transition = FrontEffects::Fade;
+        }
+        doc["frontBehavior"] = FrontEffects::pack(legacyEffects);
         doc["front"] = front;
         doc["rear"] = rear;
         doc["brightness"] = theme.brightness;

@@ -149,6 +149,23 @@ async function request(url, options = {}) {
 // Messages
 // ======================================================
 
+// Confirm deferred persistence without continuous polling.
+async function confirmStored(element, label) {
+    const waiting=label+' — enregistrement en cours…';
+    element.textContent=waiting;
+    for(let i=0;i<6;i++) {
+        await new Promise(resolve=>setTimeout(resolve,700));
+        if(element.textContent!==waiting)return;
+        try {
+            const state=await request('/api/system');
+            if(element.textContent!==waiting)return;
+            if(state.saveFailed){element.textContent=label+' — sauvegarde en échec.';return;}
+            if(!state.savePending){element.textContent=label+' — enregistré.';return;}
+        } catch(e) { /* retry bounded read, never repeat write */ }
+    }
+    if(element.textContent===waiting)element.textContent=label+' — sauvegarde non confirmée.';
+}
+
 function showMessage(text, error = false) {
 
     message.textContent = text;
@@ -429,10 +446,8 @@ function updateActiveTheme() {
                 isActive
             );
 
-            button.setAttribute(
-                "aria-pressed",
-                String(isActive)
-            );
+            button.setAttribute("aria-pressed",String(isActive));
+            button.querySelector(".theme-state").textContent=isActive?"Sélection manuelle":"Activer";
         });
 }
 
@@ -445,7 +460,7 @@ function renderThemeLibrary() {
 
     themeList.replaceChildren();
 
-    for (const theme of themes) {
+    for (const theme of themes.filter(t=>!t.id.startsWith("custom-"))) {
 
         const button =
             document.createElement("button");
@@ -471,6 +486,13 @@ function renderThemeLibrary() {
         preview.style.setProperty('--rear', v.css(r.map(n=>n*(rl>0?0.45+0.55*Math.pow(rl,0.4):0))));
         if(rl === 0) preview.style.boxShadow = 'none';
         v.matrixPreview(preview);
+        const effectNames={solid:'Fixe',breathing:'Respiration', 'color-cycle':'Cycle de couleurs',rainbow:'Arc-en-ciel',chase:'Chenillard'};
+        preview.dataset.rearEffect=theme.rearEffect||'solid';
+        preview.dataset.frontEffect=theme.frontEffect||'solid';
+        preview.style.setProperty('--rear-period',`${30-0.29*(theme.rearSpeed??50)}s`);
+        preview.style.setProperty('--front-period',`${30-0.29*(theme.frontSpeed??50)}s`);
+        const effectLabel=document.createElement('span');effectLabel.className='theme-effect-label';effectLabel.textContent=theme.rearEffect==='solid'&&theme.frontEffect==='solid'?'Éclairage fixe':`Avant : ${effectNames[theme.frontEffect]||'Fixe'} · Arrière : ${effectNames[theme.rearEffect]||'Fixe'}`;
+
 
         const name =
             document.createElement("span");
@@ -505,8 +527,9 @@ function renderThemeLibrary() {
         button.append(
             preview,
             name,
-            colors
+            colors, effectLabel
         );
+        const state=document.createElement("span");state.className="theme-state";button.append(state);
 
         button.addEventListener(
             "click",
@@ -514,9 +537,7 @@ function renderThemeLibrary() {
         );
 
         const tile=document.createElement('div');tile.className='library-tile';
-        const more=document.createElement('button');more.type='button';more.className='library-action library-more';more.textContent='Options';more.setAttribute('aria-label','Options : '+theme.name);
-        more.addEventListener('click',()=>window.wordclockLibrary.open(theme.id));
-        tile.append(button,more);themeList.appendChild(tile);
+        tile.append(button);themeList.appendChild(tile);
     }
 
     updateActiveTheme();
@@ -638,9 +659,7 @@ function sendTheme() {
 
                 updateControls(data);
 
-                showMessage(
-                    "Réglages appliqués"
-                );
+                showMessage("Réglages appliqués"); void confirmStored(message,"Réglages appliqués");
             }
         })
 
@@ -671,13 +690,12 @@ function sendTheme() {
 function scheduleThemeUpdate() {
 
     revision++;
+    showMessage("Modification en cours — aperçu local");
     updateAnimationControls();
 
     updateBrightnessLabel();
 
     updateHarmonyControls();
-
-    updateActiveTheme();
 
     clearTimeout(themeTimer);
 
@@ -752,7 +770,7 @@ async function applyTheme(id) {
 
         updateControls(data);
 
-        showMessage("Thème appliqué");
+        showMessage("Thème appliqué"); void confirmStored(message,"Thème appliqué");
         return true;
 
     } catch (error) {
@@ -894,7 +912,7 @@ async function saveTransitions() {
     transitionBusy = true; updateTransitionUI();
     try {
         showTransition(await request("/api/transitions", {method:"POST", body:new URLSearchParams({duration:transitionEnabled.checked ? transitionDuration.value : "0"})}));
-        transitionMessage.textContent = "Réglage appliqué";
+        void confirmStored(transitionMessage,"Transition appliquée");
     } catch (e) {
         transitionMessage.textContent = "Échec de la modification";
         try { showTransition(await request("/api/transitions")); } catch (ignored) { setTimeout(loadTransitions, 3000); return; }
@@ -937,7 +955,7 @@ appearanceToggle.addEventListener('click',()=>{darkAppearance=!darkAppearance;se
  picker.addEventListener('input',()=>draft(picker.value));
  async function load(){try{const data=await request('/api/appearance');if(!/^#[0-9a-f]{6}$/i.test(data.faceColor))throw Error('Invalid color');apply(data.faceColor);fields.disabled=false;msg.textContent='';}catch(e){msg.textContent='Apparence indisponible. Nouvelle tentative…';setTimeout(load,3000);}}
  picker.addEventListener('change',saveFace);
- async function saveFace(){if(busy)return;busy=true;fields.disabled=true;try{const data=await request('/api/appearance',{method:'POST',body:new URLSearchParams({faceColor:picker.value})});apply(data.faceColor);msg.textContent='Couleur appliquée';}catch(e){draft(saved);msg.textContent='Échec de la modification';}finally{busy=false;fields.disabled=false;}}
+ async function saveFace(){if(busy)return;busy=true;fields.disabled=true;try{const data=await request('/api/appearance',{method:'POST',body:new URLSearchParams({faceColor:picker.value})});apply(data.faceColor);void confirmStored(msg,'Couleur appliquée');}catch(e){draft(saved);msg.textContent='Échec de la modification';}finally{busy=false;fields.disabled=false;}}
  function init(){
     try { window.WordclockStudioVisual.matrixPreview(sample); }
     catch (error) { console.error('Face preview initialization failed', error); }
@@ -1055,7 +1073,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Load only when settings are opened, not during initial HTTP startup.
 (() => {
     const el=id=>document.getElementById(id), fields=el('effectsFields'), message=el('effectsMessage');
-    let busy=false, loaded=false, dirty=false;
+    let busy=false, loaded=false, dirty=false, saved=null;
     const values=()=>({enabled:el('effectsEnabled').checked?1:0,hourlyColor:el('effectsHourly').checked?1:0,
         transition:el('effectsTransition').value,chime:el('effectsChime').value,spatial:el('effectsSpatial').value,spatialSpeed:el('effectsSpatialSpeed').value,
         duration:el('effectsDuration').value,intensity:el('effectsIntensity').value});
@@ -1067,7 +1085,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const show=a=>{
         el('effectsEnabled').checked=a.enabled;el('effectsHourly').checked=a.hourlyColor;
         for(const k of ['transition','chime','spatial','spatialSpeed','duration','intensity'])el('effects'+k[0].toUpperCase()+k.slice(1)).value=a[k];
-        labels();dirty=false;loaded=true;
+        labels();dirty=false;loaded=true;saved={...a};el("effectsState").textContent=a.enabled?"Animations activées dans la configuration":"Animations désactivées";el("effectsSave").disabled=true;el("effectsCancel").disabled=true;
     };
     async function run(work) {
         if(busy)return;busy=true;fields.disabled=true;
@@ -1075,11 +1093,78 @@ document.addEventListener('DOMContentLoaded', () => {
         finally{busy=false;fields.disabled=!loaded;}
     }
     function post(path,body){return request(path,{method:'POST',headers:{'X-Wordclock-Action':'animations'},body:new URLSearchParams(body)});}
-    el('settingsTab').addEventListener('click',()=>{if(!dirty)run(async()=>{show(await request('/api/animations'));message.textContent='';});});
-    for(const key of ['Enabled','Hourly','Transition','Chime','Spatial','SpatialSpeed','Duration','Intensity'])el('effects'+key).addEventListener('input',()=>{dirty=true;labels();message.textContent='Modifications non enregistrées.';});
-    el('effectsSave').addEventListener('click',()=>run(async()=>{show(await post('/api/animations',values()));message.textContent='Réglages appliqués.';}));
+    document.addEventListener('wordclock:settings-section',e=>{if(e.detail==='animations'&&!dirty)run(async()=>{show(await request('/api/animations'));message.textContent='';});});
+    for(const key of ['Enabled','Hourly','Transition','Chime','Spatial','SpatialSpeed','Duration','Intensity'])el('effects'+key).addEventListener('input',()=>{dirty=true;labels();el('effectsSave').disabled=false;el('effectsCancel').disabled=false;el('effectsState').textContent='Brouillon — non enregistré';message.textContent='Modifications non enregistrées.';});
+    el('effectsSave').addEventListener('click',()=>run(async()=>{show(await post('/api/animations',values()));void confirmStored(message,'Réglages appliqués');}));
+    el('effectsCancel').addEventListener('click',()=>{if(saved){show(saved);message.textContent='Modifications annulées.';}});
     el('effectsTest').addEventListener('click',()=>{
         if(dirty){message.textContent='Enregistre les réglages avant le test.';return;}
-        run(async()=>{await post('/api/animations/test',{kind:el('effectsTestKind').value});message.textContent='Animation lancée sur l’horloge.';});
+        run(async()=>{await post('/api/animations/test',{kind:el('effectsTestKind').value});message.textContent='Test temporaire accepté par l’horloge ; retour automatique à l’heure.';});
     });
 })();
+
+// Automation configuration is fetched only when Settings is opened.
+(() => {
+    const el=id=>document.getElementById(id), fields=el('rulesFields'), msg=el('rulesMessage');
+    const themes=['Warm White','Ocean','Sunset','Forest','Aurora','Ocean Pulse','Aurora Flow','Rainbow','Ember'];
+    const effects=['Fondu','Balayage','Matrix','Apparition progressive','Explosion lumineuse','Coucou'];
+    const keys=['start','end','days','month','day','action','value'];
+    let rules=null,selected=null,dirty=false,busy=false;
+    const list=el('rulesList'), add=el('rulesAdd');
+    const option=(text,value)=>{const o=document.createElement('option');o.textContent=text;o.value=value;return o;};
+    ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'].forEach((name,i)=>{const label=document.createElement('label'), input=document.createElement('input');input.type='checkbox';input.id='ruleDay'+i;label.append(input,document.createTextNode(name));el('ruleDays').append(label);});
+    function valid(r){if(!r||!keys.every(k=>Number.isInteger(r[k])))return false;const {start,end,days,month,day,action,value}=r;return start>=0&&start<1440&&end>=0&&end<1440&&days>=1&&days<=127&&month>=0&&month<=12&&day>=0&&day<=31&&(!month||!day||day<=[0,31,29,31,30,31,30,31,31,30,31,30,31][month])&&value>=0&&value<=255&&(action===0||(action===1&&value<9&&start!==end)||(action===2&&value<=100&&start!==end)||(action===3&&value>=1&&value<=6&&start===end));}
+    function validate(list){if(!Array.isArray(list)||list.length!==16||!list.every(valid))throw Error('Configuration invalide');return list.map(r=>Object.fromEntries(keys.map(k=>[k,r[k]])));}
+    function decode(hex){if(typeof hex!=='string'||!/^([0-9a-f]{18}){16}$/i.test(hex))throw Error('Réponse invalide');const bytes=hex.match(/../g).map(x=>parseInt(x,16));return validate(Array.from({length:16},(_,i)=>{const b=bytes.slice(i*9,i*9+9);return {start:b[0]+256*b[1],end:b[2]+256*b[3],days:b[4],month:b[5],day:b[6],action:b[7],value:b[8]};}));}
+    function encode(list){return validate(list).flatMap(r=>[r.start&255,r.start>>8,r.end&255,r.end>>8,r.days,r.month,r.day,r.action,r.value]).map(b=>b.toString(16).padStart(2,'0')).join('');}
+    function time(n){return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');}
+    function minute(id){const v=el(id).value;if(!/^\d{2}:\d{2}$/.test(v))throw Error('Heure invalide');const [h,m]=v.split(':').map(Number);return h*60+m;}
+    function actions(value){const action=Number(el('ruleAction').value);el('ruleEndRow').hidden=action===3;el('ruleValueRow').hidden=action===2;el('ruleCapRow').hidden=action!==2;el('ruleValue').replaceChildren(...(action===3?effects:themes).map((x,i)=>option(x,i+(action===3?1:0))));if(value!==undefined)el('ruleValue').value=value;}
+    const empty=()=>({start:1080,end:1320,days:127,month:0,day:0,action:0,value:0});
+    function daysText(days){return ({127:'Tous les jours',62:'En semaine',65:'Le week-end'})[days]||['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'].filter((_,i)=>days&(1<<i)).join(', ');}
+    function showList(){list.replaceChildren();if(!rules)return;let count=0;rules.forEach((r,i)=>{if(!r.action)return;count++;const card=document.createElement('article');card.className='rule-card';const title=document.createElement('strong');title.textContent=r.action===1?themes[r.value]:r.action===2?'Luminosité maximale : '+r.value+' %':effects[r.value-1];const detail=document.createElement('p');detail.className='muted';detail.textContent=(r.action===3?time(r.start):time(r.start)+' – '+time(r.end))+' · '+daysText(r.days)+(r.month?' · Mois '+r.month:'')+(r.day?' · Jour '+r.day:'');const buttons=document.createElement('div');buttons.className='rule-buttons';for(const [name,fn] of [['Modifier',()=>edit(i)],['Supprimer',()=>{if(confirm('Supprimer cette programmation ?'))run(()=>persist(rules.map((x,j)=>j===i?empty():x)));}]]){const b=document.createElement('button');b.type='button';b.className='action-button';b.textContent=name;b.disabled=busy||selected!==null;b.addEventListener('click',fn);buttons.append(b);}card.append(title,detail,buttons);list.append(card);});if(!count){const p=document.createElement('p');p.className='muted';p.textContent='Aucune programmation. Ajoutez par exemple une ambiance du soir.';list.append(p);}add.disabled=busy||selected!==null||rules.every(r=>r.action);}
+    function edit(i){if(busy||selected!==null)return;selected=i;const r=rules[i].action?rules[i]:{...empty(),action:1};el('ruleLegend').textContent=rules[i].action?'Modifier la programmation':'Nouvelle programmation';el('ruleAction').value=r.action;el('ruleStart').value=time(r.start);el('ruleEnd').value=time(r.end);el('ruleMonth').value=r.month;el('ruleDay').value=r.day;el('ruleCap').value=r.action===2?r.value:50;for(let j=0;j<7;j++)el('ruleDay'+j).checked=!!(r.days&(1<<j));el('rulePreset').value=[127,62,65].includes(r.days)?String(r.days):'custom';el('ruleDays').hidden=el('rulePreset').value!=='custom';el('ruleDateMode').value=r.month||r.day?'custom':'any';el('ruleDateFields').hidden=el('ruleDateMode').value==='any';actions(r.value);fields.hidden=false;fields.disabled=false;dirty=true;showList();msg.textContent='Brouillon — non enregistré.';}
+    function close(){selected=null;dirty=false;fields.hidden=true;showList();}
+    function capture(){const action=Number(el('ruleAction').value),start=minute('ruleStart');let days=0;for(let i=0;i<7;i++)if(el('ruleDay'+i).checked)days|=1<<i;const any=el('ruleDateMode').value==='any';const r={start,end:action===3?start:minute('ruleEnd'),days,month:any?0:Number(el('ruleMonth').value),day:any?0:Number(el('ruleDay').value),action,value:action===2?Number(el('ruleCap').value):Number(el('ruleValue').value)};if(!valid(r))throw Error('Vérifiez les jours, les dates et les heures (début et fin différents).');return r;}
+    async function run(work){if(busy)return;busy=true;fields.disabled=true;showList();try{await work();}catch(e){msg.textContent=e.message;}finally{busy=false;fields.disabled=!rules||selected===null;showList();}}
+    async function persist(next){const wire=encode(next);msg.textContent='Enregistrement en cours…';const r=await request('/api/automations',{method:'POST',headers:{'X-Wordclock-Action':'automations'},body:new URLSearchParams({rules:wire})});const saved=decode(r.rules);if(encode(saved)!==wire)throw Error('Enregistrement non confirmé.');rules=saved;close();msg.textContent='Programmations enregistrées.';}
+    document.addEventListener('wordclock:settings-section',e=>{if(e.detail==='rules'&&!dirty)run(async()=>{const r=await request('/api/automations');if(r.version!==1)throw Error('Version incompatible');rules=decode(r.rules);close();msg.textContent='';});});
+    add.addEventListener('click',()=>{if(rules)edit(rules.findIndex(r=>!r.action));});
+    el('ruleAction').addEventListener('change',()=>{actions();if(Number(el('ruleAction').value)!==3&&el('ruleStart').value&&el('ruleStart').value===el('ruleEnd').value)el('ruleEnd').value=time((minute('ruleStart')+60)%1440);});
+    el('rulePreset').addEventListener('change',()=>{const v=el('rulePreset').value;el('ruleDays').hidden=v!=='custom';if(v!=='custom')for(let i=0;i<7;i++)el('ruleDay'+i).checked=!!(Number(v)&(1<<i));});
+    el('ruleDateMode').addEventListener('change',()=>{el('ruleDateFields').hidden=el('ruleDateMode').value==='any';});
+    el('rulesSave').addEventListener('click',()=>run(async()=>{const r=capture();await persist(rules.map((x,i)=>i===selected?r:x));}));
+    el('rulesCancel').addEventListener('click',()=>{if(!busy){close();msg.textContent='Modifications annulées.';}});
+
+})();
+
+// Settings navigation, no additional API traffic for local previews.
+document.addEventListener('DOMContentLoaded',()=>{
+    const el=id=>document.getElementById(id), buttons=[...document.querySelectorAll('[data-settings]')];
+    let section='general';
+    function open(key){section=key;for(const b of buttons){const active=b.dataset.settings===key;b.setAttribute('aria-pressed',String(active));el('settings-'+b.dataset.settings).hidden=!active;}document.dispatchEvent(new CustomEvent('wordclock:settings-section',{detail:key}));}
+    buttons.forEach(b=>b.addEventListener('click',()=>open(b.dataset.settings)));
+    el('settingsTab').addEventListener('click',()=>open(section));
+    const v=window.WordclockStudioVisual, preview=el('effectPreview'), setTime=v.matrixPreview(preview,8,25), cells=[...preview.querySelectorAll('text')];
+    let start=performance.now(), last=0, lastFrame='';
+    const reset=()=>{start=performance.now();lastFrame='';};
+    document.addEventListener('wordclock:settings-section',e=>{if(e.detail==='animations')reset();});
+    el('effectReplay').addEventListener('click',reset);
+    el('effectsFields').addEventListener('input',reset);
+    function draw(now){
+        if(!document.hidden&&!el('settingsView').hidden&&section==='animations'&&now-last>33){
+            last=now;const select=el('effectsTransition'),kind=Number(select.value),duration=Number(el('effectsDuration').value)||2500, strength=Number(el('effectsIntensity').value)/100;
+            const t=Math.min(1,Math.max(0,(now-start)/duration)),p=t*255, wave=(d,w)=>Math.max(0,1-d/w), ease=x=>x*x*(3-2*x);
+            const frame=[kind,Math.round(p),strength,frontColor.value].join(':');if(frame===lastFrame){requestAnimationFrame(draw);return;}lastFrame=frame;
+            setTime(8,25);preview.style.setProperty('--front',frontColor.value);
+            el('effectPreviewName').textContent=select.selectedOptions[0]?.textContent+' — simulation locale, sans action sur l’horloge';
+            const envelope=ease(Math.min(1,t*8,(1-t)*8));
+            cells.forEach((c,i)=>{const x=i%11,y=Math.floor(i/11),r=Math.abs(x-5)+Math.abs(y-5),hash=(i*73+19)%117;let a=0,reveal=1;
+                if(i<117&&t<1){switch(kind){case 1:reveal=ease(t);break;case 2:a=wave(Math.abs(x*24-p),48);break;case 3:{const h=(Math.floor(p*13/256)+x*7)%14;a=h>=y&&h-y<3?(3-h+y)/3:0;break;}case 4:reveal=ease(Math.max(0,Math.min(1,(t*141-i)/24)));break;case 5:a=wave(Math.abs(r*24-p),48);break;case 7:reveal=ease(Math.max(0,Math.min(1,(t*141-hash)/24)));break;case 8:a=wave(Math.abs((x+y)*12-p),42);break;case 9:a=wave(Math.abs(x*24-(p<128?p*2:(255-p)*2)),34);break;case 10:a=wave(Math.abs(hash*17%256-p),18);break;case 11:a=wave(Math.abs(((x-5)**2+(y-5)**2)*5-p),48);break;}}
+                const lit=c.classList.contains('lit');c.style.fill=lit?frontColor.value:a>0?frontColor.value:'';c.style.opacity=lit?String(1-(1-reveal)*strength*.75):a>0?String(a*envelope*strength):'';
+            });
+        }
+        requestAnimationFrame(draw);
+    }
+    requestAnimationFrame(draw);
+});

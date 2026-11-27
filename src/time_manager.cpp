@@ -22,12 +22,15 @@ namespace TimeManager
         {"Asia/Tokyo", "JST-9"}
     };
     static const char *activeRule = zones[0].rule;
+    static uint32_t timeRevision=0;
+    uint32_t revision(){return timeRevision;}
     bool supportsTimezone(const String &zone) {
         for (const auto &entry : zones) if (zone == entry.name) return true;
         return false;
     }
     bool setTimezone(const String &zone) {
         for (const auto &entry : zones) if (zone == entry.name) {
+            if (activeRule != entry.rule) ++timeRevision;
             activeRule = entry.rule;
             setenv("TZ", activeRule, 1);
             tzset();
@@ -58,6 +61,7 @@ namespace TimeManager
         struct timeval tv{};
         tv.tv_sec = static_cast<time_t>(epoch);
         if (settimeofday(&tv, nullptr) != 0) return false;
+        ++timeRevision;
         timeSource = "manual";
         return true;
     }
@@ -67,7 +71,7 @@ namespace TimeManager
 
         setenv("TZ", activeRule, 1);
         tzset();
-        settimeofday_cb([](bool fromSntp) { if (fromSntp && isValid()) timeSource = "ntp"; });
+        settimeofday_cb([](bool fromSntp) { if (fromSntp && isValid()) { timeSource = "ntp"; ++timeRevision; } });
     }
 
     void startNtp()

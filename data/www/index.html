@@ -44,7 +44,7 @@
             <button id="themesTab" type="button" aria-pressed="false">Thèmes</button>
             <button id="settingsTab" type="button" aria-pressed="false">Réglages</button>
         </nav>
-        <div id="homeView">
+        <div id="homeView"><p class="menu-description">Consultez l’heure et ajustez rapidement la luminosité.</p>
         <section class="clock">
 
             <div id="time">
@@ -53,7 +53,7 @@
 
         </section>
 
-        <section class="panel"><div class="section-header"><h2>Ambiance active</h2><span id="homeTheme">Chargement…</span></div>
+        <section class="panel"><div class="section-header"><h2>Ambiance sélectionnée</h2><span id="homeTheme">Chargement…</span></div>
             <div class="home-preview" aria-hidden="true"></div>
             <button id="powerToggle" type="button" class="action-button" disabled>Éteindre</button>
             <div class="setting">
@@ -89,9 +89,7 @@
 
             </div>
 
-            <div class="night-actions"><button id="libraryImport" class="library-action primary" type="button">Importer un thème</button><button id="libraryBackup" type="button">Exporter mes thèmes</button><input id="libraryFile" type="file" accept=".json,application/json" hidden></div><p class="muted">Le Studio de création sera disponible séparément. Les thèmes JSON restent compatibles.</p>
-            <p id="libraryMessage" role="status" class="muted"></p>
-            <div id="themeList">
+            <p class="menu-description">Choisissez une ambiance lumineuse. Les vignettes illustrent les effets dans le navigateur.</p><div id="themeList">
 
                 <p class="muted">
                     Chargement des thèmes...
@@ -200,71 +198,7 @@
 
         </section>
         </div>
-        <div id="settingsView" hidden>
-        <h2 class="settings-group-title">Usage quotidien</h2>
-        <section class="panel" id="nightPanel">
-            <div class="section-header"><h2>Mode nuit</h2><span id="nightStatus" class="muted">Chargement…</span></div>
-            <form id="nightForm">
-                <fieldset id="nightFields" disabled>
-                    <div class="setting"><label for="nightEnabled">Activer le mode nuit</label><input type="checkbox" id="nightEnabled"></div>
-                    <div class="night-times">
-                        <label>Début<input type="time" id="nightStart" value="22:30" required></label>
-                        <label>Fin<input type="time" id="nightEnd" value="07:00" required></label>
-                    </div>
-                    <div class="animation-setting"><label for="nightMode">Comportement nocturne</label><select id="nightMode"><option value="0">Luminosité réduite</option><option value="1">Heure uniquement</option><option value="2">Extinction complète</option></select></div>
-                    <div id="nightBrightnessRow"><div class="setting"><label for="nightBrightness">Luminosité maximale</label><span id="nightBrightnessValue">5 %</span></div><input type="range" id="nightBrightness" min="1" max="255" value="13"></div>
-                    <p class="muted" id="nightHint"></p>
-                    <div class="night-actions"><button type="button" id="nightReset" class="action-button">Valeurs par défaut</button></div>
-                </fieldset>
-            </form>
-            <p id="nightMessage" class="muted" role="status"></p>
-        </section>
-
-        <h2 class="settings-group-title">Personnalisation</h2>
-        <section class="panel">
-            <h2>Apparence de l’horloge</h2>
-            <p class="muted">Adapte les aperçus à la couleur réelle de la façade. Les LED restent inchangées.</p>
-            <div id="faceSample" class="theme-preview" style="--front:#FFE1B4;--rear:transparent;margin:24px auto;width:140px;height:140px"></div>
-            <fieldset id="faceFields" disabled>
-                <div id="facePresets" class="face-presets"></div>
-                <div class="setting"><label for="facePicker">Couleur personnalisée</label><input type="color" id="facePicker" value="#151515"></div>
-                
-            </fieldset>
-            <p id="faceMessage" class="muted" role="status"></p>
-        </section>
-
-        <section class="panel">
-            <h2>Transitions entre les thèmes</h2>
-            <div class="setting"><label for="transitionEnabled">Activer les transitions</label><input type="checkbox" id="transitionEnabled" disabled></div>
-            <div class="setting"><label for="transitionDuration">Durée du fondu</label><span id="transitionValue">1,5 s</span></div>
-            <input type="range" id="transitionDuration" min="100" max="5000" step="100" value="1500" disabled>
-            <button type="button" id="transitionReset" disabled class="action-button">Rétablir les valeurs par défaut</button>
-            <p class="muted" id="transitionMessage" role="status"></p>
-        </section>
-
-        <section class="panel" id="effectsPanel">
-            <h2>Animations de l’horloge</h2>
-            <fieldset id="effectsFields" disabled>
-                <div class="setting"><label for="effectsEnabled">Activer les animations</label><input type="checkbox" id="effectsEnabled" checked></div>
-                <div class="animation-setting"><label for="effectsTransition">Transition des mots (toutes les cinq minutes)</label><select id="effectsTransition"><option value="0">Aucune</option><option value="1">Fondu</option><option value="2">Balayage</option><option value="3">Matrix</option><option value="4">Apparition progressive</option><option value="5">Explosion lumineuse</option></select></div>
-                <div class="animation-setting"><label for="effectsSpatial">Effet permanent sur les lettres</label><select id="effectsSpatial"><option value="0">Selon le thème</option><option value="1">Arc-en-ciel</option><option value="2">Chenillard</option></select></div>
-                <div class="setting"><label for="effectsSpatialSpeed">Vitesse de l’arc-en-ciel et du chenillard</label><span id="effectsSpatialSpeedValue">50 %</span></div><input type="range" id="effectsSpatialSpeed" min="0" max="100" value="50">
-                <div class="setting"><label for="effectsHourly">Palette différente chaque heure</label><input type="checkbox" id="effectsHourly"></div>
-                <div class="animation-setting"><label for="effectsChime">Coucou lumineux</label><select id="effectsChime"><option value="0">Désactivé</option><option value="1">Midi et minuit</option><option value="2">Chaque heure pleine</option></select></div>
-                <div class="setting"><label for="effectsDuration">Durée des effets ponctuels</label><span id="effectsDurationValue">2,5 s</span></div><input type="range" id="effectsDuration" min="1000" max="5000" step="100" value="2500">
-                <div class="setting"><label for="effectsIntensity">Intensité des effets ponctuels et de la palette horaire</label><span id="effectsIntensityValue">60 %</span></div><input type="range" id="effectsIntensity" min="0" max="100" value="60">
-                <button type="button" class="action-button" id="effectsSave">Enregistrer les animations</button>
-                <div class="animation-setting"><label for="effectsTestKind">Tester sur l’horloge</label><select id="effectsTestKind"><option value="1">Fondu</option><option value="2">Balayage</option><option value="3">Matrix</option><option value="4">Apparition progressive</option><option value="5">Explosion lumineuse</option><option value="6">Coucou</option></select></div>
-                <button type="button" class="action-button" id="effectsTest">Tester</button>
-            </fieldset>
-            <p class="muted">Les effets ponctuels, la palette horaire et les effets permanents supplémentaires sont suspendus en mode nuit. La vitesse de respiration et du cycle de couleurs reste celle du thème. L’aperçu à l’écran représente le thème, pas les effets physiques supplémentaires.</p>
-            <p class="muted" id="effectsMessage" role="status"></p>
-        </section>
-
-        <h2 class="settings-group-title">Configuration</h2>
-        <section class="panel" id="devicePanel"><h2>Mon horloge</h2><div class="device-fields"><label for="deviceName">Nom de votre horloge</label><input id="deviceName" type="text" maxlength="48" autocomplete="off" disabled><label for="deviceZone">Fuseau horaire</label><select id="deviceZone" disabled></select></div><p id="deviceSummary" role="status" aria-live="polite">Chargement…</p><button type="button" id="setupOpen" disabled class="action-button">Relancer la configuration</button></section>
-
-        <section class="panel" id="clockPanel">
+        <div id="settingsView" hidden><h2>Réglages</h2><p class="menu-description">Personnalisez le fonctionnement de votre horloge.</p><nav class="settings-nav" aria-label="Sections des réglages"><button type="button" data-settings="general" aria-pressed="true" aria-controls="settings-general">Général</button><button type="button" data-settings="appearance" aria-pressed="false" aria-controls="settings-appearance">Apparence</button><button type="button" data-settings="night" aria-pressed="false" aria-controls="settings-night">Mode nuit</button><button type="button" data-settings="animations" aria-pressed="false" aria-controls="settings-animations">Animations</button><button type="button" data-settings="rules" aria-pressed="false" aria-controls="settings-rules">Programmation</button><button type="button" data-settings="system" aria-pressed="false" aria-controls="settings-system">Système</button></nav><div class="settings-section" id="settings-general"><p class="menu-description">Configurez l’heure et la connexion de votre horloge.</p><section class="panel" id="devicePanel"><h2>Mon horloge</h2><div class="device-fields"><label for="deviceName">Nom de votre horloge</label><input id="deviceName" type="text" maxlength="48" autocomplete="off" disabled><label for="deviceZone">Fuseau horaire</label><select id="deviceZone" disabled></select></div><p id="deviceSummary" role="status" aria-live="polite">Chargement…</p><button type="button" id="setupOpen" disabled class="action-button">Relancer la configuration</button></section><section class="panel" id="clockPanel">
             <h2>Heure et date</h2>
             <p id="clockSource" class="muted" role="status">Chargement…</p>
             <button type="button" id="clockPhone" disabled class="action-button">Synchroniser avec cet appareil</button>
@@ -273,8 +207,7 @@
             <button type="button" id="clockApply" disabled class="action-button">Appliquer l’heure manuellement</button>
             <p class="muted">Internet permet une synchronisation automatique NTP. Sans Internet, l’heure reste valide tant que l’horloge est alimentée.</p>
             <p id="clockMessage" class="muted" role="status"></p>
-        </section>
-        <section class="panel">
+        </section><section class="panel">
             <h2>Connexion Wi-Fi</h2>
             <div class="setting"><span>Réseau actuel</span><strong id="wifiSsid">—</strong></div>
             <div class="setting"><span>Adresse IP</span><span id="wifiIp">—</span></div>
@@ -285,9 +218,7 @@
             <button type="button" id="wifiForget" disabled class="action-button action-danger">Oublier le réseau Wi-Fi</button>
             <p class="muted">Efface les identifiants Wi-Fi et redémarre. Les thèmes et réglages sont conservés.</p>
             <p id="wifiMessage" class="muted" role="status"></p>
-        </section>
-
-        <section class="panel" id="accessPanel">
+        </section><section class="panel" id="accessPanel">
             <h2>Accéder à mon horloge</h2>
             <p class="muted">Utilisez cette adresse depuis votre réseau domestique. L’adresse IP peut changer.</p>
             <label for="accessHost">Adresse locale recommandée</label>
@@ -304,11 +235,76 @@
             <select id="accessPlatform"><option value="android">Android</option><option value="ios">iPhone / iPad</option><option value="windows">Windows</option></select>
             <p id="accessHelp"></p>
             <p class="muted">Les options d’installation et l’icône dépendent du navigateur.</p>
-        </section>
+        </section></div><div class="settings-section" id="settings-appearance" hidden><p class="menu-description">Personnalisez le rendu visuel et les transitions entre thèmes.</p><section class="panel">
+            <h2>Apparence de l’horloge</h2>
+            <p class="muted">Adapte les aperçus à la couleur réelle de la façade. Les LED restent inchangées.</p>
+            <div id="faceSample" class="theme-preview" style="--front:#FFE1B4;--rear:transparent;margin:24px auto;width:140px;height:140px"></div>
+            <fieldset id="faceFields" disabled>
+                <div id="facePresets" class="face-presets"></div>
+                <div class="setting"><label for="facePicker">Couleur personnalisée</label><input type="color" id="facePicker" value="#151515"></div>
 
-        <h2 class="settings-group-title">Mises à jour</h2>
-        <section class="panel" id="updatesPanel">
-          <p id="updateInstalled" class="muted">Lecture des versions…</p>
+            </fieldset>
+            <p id="faceMessage" class="muted" role="status"></p>
+        </section><section class="panel">
+            <h2>Transitions entre les thèmes</h2>
+            <div class="setting"><label for="transitionEnabled">Activer les transitions</label><input type="checkbox" id="transitionEnabled" disabled></div>
+            <div class="setting"><label for="transitionDuration">Durée du fondu</label><span id="transitionValue">1,5 s</span></div>
+            <input type="range" id="transitionDuration" min="100" max="5000" step="100" value="1500" disabled>
+            <button type="button" id="transitionReset" disabled class="action-button">Rétablir les valeurs par défaut</button>
+            <p class="muted" id="transitionMessage" role="status"></p>
+        </section></div><div class="settings-section" id="settings-night" hidden><p class="menu-description">Adaptez automatiquement l’éclairage pendant la nuit.</p><section class="panel" id="nightPanel">
+            <div class="section-header"><h2>Mode nuit</h2><span id="nightStatus" class="muted">Chargement…</span></div>
+            <form id="nightForm">
+                <fieldset id="nightFields" disabled>
+                    <div class="setting"><label for="nightEnabled">Activer le mode nuit</label><input type="checkbox" id="nightEnabled"></div>
+                    <div class="night-times">
+                        <label>Début<input type="time" id="nightStart" value="22:30" required></label>
+                        <label>Fin<input type="time" id="nightEnd" value="07:00" required></label>
+                    </div>
+                    <div class="animation-setting"><label for="nightMode">Comportement nocturne</label><select id="nightMode"><option value="0">Luminosité réduite</option><option value="1">Heure uniquement</option><option value="2">Extinction complète</option></select></div>
+                    <div id="nightBrightnessRow"><div class="setting"><label for="nightBrightness">Luminosité maximale</label><span id="nightBrightnessValue">5 %</span></div><input type="range" id="nightBrightness" min="1" max="255" value="13"></div>
+                    <p class="muted" id="nightHint"></p>
+                    <div class="night-actions"><button type="button" id="nightReset" class="action-button">Valeurs par défaut</button></div>
+                </fieldset>
+            </form>
+            <p id="nightMessage" class="muted" role="status"></p>
+        </section></div><div class="settings-section" id="settings-animations" hidden><p class="menu-description">Donnez vie à votre horloge avec des effets lumineux.</p><section class="panel" id="effectsPanel">
+            <h2>Animations de l’horloge</h2><div class="effect-demo"><div id="effectPreview" class="theme-preview"></div><p id="effectPreviewName" class="muted">Simulation locale</p><button type="button" id="effectReplay" class="action-button">Rejouer l’aperçu</button></div><p id="effectsState" role="status">Lecture des réglages…</p>
+            <fieldset id="effectsFields" disabled>
+                <div class="setting"><label for="effectsEnabled">Activer les animations</label><input type="checkbox" id="effectsEnabled" checked></div>
+                <div class="animation-setting"><label for="effectsTransition">Transition des mots (toutes les cinq minutes)</label><select id="effectsTransition"><option value="0">Aucune</option><option value="1">Fondu</option><option value="2">Balayage</option><option value="3">Matrix</option><option value="4">Apparition progressive</option><option value="5">Explosion lumineuse</option><option value="7">Dissolution</option><option value="8">Vague diagonale</option><option value="9">Scanner</option><option value="10">Étincelles</option><option value="11">Onde circulaire</option></select></div>
+                <div class="animation-setting"><label for="effectsSpatial">Effet permanent sur les lettres</label><select id="effectsSpatial"><option value="0">Selon le thème</option><option value="1">Arc-en-ciel</option><option value="2">Chenillard</option></select></div>
+                <div class="setting"><label for="effectsSpatialSpeed">Vitesse de l’arc-en-ciel et du chenillard</label><span id="effectsSpatialSpeedValue">50 %</span></div><input type="range" id="effectsSpatialSpeed" min="0" max="100" value="50">
+                <div class="setting"><label for="effectsHourly">Palette différente chaque heure</label><input type="checkbox" id="effectsHourly"></div>
+                <div class="animation-setting"><label for="effectsChime">Coucou lumineux</label><select id="effectsChime"><option value="0">Désactivé</option><option value="1">Midi et minuit</option><option value="2">Chaque heure pleine</option></select></div>
+                <div class="setting"><label for="effectsDuration">Durée des effets ponctuels</label><span id="effectsDurationValue">2,5 s</span></div><input type="range" id="effectsDuration" min="1000" max="5000" step="100" value="2500">
+                <div class="setting"><label for="effectsIntensity">Intensité des effets ponctuels et de la palette horaire</label><span id="effectsIntensityValue">60 %</span></div><input type="range" id="effectsIntensity" min="0" max="100" value="60">
+                <div class="settings-save"><button type="button" class="action-button action-primary" id="effectsSave">Enregistrer les animations</button><button type="button" class="action-button" id="effectsCancel">Annuler</button></div>
+                <div class="animation-setting"><label for="effectsTestKind">Tester sur l’horloge</label><select id="effectsTestKind"><option value="1">Fondu</option><option value="2">Balayage</option><option value="3">Matrix</option><option value="4">Apparition progressive</option><option value="5">Explosion lumineuse</option><option value="6">Coucou</option><option value="7">Dissolution</option><option value="8">Vague diagonale</option><option value="9">Scanner</option><option value="10">Étincelles</option><option value="11">Onde circulaire</option></select></div>
+                <button type="button" class="action-button" id="effectsTest">Tester</button>
+            </fieldset>
+            <p class="muted">Les effets ponctuels, la palette horaire et les effets permanents supplémentaires sont suspendus en mode nuit. La vitesse de respiration et du cycle de couleurs reste celle du thème. L’aperçu local est une simulation ; le test physique utilise les réglages appliqués à l’horloge.</p>
+            <p class="muted" id="effectsMessage" role="status"></p>
+        </section></div><div class="settings-section" id="settings-rules" hidden><section class="panel" id="rulesPanel">
+            <h2>Programmation</h2>
+            <p class="menu-description">Faites évoluer votre horloge automatiquement selon les heures, les jours et les dates.</p>
+            <div id="rulesList"></div><button type="button" id="rulesAdd" class="action-button" disabled>+ Ajouter une programmation</button>
+            <fieldset id="rulesFields" hidden disabled>
+                <legend id="ruleLegend">Nouvelle programmation</legend>
+                <label for="ruleAction">Quoi ?</label><select id="ruleAction"><option value="1">Changer de thème</option><option value="2">Limiter la luminosité</option><option value="3">Jouer une animation</option></select>
+                <div id="ruleValueRow"><label for="ruleValue">Choisir</label><select id="ruleValue"></select></div>
+                <div id="ruleCapRow" hidden><label for="ruleCap">Luminosité maximale (%)</label><input id="ruleCap" type="number" min="0" max="100" value="50"></div>
+                <label for="ruleStart">Quand ? Heure de début ou de déclenchement</label><input id="ruleStart" type="time" value="12:00">
+                <div id="ruleEndRow"><label for="ruleEnd">Heure de fin</label><input id="ruleEnd" type="time" value="13:00"></div>
+                <label for="rulePreset">Quels jours ?</label><select id="rulePreset"><option value="127">Tous les jours</option><option value="62">En semaine</option><option value="65">Le week-end</option><option value="custom">Choisir les jours</option></select><div id="ruleDays"></div>
+                <label for="ruleDateMode">Date particulière</label><select id="ruleDateMode"><option value="any">Toute l’année</option><option value="custom">Limiter à un mois ou un jour</option></select>
+                <div id="ruleDateFields"><label for="ruleMonth">Mois (0 = tous)</label><input id="ruleMonth" type="number" min="0" max="12" value="0"><label for="ruleDay">Jour du mois (0 = tous)</label><input id="ruleDay" type="number" min="0" max="31" value="0"></div>
+                <div class="settings-save"><button type="button" id="rulesSave" class="action-button action-primary">Enregistrer</button><button type="button" id="rulesCancel" class="action-button">Annuler</button></div>
+            </fieldset>
+            <p class="muted">Le mode nuit reste prioritaire. En cas de chevauchement, la programmation la plus basse dans la liste l’emporte pour une même action.</p>
+            <p id="rulesMessage" class="muted" role="status"></p>
+        </section></div><div class="settings-section" id="settings-system" hidden><p class="menu-description">Gérez les mises à jour et la maintenance de votre horloge.</p><section class="panel" id="updatesPanel">
+          <h2>Mises à jour</h2><p id="updateInstalled" class="muted">Lecture des versions…</p>
           <p id="updateAvailable" class="muted"></p>
           <p id="updateStatus" role="status" aria-live="polite"></p>
           <details id="updateNotes" hidden><summary id="updateNotesTitle">Notes de version</summary><div id="updateNotesBody"></div></details>
@@ -325,28 +321,19 @@
             <button id="updateRollback" class="action-button" type="button">Restaurer l’interface précédente</button>
             <p><a href="/recovery">Page de secours</a></p>
           </details>
-        </section>
-        <h2 class="settings-group-title">Maintenance</h2>
-        <section class="panel maintenance-panel">
+        </section><section class="panel maintenance-panel">
           <button type="button" data-maintenance="info">Informations système <small>Firmware, réseau, mémoire et stockage.</small></button>
           <button type="button" data-maintenance="restart">Redémarrer l’horloge <small>Aucune donnée ne sera perdue.</small></button>
-        </section>
-        <h2 class="settings-group-title">Réinitialisation</h2>
-        <section class="panel maintenance-panel">
+        </section><section class="panel maintenance-panel">
           <button type="button" data-maintenance="reset-settings">Réinitialiser les réglages <small>Restaurer les réglages d’éclairage par défaut.</small></button>
           <button type="button" data-maintenance="factory-reset" class="maintenance-danger">Restaurer les paramètres d’usine <small>Effacer les données personnelles et recommencer l’installation.</small></button>
-        </section>
-        </div>
+        </section></div></div>
         <footer>
-            Wordclock 3.1
+            Wordclock 3.4.2
         </footer>
 
     </main>
 
-<dialog id="libraryDialog" aria-labelledby="libraryTitle"><div class="setup-inner">
-<h2 id="libraryTitle"></h2><div id="libraryActions"></div>
-
-<p id="libraryDialogMessage" role="status"></p><button class="library-action" id="libraryClose" type="button">Fermer</button></div></dialog>
 <dialog id="setupDialog" aria-labelledby="setupTitle">
  <div class="setup-inner">
  <p class="muted" id="setupProgress"></p><progress id="setupBar" max="4" value="1"></progress>

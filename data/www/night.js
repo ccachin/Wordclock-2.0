@@ -38,7 +38,7 @@
         clearTimeout(timer);
         const body=new URLSearchParams({enabled:enabled.checked?'1':'0',startMinute:String(toMinute(start.value)),endMinute:String(toMinute(end.value)),brightness:brightness.value,mode:mode.value});
         busy=true;fields.disabled=true;message("Envoi en cours…");
-        try { const n=await request({method:'POST',body});fill(n);status(n);dirty=false;message('Paramètres appliqués.'); }
+        try { const n=await request({method:'POST',body});fill(n);status(n);dirty=false;void confirmStored(el('nightMessage'),'Paramètres appliqués'); }
         catch(e){dirty=true;message('Échec de l’enregistrement : '+e.message,true);}
         finally {busy=false;fields.disabled=false;}
     }
