@@ -1,0 +1,72 @@
+{
+  "format": "wordclock-web",
+  "manifestVersion": 1,
+  "version": "3.5.2",
+  "compatibility": {
+    "webApiVersion": 1
+  },
+  "fileCount": 12,
+  "totalBytes": 194959,
+  "files": [
+    {
+      "path": "app.js",
+      "size": 97053,
+      "sha256": "74ae938e5a37553d6aeeb4ed56791ff6d9a451d0e5528655c0229c5189d2f6df"
+    },
+    {
+      "path": "community.js",
+      "size": 28782,
+      "sha256": "60a36deefc6d3dccc6566a6e3285333ffea02e41221ba513193b537e1bbf1e1e"
+    },
+    {
+      "path": "icon.svg",
+      "size": 5522,
+      "sha256": "83c1477f7356e29fc96fd3d268efe0eba02928b07d26bbd15f5193cdea931aec"
+    },
+    {
+      "path": "index.html",
+      "size": 30546,
+      "sha256": "cd687bd01dfd1c885a05e8fd3d88dc17253db00cd3a21ad5dec14a92351bf65d"
+    },
+    {
+      "path": "maintenance.js",
+      "size": 25,
+      "sha256": "bdadb5d654e13f2fedc232f80683094812854f314fe256569c397b248a1fddcc"
+    },
+    {
+      "path": "manifest.json",
+      "size": 310,
+      "sha256": "9845ce2d8f94bcf5bb342a523fdd62ad3abd7ff185f6b6adcfb1c66811f648f2"
+    },
+    {
+      "path": "night.js",
+      "size": 6039,
+      "sha256": "e4eb8ab548053b793070b3bee0ac083e2a21adcf3d5654b906f00622a49d4bc8"
+    },
+    {
+      "path": "setup.js",
+      "size": 25,
+      "sha256": "bdadb5d654e13f2fedc232f80683094812854f314fe256569c397b248a1fddcc"
+    },
+    {
+      "path": "studio-visual.js",
+      "size": 25,
+      "sha256": "bdadb5d654e13f2fedc232f80683094812854f314fe256569c397b248a1fddcc"
+    },
+    {
+      "path": "studio.js",
+      "size": 25,
+      "sha256": "bdadb5d654e13f2fedc232f80683094812854f314fe256569c397b248a1fddcc"
+    },
+    {
+      "path": "style.css",
+      "size": 26582,
+      "sha256": "43732ffa4ba1d3c2acdf604154438e97f5c1663a21493b4d84b4924669534d71"
+    },
+    {
+      "path": "theme-rules.js",
+      "size": 25,
+      "sha256": "bdadb5d654e13f2fedc232f80683094812854f314fe256569c397b248a1fddcc"
+    }
+  ]
+}
