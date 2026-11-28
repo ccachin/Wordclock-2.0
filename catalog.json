@@ -97,6 +97,12 @@
       "channel": "development",
       "manifest": "releases/3.5.2-dev/release.json",
       "sha256": "97145925ac0347d9fb998a6fe4e3334ec949286a3208f208b3bcd45d9c74cf25"
+    },
+    {
+      "version": "3.6.0-dev",
+      "channel": "development",
+      "manifest": "releases/3.6.0-dev/release.json",
+      "sha256": "591980863eb0b135d2781fc859e7abe5f529f81e7b86772d32e37407629ede83"
     }
   ]
 }
