@@ -736,3 +736,11 @@ select{background:var(--control)}.community-card{border-radius:6px}.studio-nav b
 .weather-preview.matrix-preview{width:min(220px,85%);background:var(--face-color,#151515);border-radius:4px;display:block;letter-spacing:0}
 .weather-preview.matrix-preview svg text.lit{font-weight:700;filter:drop-shadow(0 0 1px var(--front))}
 #weatherStatus{line-height:1.5;overflow-wrap:anywhere}
+
+/* Actual display state, not the selected theme. */
+#homeDisplayMode { font-size: 1rem; text-align:right; }
+#homeDisplayMode[data-active="true"] { color:var(--text,#242424); background:var(--border,#e2e2e2); border-radius:6px; padding:5px 9px; }
+#homeWeatherPanel[data-live-weather="true"] { border:2px solid #678aa8; }
+
+@media (prefers-reduced-motion: no-preference) { .home-preview { transition:box-shadow 450ms linear; } }
+#homeWeatherToggle[aria-pressed="true"] { background:var(--accent); color:var(--panel); border-color:var(--accent); font-weight:700; }

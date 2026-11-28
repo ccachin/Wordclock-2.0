@@ -21,6 +21,9 @@ extern "C" {
 #include <strings.h>
 
 #include "web_server.h"
+#include "render_manager.h"
+#include "leds.h"
+#include "config.h"
 #include "wifi_manager.h"
 #include "time_manager.h"
 #include "storage.h"
@@ -88,6 +91,40 @@ namespace WebServer
             code,
             "application/json",
             json);
+    }
+
+    // Read the existing LED buffer in the main loop. No persistent frame copy.
+    static void handleDisplayFrame() {
+        if (firmwareSessionActive() || FirmwareUpdate::active() || WebUpdateManager::active() || maintenancePending() || OTAManager::isUpdating()) {
+            sendJson(409, F("{\"error\":\"Display temporarily unavailable\"}")); return;
+        }
+        const auto& d=RenderManager::displayState();
+        if (!d.ready || ESP.getFreeHeap()<8000 || ESP.getMaxFreeBlockSize()<4000) {
+            sendJson(503, F("{\"error\":\"Display temporarily unavailable\"}")); return;
+        }
+        String json;
+        if (!json.reserve(1000)) { sendJson(503, F("{\"error\":\"Insufficient memory\"}")); return; }
+        json += F("{\"mode\":"); json += static_cast<unsigned>(d.mode);
+        json += F(",\"weather\":"); json += static_cast<unsigned>(d.weather);
+        json += F(",\"zone\":"); json += static_cast<unsigned>(d.zone);
+        json += F(",\"animated\":"); json += d.animated ? '1' : '0';
+        json += F(",\"capped\":"); json += d.capped ? '1' : '0';
+        json += F(",\"brightness\":"); json += static_cast<unsigned>(FastLED.getBrightness());
+        json += F(",\"temperature\":");
+        if (WeatherManager::valid()) json += WeatherManager::temperature(); else json += F("null");
+        json += F(",\"pixels\":\"");
+        const uint8_t level=FastLED.getBrightness();
+        for (uint16_t i=0;i<Config::TOTAL_LED_COUNT;++i) {
+            const CRGB c=Leds::getPixel(i);
+            const uint8_t channels[]={c.r,c.g,c.b};
+            for (uint8_t raw:channels) {
+                const uint8_t value=RenderManager::previewChannel(raw,level);
+                json += RenderManager::hexNibble(value>>4);
+                json += RenderManager::hexNibble(value&15);
+            }
+        }
+        json += F("\"}");
+        sendJson(200,json);
     }
 
     static void sendJsonDocument(int code, const JsonDocument& doc) {
@@ -1841,6 +1878,7 @@ namespace WebServer
         server.on("/api/night", HTTP_POST, handleSetNight);
         server.on("/api/transitions", HTTP_GET, handleGetTransitions);
         server.on("/api/transitions", HTTP_POST, handleSetTransitions);
+        server.on("/api/display", HTTP_GET, handleDisplayFrame);
         server.on("/api/weather", HTTP_GET, handleGetWeather);
         server.on("/api/weather", HTTP_POST, handleSetWeather);
         server.on("/api/automations", HTTP_GET, handleGetRules);

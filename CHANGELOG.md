@@ -1,3 +1,10 @@
+## 3.6.5-dev
+- Home preview reads the actual rendered RGB frame and effective display mode; show weather overrides, night and programming.
+- Sample animations only while home is visible, suspend during maintenance.
+
+## 3.6.4-dev (web only)
+- Simplify home screen labels and weather messages without changing controls or firmware.
+
 ## 3.6.3-dev (web only)
 - Minify packaged JavaScript and CSS with parser equivalence checks before gzip; retain readable sources and API-1 manifest.
 

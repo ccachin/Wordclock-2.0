@@ -31,6 +31,8 @@ namespace RenderManager
     // ==================================================
 
     static uint32_t lastFrameAt = 0;
+    static DisplayState displayed;
+    const DisplayState& displayState() { return displayed; }
 
     static uint32_t frontStartedAt = 0, rearStartedAt = 0;
     static AnimationManager::Animation previousFront, previousRear;
@@ -233,9 +235,14 @@ namespace RenderManager
         const bool maintenance = WebUpdateManager::active();
         const bool rulesAllowed = !nightActive && timeValid && !previewActive && !maintenance;
         AutomationManager::update(currentMillis,rulesAllowed && theme.brightness && theme.frontBrightness && effects.enabled);
-        const bool weatherFront=rulesAllowed && !AutomationManager::hasTheme() && WeatherManager::valid() && WeatherManager::config().intensity && WeatherManager::config().zone!=0;
-        WeatherManager::apply(theme,rulesAllowed && !AutomationManager::hasTheme());
+        const bool weatherAllowed=rulesAllowed && !AutomationManager::hasTheme();
+        const bool weatherApplied=weatherAllowed && WeatherManager::valid() && WeatherManager::config().intensity;
+        const bool weatherFront=weatherApplied && WeatherManager::config().zone!=0;
+        const bool programTheme=rulesAllowed && AutomationManager::hasTheme() && theme.brightness;
+        WeatherManager::apply(theme,weatherAllowed);
+        const uint8_t beforeCap=theme.brightness;
         AutomationManager::apply(theme,rulesAllowed);
+        const bool capped=theme.brightness<beforeCap;
         const uint32_t weatherRevision=WeatherManager::revision();
         const uint32_t ruleRevision=AutomationManager::revision();
         const bool allowed = effects.enabled && !nightActive && timeValid && !previewActive &&
@@ -431,6 +438,11 @@ namespace RenderManager
         }
 
         Leds::show();
+        const auto& weatherConfig=WeatherManager::config();
+        displayed=describeFrame(theme.brightness!=0,nightActive,timeValid,previewActive,
+            programTheme,weatherApplied,capped,weatherConfig.enabled,WeatherManager::valid(),
+            weatherConfig.intensity!=0,weatherConfig.zone,maintenance,
+            animationActive || overlayActive || waiting || TransitionManager::isActive() || statusActive);
 
         lastStatus = status;
 

@@ -1,0 +1,9 @@
+# 3.6.5-dev — aperçu de l'affichage courant
+
+- Accueil : affichage courant et mode effectif au-dessus de la grille, météo juste sous la grille, thème choisi séparé, puis commandes de luminosité.
+- `GET /api/display` (lecture seule, sans changement d'API-1) : mode et état météo de la dernière image rendue, 141 RGB hexadécimaux en ordre physique, intensité globale appliquée, température actuelle si disponible, indicateur de mouvement et de limitation programmée. Aucun deuxième buffer LED permanent.
+- Modes : 0 thème, 1 météo, 2 nuit, 3 programmation, 4 aperçu temporaire, 5 attente de l'heure, 6 éteinte. Météo : 0 désactivée, 1 appliquée, 2 données manquantes, 3 intensité nulle, 4 en pause. Une programmation de luminosité peut coexister avec la météo.
+- Échantillonnage à 600 ms si animé, 1500 ms sinon, uniquement sur l'accueil visible, avec une seule requête en cours par navigateur. Pas de requête pendant une mise à jour locale ; garde côté serveur en cas de maintenance ou de mémoire insuffisante. Après deux erreurs, aperçu explicitement indisponible ; reprise automatique.
+- L'écran applique une correction perceptuelle aux RGB et moyenne les cinq LED de chaque côté arrière. Il ne reproduit pas la photométrie réelle, le dithering FastLED ni chaque image d'une animation rapide.
+- En cas de retour à une ancienne interface, les anciens endpoints restent disponibles. Une nouvelle interface sur un ancien firmware indiquera que l'aperçu est indisponible ; installer firmware et web ensemble.
+- Tests : états natifs, encodage RGB, DOM simulé, validation live de la réponse. À confirmer sur matériel : changement de mode, trois zones météo, nuit, programmation, luminosités à zéro, transitions, navigation et stabilité mémoire avec l'accueil ouvert. Vérifier le chargement des mises à jour et les marges de stockage sans modifier les seuils existants.

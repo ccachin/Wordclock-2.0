@@ -44,6 +44,7 @@ def main():
         for f in (ROOT/'data/www').glob('*.js'): subprocess.run([node,'--check',str(f)],check=True)
         subprocess.run([node,'--check'],input=files['app.js'],check=True)
         print('PASS JavaScript syntax')
+        subprocess.run([node,str(ROOT/'tools/test_display_preview.cjs')],check=True)
     else: print('SKIP JavaScript syntax: Node.js absent')
     print('PASS release integrity, manifest, linked assets and gzip equivalents')
     compiler=shutil.which('g++') or shutil.which('clang++')
@@ -78,6 +79,12 @@ def main():
             subprocess.run([compiler,'-std=c++11','-Wall','-Wextra','-Werror','-I',str(ROOT/'include'),str(ROOT/'test/weather_http_native/test.cpp'),'-o',str(exe)],check=True)
             subprocess.run([str(exe)],check=True)
     else: print('SKIP native weather HTTP tests: host C++ compiler absent')
+    if compiler:
+        with tempfile.TemporaryDirectory() as tmp:
+            exe=Path(tmp)/'display-test.exe'
+            subprocess.run([compiler,'-std=c++11','-Wall','-Wextra','-Werror','-I',str(ROOT/'include'),str(ROOT/'test/display_native/test.cpp'),'-o',str(exe)],check=True)
+            subprocess.run([str(exe)],check=True)
+    else: print('SKIP native display tests: host C++ compiler absent')
     if not a.host:return
     host=a.host.rstrip('/'); u=urlsplit(host)
     if u.scheme!='http' or not u.hostname or u.path or u.query or u.fragment or u.username: p.error('Use a local HTTP origin')
@@ -100,6 +107,7 @@ def main():
         assert len(factory)==9 and factory==[t for t in full if not t['id'].startswith('custom-')],factory
         print('PASS live factory catalogue and full API compatibility')
     endpoints=['/api/status','/api/theme','/api/themes?version=3','/api/device','/api/appearance','/api/night','/api/transitions','/api/clock','/api/wifi','/api/animations','/api/automations','/api/weather']
+    if before['firmware']=='3.6.5-dev': endpoints.append('/api/display')
     def asset(path):
         try: data,compressed=get(path)
         except Exception as e: raise RuntimeError(f'{path}: {e}') from e
@@ -112,6 +120,12 @@ def main():
             for ep in endpoints:
                 try: result=api(ep)
                 except Exception as e: raise RuntimeError(f'{ep}: {e}') from e
+                if ep=='/api/display':
+                    assert re.fullmatch(r'[0-9a-f]{846}',result['pixels']),result
+                    for k,hi in [('mode',6),('weather',4),('zone',2),('animated',1),('capped',1),('brightness',255)]:
+                        assert type(result[k]) is int and 0<=result[k]<=hi,(k,result)
+                    assert result['temperature'] is None or type(result['temperature']) is int,result
+                    assert result['weather']!=1 or result['mode']==1,result
                 if ep=='/api/clock':
                     assert isinstance(result['valid'],bool) and result['source'] in ('unknown','manual','ntp'),result
                     assert (bool(re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}',result['local'])) if result['valid'] else result['local']==''),result

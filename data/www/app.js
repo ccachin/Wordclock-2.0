@@ -186,7 +186,6 @@ function tickLocalClock() {
     if (!clockAnchor) return;
     const sec=(clockAnchor.seconds+Math.floor((performance.now()-clockAnchor.at)/1000))%86400;
     const h=Math.floor(sec/3600),m=Math.floor(sec/60)%60;
-    homeTime=[h,m];
     timeElement.textContent=[h,m,sec%60].map(n=>String(n).padStart(2,'0')).join(':');
 }
 setInterval(tickLocalClock,1000);
@@ -202,8 +201,6 @@ async function updateStatus() {
                 ? data.time
                 : "--:--:--";
 
-        const match=data.timeValid&&/^(\d{2}):(\d{2})/.exec(data.time);
-        homeTime=match?[Number(match[1]),Number(match[2])]:[-1,-1];
         const full=data.timeValid&&/^(\d{2}):(\d{2}):(\d{2})$/.exec(data.time);
         clockAnchor=full?{seconds:Number(full[1])*3600+Number(full[2])*60+Number(full[3]),at:performance.now()}:null;
         statusElement.textContent =
@@ -221,7 +218,6 @@ async function updateStatus() {
             "var(--error)";
 
         clockAnchor=null;
-        homeTime=[-1,-1];
         timeElement.textContent =
             "--:--:--";
 
@@ -592,8 +588,7 @@ async function initialize() {
 
         showMessage(
 
-            "Impossible de charger les paramètres : " +
-            error.message,
+            "Impossible de charger les réglages. Nouvelle tentative en cours…",
 
             true
         );
@@ -668,7 +663,7 @@ function sendTheme() {
 
                 updateControls(data);
 
-                showMessage("Réglages appliqués"); void confirmStored(message,"Réglages appliqués");
+                showMessage("Réglages modifiés"); void confirmStored(message,"Réglages modifiés");
             }
         })
 
@@ -699,7 +694,7 @@ function sendTheme() {
 function scheduleThemeUpdate() {
 
     revision++;
-    showMessage("Modification en cours — aperçu local");
+    showMessage("Modification en cours…");
     updateAnimationControls();
 
     updateBrightnessLabel();
@@ -865,44 +860,57 @@ harmony.addEventListener(
 // Start
 // ======================================================
 
-let homeTime=[-1,-1], lastBrightness=8, nightPreview=null;
+let lastBrightness=8;
 try {const n=Number(localStorage.getItem('wordclock-last-brightness'));if(Number.isInteger(n)&&n>0&&n<=255)lastBrightness=n;}catch(e){}
 const powerToggle=document.getElementById('powerToggle');
 powerToggle.addEventListener('click',()=>{brightness.value=Number(brightness.value)?0:lastBrightness;scheduleThemeUpdate();});
-document.addEventListener('wordclock:night-status',e=>{nightPreview=e.detail;});
 // Defer initialization until all deferred scripts have executed.
 document.addEventListener('DOMContentLoaded',()=>{
     const v=window.WordclockStudioVisual, el=document.querySelector('.home-preview');
-    const setTime=v.matrixPreview(el,-1,-1);
-    let previous='', lastKey='', start=performance.now();
-    function draw(now){
-        if(!document.hidden&&!document.getElementById('homeView').hidden){
-            const key=homeTime.join(':');if(key!==previous){setTime(...homeTime);previous=key;}
-            const effectKey=[frontColor.value,rearColor.value,harmony.value,...Object.values(animationControls).flatMap(c=>[c.effect.value,c.speed.value])].join(':');
-            if(effectKey!==lastKey){start=now;lastKey=effectKey;}
-            let g=initialized?Number(brightness.value):0;
-            if(nightPreview?.active)g=nightPreview.mode===2?0:Math.min(g,nightPreview.brightness);
-            const screenLevel=n=>n>0?0.45+0.55*Math.pow(n,0.4):0;
-            const scale=(c,n)=>v.css(c.map(x=>x*screenLevel(n)));
-            const f=v.rgb(frontColor.value),r=v.rgb(harmony.value==='manual'?rearColor.value:effectiveRear);
-            const fc=v.effect(f,{...animationControls.front,start},now);
-            const rc=Array.from({length:20},(_,i)=>v.effect(r,{...animationControls.rear,start},now,i));
-            // Screen contrast is perceptual, not a linear LED power measurement.
-            const frontLevel=g/255*Number(frontBrightness)/100;
-            const peak=Math.max(...fc);
-            const perceptual=frontLevel>0&&peak>0 ? screenLevel(frontLevel) : 0;
-            const normalization=peak>0 ? Math.max(1,235/Math.max(...f,1)) : 1;
-            const displayFront=fc.map(x=>x*normalization*perceptual);
-            el.style.setProperty('--front',v.css(displayFront));
-            const rearScale=nightPreview?.active&&nightPreview.mode===1?0:g/255*Number(rearBrightness)/100;
-            const groups=Array.from({length:4},(_,side)=>{const a=rc.slice(side*5,side*5+5);return scale([0,1,2].map(k=>a.reduce((sum,c)=>sum+c[k],0)/5),rearScale);});
-            el.style.boxShadow=`0 12px 24px 4px ${groups[0]}, -12px 0 24px 4px ${groups[1]}, 0 -12px 24px 4px ${groups[2]}, 12px 0 24px 4px ${groups[3]}`;
-            el.classList.toggle('rear-off',rearScale===0);
-            el.classList.toggle('front-off',g===0||Number(frontBrightness)===0);
+    v.matrixPreview(el,-1,-1);
+    const cells=[...el.querySelectorAll('text')];
+    const mode=document.getElementById('homeDisplayMode'), note=document.getElementById('homePreviewNote');
+    const weatherStatus=document.getElementById('homeWeatherStatus');
+    const modes=['Thème choisi','Mode météo actif','Mode nuit','Programmation en cours','Aperçu temporaire','Mise à l’heure','Horloge éteinte'];
+    const notes=['Votre thème habituel est affiché.','Les couleurs suivent la météo.','Le mode nuit adapte la lumière.','Une programmation adapte votre horloge.','Un aperçu est affiché temporairement.','L’horloge attend de connaître l’heure.','La lumière de l’horloge est éteinte.'];
+    const weatherNotes=['La météo est désactivée.','La météo adapte les couleurs.','La météo est activée. En attente des données.','La météo est activée, mais son intensité est à 0 %.','La météo est activée, mais ne modifie pas l’affichage pour le moment.'];
+    const zones=['à l’arrière','à l’avant','sur les deux faces'];
+    let failures=0;
+    function paint(d){
+        if(!Number.isInteger(d.mode)||!modes[d.mode]||!Number.isInteger(d.weather)||!weatherNotes[d.weather]||!Number.isInteger(d.zone)||!zones[d.zone]||!(/^[0-9a-f]{846}$/.test(d.pixels)))throw Error('Affichage indisponible');
+        // Show the device's RGB values with a screen gamma adjustment; no browser priority calculation.
+        const colors=d.pixels.match(/.{6}/g).map(h=>v.rgb('#'+h));
+        const screen=c=>v.css(c.map(n=>255*Math.pow(n/255,0.42)));
+        for(let i=0;i<121;i++){
+            const lit=colors[i].some(Boolean),cell=cells[i];
+            cell.classList.toggle('lit',lit);
+            cell.style.fill=lit?screen(colors[i]):'';
+            cell.style.filter=lit?'drop-shadow(0 0 1px '+screen(colors[i])+')':'';
         }
-        setTimeout(()=>requestAnimationFrame(draw),50);
+        const sides=Array.from({length:4},(_,i)=>screen([0,1,2].map(k=>colors.slice(121+i*5,126+i*5).reduce((a,c)=>a+c[k],0)/5)));
+        el.classList.remove('front-off','rear-off');
+        el.style.boxShadow=`0 12px 24px 4px ${sides[0]}, -12px 0 24px 4px ${sides[1]}, 0 -12px 24px 4px ${sides[2]}, 12px 0 24px 4px ${sides[3]}`;
+        if(colors.slice(121).every(c=>!c.some(Boolean)))el.classList.add('rear-off');
+        const label=modes[d.mode];
+        mode.textContent=label;
+        mode.dataset.active=String(d.mode===1||d.mode===2||d.mode===3);
+        note.textContent=(d.mode===1?'Les couleurs suivent la météo '+zones[d.zone]+'.':notes[d.mode])+(d.capped?' Luminosité limitée par une programmation.':'');
+        weatherStatus.textContent=(d.weather===1?'La météo adapte les couleurs '+zones[d.zone]+'.':d.weather===4&&d.mode===2?'Activée, en pause pendant le mode nuit.':d.weather===4&&d.mode===3?'Activée, en pause pendant la programmation.':weatherNotes[d.weather])+(d.weather!==0&&Number.isInteger(d.temperature)?' · '+(d.temperature/10).toLocaleString('fr-CH',{minimumFractionDigits:1,maximumFractionDigits:1})+' °C':'');
+        document.getElementById('homeWeatherPanel').dataset.liveWeather=String(d.weather===1);
     }
-    requestAnimationFrame(draw);updateStatus();initialize();
+    async function poll(){
+        let delay=1500;
+        try{
+            if(!document.hidden&&!document.getElementById('homeView').hidden&&!window.WordclockLocal.busy){
+                const d=await request('/api/display',{signal:AbortSignal.timeout(3000)});
+                if(!window.WordclockLocal.busy&&!document.getElementById('homeView').hidden){paint(d);failures=0;delay=d.animated?600:1500;}
+            }
+        }catch(e){
+            if(++failures>=2){mode.textContent='Aperçu indisponible';mode.dataset.active='false';note.textContent='Impossible de lire l’affichage actuel. Nouvelle tentative automatique.';weatherStatus.textContent='État de l’affichage momentanément indisponible.';document.getElementById('homeWeatherPanel').dataset.liveWeather='false';cells.forEach(c=>{c.classList.remove('lit');c.style.fill='';c.style.filter='';});el.classList.add('rear-off');}
+            delay=3000;
+        }finally{setTimeout(poll,delay);}
+    }
+    setTimeout(poll,1200);updateStatus();initialize();
 });
 
 const transitionEnabled = document.getElementById("transitionEnabled");
@@ -1192,16 +1200,14 @@ document.addEventListener('DOMContentLoaded',()=>{
 (()=>{const el=id=>document.getElementById(id),fields=el('weatherFields'),msg=el('weatherMessage');let saved=null,dirty=false,busy=false;const homeToggle=el('homeWeatherToggle'),homeStatus=el('homeWeatherStatus');let homeError='';const keys=['Lat','Lon','Enabled','Forecast','Zone','Intensity'];let places=[],chosen=null,searchId=0;const city=el('weatherCity'),results=el('weatherResults'),searchStatus=el('weatherSearchStatus');const labelPlace=p=>[p.name,p.admin1,p.country].filter(Boolean).join(' — ');async function searchCity(){const q=city.value.trim(),id=++searchId;results.hidden=true;places=[];if(q.length<2){searchStatus.textContent='Saisissez au moins deux caractères.';return;}searchStatus.textContent='Recherche…';try{const u=new URL('https://geocoding-api.open-meteo.com/v1/search');u.search=new URLSearchParams({name:q,count:10,language:'fr',format:'json'});const r=await fetch(u,{signal:AbortSignal.timeout(10000),credentials:'omit',referrerPolicy:'no-referrer'});if(!r.ok)throw Error('HTTP '+r.status);const d=await r.json();if(id!==searchId)return;places=(d.results||[]).filter(p=>typeof p.name==='string'&&Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)&&Math.abs(p.latitude)<=90&&Math.abs(p.longitude)<=180);results.replaceChildren(new Option('Choisir une localité…',''));places.forEach((p,i)=>results.add(new Option(labelPlace(p),String(i))));results.hidden=!places.length;searchStatus.textContent=places.length?'Sélectionnez votre localité.':'Aucun résultat. Essayez une ville proche.';}catch(e){if(id===searchId)searchStatus.textContent='Recherche indisponible. Vous pouvez saisir les coordonnées manuellement.';}}el('weatherSearch').addEventListener('click',searchCity);city.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();searchCity();}});city.addEventListener('input',()=>{++searchId;results.hidden=true;searchStatus.textContent='';});results.addEventListener('change',()=>{if(results.value==='')return;const p=places[Number(results.value)];if(!p)return;el('weatherLat').value=p.latitude.toFixed(5);el('weatherLon').value=p.longitude.toFixed(5);chosen={name:labelPlace(p),lat:Math.round(p.latitude*100000),lon:Math.round(p.longitude*100000)};city.value=chosen.name;results.hidden=true;searchStatus.textContent='Coordonnées remplies. Enregistrez pour appliquer.';dirty=true;msg.textContent='Modifications non enregistrées.';});const front=['#ffe8ae','#e2e8f0','#a5dcff','#ded1ff','#ffffff','#dddeda','#d5dfff'],rear=['#ed9b29','#64748b','#2266df','#7036ba','#8dddf7','#909b9e','#293d86'];document.addEventListener('DOMContentLoaded',()=>{window.WordclockStudioVisual.matrixPreview(el('weatherPreview'),8,25);preview();},{once:true});function preview(){const p=Number(el('weatherDemo').value),v=el('weatherPreview'),z=Number(el('weatherZone').value),a=Number(el('weatherIntensity').value);const visual=window.WordclockStudioVisual;const f=frontColor.value||'#ffe8ae',r=(harmony.value==='manual'?rearColor.value:effectiveRear)||'#64748b';const blend=(base,hex,amount)=>visual.css(visual.rgb(base).map((n,i)=>n+(visual.rgb(hex)[i]-n)*amount/100));v.style.setProperty('--front',blend(f,front[p],z===0?0:a));v.style.setProperty('--weather-rear',blend(r,rear[p],z===1?0:a));v.dataset.motion=String(z!==1&&a>0&&p>=2&&p<=5);el('weatherLevel').textContent=a+' %';}function homeState(d){
     homeToggle.setAttribute('aria-pressed',String(!!d.enabled));
     homeToggle.textContent=d.enabled?'Activé':'Désactivé';
-    let note=!d.enabled?'Mode météo désactivé — thème manuel, sauf mode prioritaire.':!d.valid?'Mode activé — données indisponibles, thème habituel.':!d.intensity?'Mode activé — intensité à 0 %, aucune modification météo.':('Mode activé — couleurs météo '+(['à l’arrière','à l’avant','sur les deux faces'][d.zone]||'')+' lorsque les modes prioritaires sont inactifs.');
-    if(d.enabled&&d.valid)note+=' '+(d.temperature/10).toFixed(1)+' °C.';
-    homeStatus.textContent=homeError||note;
-}function status(d){homeState(d);const labels={disabled:'Mode désactivé',waiting:'En attente de données',ok:'Données reçues',memory:'Mémoire insuffisante',network:'Connexion indisponible',response:'Réponse invalide',connect:'Connexion impossible',send:'Envoi incomplet',header:'En-tête incomplet', 'header-limit':'En-tête trop long','http-code':'Code HTTP inattendu','body-limit':'Réponse trop volumineuse',encoding:'Encodage inattendu','body-timeout':'Réception interrompue','body-empty':'Réponse vide',json:'JSON invalide','json-empty':'Réponse JSON vide','json-incomplete':'Réponse JSON incomplète','json-memory':'Mémoire de décodage insuffisante','json-depth':'JSON trop imbriqué',fields:'Champs manquants',timestamp:'Date météo incohérente',forecast:'Prévision indisponible',range:'Valeurs invalides',expired:'Données expirées'};el('weatherStatus').textContent=(d.valid&&d.status!=='ok'?'Dernières données valides conservées — '+(labels[d.status]||'État inconnu'):(labels[d.status]||'État inconnu'))+(d.valid?' · '+(d.code>=95?'Orage':[71,73,75,77,85,86].includes(d.code)?'Neige':[45,48].includes(d.code)?'Brouillard':d.code>=51?'Pluie':d.code>=2?'Nuageux':d.day?'Dégagé':'Nuit dégagée')+' · '+(d.temperature/10).toFixed(1)+' °C (actuel) · il y a '+Math.floor(d.age/60)+' min':' · thème habituel');}function show(d){saved=d;status(d);++searchId;results.hidden=true;searchStatus.textContent='';chosen=null;city.value='';try{const p=JSON.parse(localStorage.getItem('wordclock.weather.place')||'null');if(p&&p.lat===d.lat&&p.lon===d.lon&&typeof p.name==='string'){chosen=p;city.value=p.name;}}catch(e){}el('weatherLat').value=d.lat/100000;el('weatherLon').value=d.lon/100000;el('weatherEnabled').checked=!!d.enabled;for(const k of ['Forecast','Zone','Intensity'])el('weather'+k).value=d[k.toLowerCase()];dirty=false;preview();}async function run(fn){if(busy)return;busy=true;fields.disabled=true;homeToggle.disabled=true;try{await fn();}catch(e){msg.textContent='Action non confirmée : '+e.message;}finally{busy=false;fields.disabled=!saved;homeToggle.disabled=!saved;}}const post=body=>request('/api/weather',{method:'POST',headers:{'X-Wordclock-Action':'weather'},body:new URLSearchParams(body)});function load(){run(async()=>{show(await request('/api/weather'));msg.textContent='';});}document.addEventListener('wordclock:settings-section',e=>{if(e.detail==='weather'&&!dirty)load();});for(const k of keys)el('weather'+k).addEventListener('input',()=>{dirty=true;preview();msg.textContent='Modifications non enregistrées.';});el('weatherDemo').addEventListener('change',preview);el('weatherCancel').addEventListener('click',()=>{if(saved)show(saved);msg.textContent='Modifications annulées.';});el('weatherSave').addEventListener('click',()=>run(async()=>{const lat=el('weatherLat'),lon=el('weatherLon');if(!lat.value||!lon.value||!lat.checkValidity()||!lon.checkValidity())throw Error('Coordonnées invalides');const data={lat:Math.round(Number(lat.value)*100000),lon:Math.round(Number(lon.value)*100000),enabled:el('weatherEnabled').checked?1:0,forecast:Number(el('weatherForecast').value),zone:Number(el('weatherZone').value),intensity:Number(el('weatherIntensity').value)};const d=await post(data);if(!Object.keys(data).every(k=>d[k]===data[k]))throw Error('Sauvegarde non confirmée');try{if(chosen&&chosen.lat===data.lat&&chosen.lon===data.lon)localStorage.setItem('wordclock.weather.place',JSON.stringify(chosen));else localStorage.removeItem('wordclock.weather.place');}catch(e){}show(d);msg.textContent='Réglages enregistrés.';}));el('weatherRefresh').addEventListener('click',()=>run(async()=>{if(dirty)throw Error('Enregistrez ou annulez les modifications');if(!saved.enabled)throw Error('Activez le mode météo');status(await post({refresh:1}));msg.textContent='Actualisation demandée. Le résultat sera affiché automatiquement.';}));function pollHome(){if(busy||document.hidden||window.WordclockLocal.busy||el('homeView').hidden)return;run(async()=>{try{const d=await request('/api/weather');homeError='';if(!dirty)show(d);else{saved=d;status(d);}}catch(e){homeError='État météo indisponible — réessayez.';homeStatus.textContent=homeError;throw e;}});}
+    if(homeError)homeStatus.textContent=homeError; // Live display state owns ordinary home messages.
+}function status(d){homeState(d);const labels={disabled:'Mode désactivé',waiting:'En attente de données',ok:'Données reçues',memory:'Mémoire insuffisante',network:'Connexion indisponible',response:'Réponse invalide',connect:'Connexion impossible',send:'Envoi incomplet',header:'En-tête incomplet', 'header-limit':'En-tête trop long','http-code':'Code HTTP inattendu','body-limit':'Réponse trop volumineuse',encoding:'Encodage inattendu','body-timeout':'Réception interrompue','body-empty':'Réponse vide',json:'JSON invalide','json-empty':'Réponse JSON vide','json-incomplete':'Réponse JSON incomplète','json-memory':'Mémoire de décodage insuffisante','json-depth':'JSON trop imbriqué',fields:'Champs manquants',timestamp:'Date météo incohérente',forecast:'Prévision indisponible',range:'Valeurs invalides',expired:'Données expirées'};el('weatherStatus').textContent=(d.valid&&d.status!=='ok'?'Dernières données valides conservées — '+(labels[d.status]||'État inconnu'):(labels[d.status]||'État inconnu'))+(d.valid?' · '+(d.code>=95?'Orage':[71,73,75,77,85,86].includes(d.code)?'Neige':[45,48].includes(d.code)?'Brouillard':d.code>=51?'Pluie':d.code>=2?'Nuageux':d.day?'Dégagé':'Nuit dégagée')+' · '+(d.temperature/10).toFixed(1)+' °C (actuel) · il y a '+Math.floor(d.age/60)+' min':' · thème habituel');}function show(d){saved=d;status(d);++searchId;results.hidden=true;searchStatus.textContent='';chosen=null;city.value='';try{const p=JSON.parse(localStorage.getItem('wordclock.weather.place')||'null');if(p&&p.lat===d.lat&&p.lon===d.lon&&typeof p.name==='string'){chosen=p;city.value=p.name;}}catch(e){}el('weatherLat').value=d.lat/100000;el('weatherLon').value=d.lon/100000;el('weatherEnabled').checked=!!d.enabled;for(const k of ['Forecast','Zone','Intensity'])el('weather'+k).value=d[k.toLowerCase()];dirty=false;preview();}async function run(fn){if(busy)return;busy=true;fields.disabled=true;homeToggle.disabled=true;try{await fn();}catch(e){msg.textContent='Action non confirmée : '+e.message;}finally{busy=false;fields.disabled=!saved;homeToggle.disabled=!saved;}}const post=body=>request('/api/weather',{method:'POST',headers:{'X-Wordclock-Action':'weather'},body:new URLSearchParams(body)});function load(){run(async()=>{show(await request('/api/weather'));msg.textContent='';});}document.addEventListener('wordclock:settings-section',e=>{if(e.detail==='weather'&&!dirty)load();});for(const k of keys)el('weather'+k).addEventListener('input',()=>{dirty=true;preview();msg.textContent='Modifications non enregistrées.';});el('weatherDemo').addEventListener('change',preview);el('weatherCancel').addEventListener('click',()=>{if(saved)show(saved);msg.textContent='Modifications annulées.';});el('weatherSave').addEventListener('click',()=>run(async()=>{const lat=el('weatherLat'),lon=el('weatherLon');if(!lat.value||!lon.value||!lat.checkValidity()||!lon.checkValidity())throw Error('Coordonnées invalides');const data={lat:Math.round(Number(lat.value)*100000),lon:Math.round(Number(lon.value)*100000),enabled:el('weatherEnabled').checked?1:0,forecast:Number(el('weatherForecast').value),zone:Number(el('weatherZone').value),intensity:Number(el('weatherIntensity').value)};const d=await post(data);if(!Object.keys(data).every(k=>d[k]===data[k]))throw Error('Sauvegarde non confirmée');try{if(chosen&&chosen.lat===data.lat&&chosen.lon===data.lon)localStorage.setItem('wordclock.weather.place',JSON.stringify(chosen));else localStorage.removeItem('wordclock.weather.place');}catch(e){}show(d);msg.textContent='Réglages enregistrés.';}));el('weatherRefresh').addEventListener('click',()=>run(async()=>{if(dirty)throw Error('Enregistrez ou annulez les modifications');if(!saved.enabled)throw Error('Activez le mode météo');status(await post({refresh:1}));msg.textContent='Actualisation demandée. Le résultat sera affiché automatiquement.';}));function pollHome(){if(busy||document.hidden||window.WordclockLocal.busy||el('homeView').hidden)return;run(async()=>{try{const d=await request('/api/weather');homeError='';if(!dirty)show(d);else{saved=d;status(d);}}catch(e){homeError='Impossible de vérifier la météo. Réessayez dans un instant.';homeStatus.textContent=homeError;throw e;}});}
     homeToggle.addEventListener('click',()=>run(async()=>{try{
         homeError='';const before=await request('/api/weather');
         const data={lat:before.lat,lon:before.lon,enabled:before.enabled?0:1,forecast:before.forecast,zone:before.zone,intensity:before.intensity};
         const d=await post(data);if(!Object.keys(data).every(k=>d[k]===data[k]))throw Error('Modification non confirmée');
         if(dirty){saved=d;el('weatherEnabled').checked=!!d.enabled;status(d);}else show(d);
-    }catch(e){homeError='Action météo non confirmée : '+e.message;homeStatus.textContent=homeError;throw e;}}));
+    }catch(e){homeError='Impossible de confirmer le changement. Réessayez.';homeStatus.textContent=homeError;throw e;}}));
     el('homeWeatherSettings').addEventListener('click',()=>{el('settingsTab').click();document.querySelector('[data-settings="weather"]').click();});
     el('homeTab').addEventListener('click',()=>setTimeout(pollHome,0));
     setTimeout(pollHome,1500);
