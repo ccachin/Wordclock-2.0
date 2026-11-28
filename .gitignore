@@ -21,3 +21,5 @@ __pycache__/
 /firmware_sections.txt
 /firmware_symbols.txt
 /wordclock_memory_audit.zip
+
+/tools/node_modules/

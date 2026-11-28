@@ -1,0 +1,9 @@
+{
+  "name": "wordclock-build-tools",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "acorn": "8.15.0",
+    "postcss": "8.5.34"
+  }
+}

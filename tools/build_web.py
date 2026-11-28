@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 import gzip
 import shutil
+import subprocess
 
 BUNDLE = ('app.js', 'night.js', 'theme-rules.js', 'studio-visual.js', 'studio.js', 'setup.js', 'maintenance.js')
 
@@ -20,6 +21,13 @@ def build(source: Path, target: Path, version: str):
     (target / 'app.js').write_text(bundle, encoding='utf-8')
     for name in BUNDLE[1:]:
         (target / name).write_text('// Bundled into app.js.\n', encoding='utf-8')
+    before = sum(p.stat().st_size for p in target.iterdir())
+    node = shutil.which('node')
+    if not node:
+        raise ValueError('Node.js required for web minification; install build dependencies with npm install --prefix tools')
+    subprocess.run([node, str(Path(__file__).resolve().with_name('minify_web.cjs')),
+                    str(target / 'app.js'), str(target / 'style.css')], check=True)
+    print(f'Web assets before gzip: {before} -> {sum(p.stat().st_size for p in target.iterdir())} bytes')
     # Reserved manifest entries hold optional gzip representations. Older firmware
     # continues to serve the uncompressed originals requested by index.html.
     for plain, compressed in [('app.js', 'community.js'), ('style.css', 'night.js')]:
@@ -27,3 +35,5 @@ def build(source: Path, target: Path, version: str):
     html = re.sub(r'<script src="/([^"?]+)" defer>\s*</script>', lambda m: f'<script src="/app.js?v={version}" defer></script>' if m[1]=='app.js' else '', html)
     html = html.replace('href="/style.css"', f'href="/style.css?v={version}"').replace('href="/icon.svg"', f'href="/icon.svg?v={version}"').replace('href="/manifest.json"', f'href="/manifest.json?v={version}"')
     (target / 'index.html').write_text(html, encoding='utf-8')
+
+    print(f"Final web payload: {sum(p.stat().st_size for p in target.iterdir())} bytes")

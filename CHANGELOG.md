@@ -1,3 +1,11 @@
+## 3.6.3-dev (web only)
+- Minify packaged JavaScript and CSS with parser equivalence checks before gzip; retain readable sources and API-1 manifest.
+
+## 3.6.2-dev (web only)
+- Add home weather toggle and status, with a shortcut to the existing weather settings.
+- Restore independent front and rear brightness sliders; preserve levels when selecting a theme in the UI.
+- Explicitly label the preview and selected theme as manual; automatic modes may override it.
+
 ## 3.6.1-dev
 - Validate bounded weather HTTP body framing before JSON decoding, distinguish incomplete bodies and decoding failures.
 - Release TCP resources before heap-backed filtered JSON parsing; restore read-only input and simplify serial diagnostics.

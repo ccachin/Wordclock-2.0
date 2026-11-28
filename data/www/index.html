@@ -44,7 +44,7 @@
             <button id="themesTab" type="button" aria-pressed="false">Thèmes</button>
             <button id="settingsTab" type="button" aria-pressed="false">Réglages</button>
         </nav>
-        <div id="homeView"><p class="menu-description">Consultez l’heure et ajustez rapidement la luminosité.</p>
+        <div id="homeView"><p class="menu-description">Consultez l’heure, ajustez la luminosité et choisissez le mode d’affichage.</p>
         <section class="clock">
 
             <div id="time">
@@ -53,8 +53,9 @@
 
         </section>
 
-        <section class="panel"><div class="section-header"><h2>Ambiance sélectionnée</h2><span id="homeTheme">Chargement…</span></div>
+        <section class="panel"><div class="section-header"><h2>Thème manuel sélectionné</h2><span id="homeTheme">Chargement…</span></div>
             <div class="home-preview" aria-hidden="true"></div>
+            <p class="menu-description" id="homePreviewNote">Aperçu du thème manuel ; les modes automatiques peuvent modifier l’affichage réel.</p>
             <button id="powerToggle" type="button" class="action-button" disabled>Éteindre</button>
             <div class="setting">
 
@@ -69,12 +70,22 @@
             </div>
 
             <input type="range" id="brightness" min="0" max="255" value="8" disabled>
+            <div class="setting"><label for="frontBrightnessHome">Luminosité avant</label><output id="frontBrightnessHomeValue">100 %</output></div>
+            <input type="range" id="frontBrightnessHome" min="0" max="100" value="100" disabled>
+            <div class="setting"><label for="rearBrightnessHome">Luminosité arrière</label><output id="rearBrightnessHomeValue">100 %</output></div>
+            <input type="range" id="rearBrightnessHome" min="0" max="100" value="100" disabled>
+            <p class="menu-description">Chaque face est réglée indépendamment, dans la limite de la luminosité générale.</p>
 
 
             <p id="message" role="status"></p>
 
         </section>
-
+        <section class="panel" id="homeWeatherPanel">
+            <div class="section-header"><h2>Mode météo</h2><button id="homeWeatherToggle" type="button" class="action-button" aria-pressed="false" disabled>Chargement…</button></div>
+            <p id="homeWeatherStatus" role="status" aria-live="polite">Chargement des données météo…</p>
+            <p class="menu-description">La météo peut modifier les couleurs du thème manuel. Le mode nuit et les thèmes programmés restent prioritaires.</p>
+            <button id="homeWeatherSettings" type="button" class="action-button">Réglages météo</button>
+        </section>
         </div>
         <div id="libraryView" hidden>
         <section class="panel">
