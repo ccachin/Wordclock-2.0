@@ -2,6 +2,7 @@
 #include "automation_rules.h"
 #include "theme_manager.h"
 namespace AutomationManager {
+bool hasTheme();
 void begin();
 void update(uint32_t now,bool eligible);
 void apply(ThemeManager::Theme& theme,bool eligible);

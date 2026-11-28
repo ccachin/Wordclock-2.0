@@ -56,7 +56,8 @@ static void install(const Rule*next){for(unsigned i=0;i<Count;++i)rules[i]=next[
 bool replace(const char*hex,size_t length){Rule next[Count];if(length!=HexLength||!fromHex(hex,next)||!save(next))return false;install(next);return true;}
 bool reset(){Rule next[Count];if(!save(next))return false;install(next);return true;}
 void update(uint32_t ms,bool eligible){
-    if(ms-lastPoll<1000)return;const uint32_t elapsed=ms-lastPoll;lastPoll=ms;
+    if(ms-lastPoll<1000)return;
+    const uint32_t elapsed=ms-lastPoll;lastPoll=ms;
     time_t epoch=time(nullptr);struct tm t{};
     if(!TimeManager::isValid()||!localtime_r(&epoch,&t)){lastEpoch=0;if(activeTheme!=-1||activeCap!=-1){activeTheme=activeCap=-1;++rev;}return;}
     Date d{uint16_t(t.tm_year+1900),uint8_t(t.tm_mon+1),uint8_t(t.tm_mday),uint8_t(t.tm_wday)};
@@ -68,5 +69,6 @@ void update(uint32_t ms,bool eligible){
     if(theme!=activeTheme||cap!=activeCap||(theme>=0&&!resolvedOk&&boundary)){activeCap=cap;if(theme!=activeTheme||(theme>=0&&!resolvedOk&&boundary)){activeTheme=theme;resolvedOk=theme>=0&&ThemeLibrary::resolveFactory(theme,resolved);}++rev;}
     if(eventIndex>=0&&eligible)AnimationManager::startFrontEffect(static_cast<FrontEffects::Kind>(rules[eventIndex].value),ms);
 }
+bool hasTheme(){return activeTheme>=0&&resolvedOk;}
 void apply(ThemeManager::Theme& theme,bool eligible){if(!eligible||!theme.brightness)return;if(activeTheme>=0&&resolvedOk){const auto brightness=theme.brightness,front=theme.frontBrightness,rear=theme.rearBrightness;theme=resolved;theme.brightness=brightness;theme.frontBrightness=front;theme.rearBrightness=rear;}if(activeCap>=0){uint8_t cap=unsigned(activeCap)*255/100;if(theme.brightness>cap)theme.brightness=cap;}}
 }

@@ -2,6 +2,10 @@
 
 #include "leds.h"
 #include "automation_manager.h"
+#include "weather_manager.h"
+#ifdef WORDCLOCK_WEATHER_DIAG
+#include "weather_diag.h"
+#endif
 #include "time_manager.h"
 #include "status_manager.h"
 #include "wifi_manager.h"
@@ -31,6 +35,9 @@ void setup()
     Serial.println("Wordclock 3.0");
 
     Serial.println("Starting...");
+#ifdef WORDCLOCK_WEATHER_DIAG
+    Serial.println(F("WEATHER DIAG: B=budget, W=one, T=ten, X=cancel"));
+#endif
 
     Serial.print("Reset reason: ");
     Serial.println(ESP.getResetReason());
@@ -70,6 +77,7 @@ void setup()
 
     SettingsManager::begin();
     AutomationManager::begin();
+    WeatherManager::begin();
 
     ColorManager::runDiagnostics();
     CustomThemeStore::runDiagnostics();
@@ -175,6 +183,12 @@ void loop()
     RenderManager::update();
 
     SettingsManager::update();
+#ifdef WORDCLOCK_WEATHER_DIAG
+    // The isolated diagnostic must not compete with automatic weather traffic.
+    WeatherDiag::update();
+#else
+    WeatherManager::update(!WebUpdateManager::active() && !WebServer::maintenancePending() && !WebServer::firmwareSessionActive());
+#endif
 
     delay(5);
 }

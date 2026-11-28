@@ -3,6 +3,7 @@
 
 #include "theme_manager.h"
 #include "automation_manager.h"
+#include "weather_manager.h"
 #include "time_manager.h"
 #include "status_manager.h"
 #include "animation_manager.h"
@@ -47,6 +48,7 @@ namespace RenderManager
     static uint32_t lastNightRevision = 0;
     static uint32_t lastPreviewRevision = 0;
     static uint32_t lastFrontRevision = 0, lastRuleRevision = 0;
+    static uint32_t lastWeatherRevision=0;
     static bool lastFrontAllowed = false, lastMaintenance = false;
 
     static StatusManager::State lastStatus =
@@ -231,7 +233,10 @@ namespace RenderManager
         const bool maintenance = WebUpdateManager::active();
         const bool rulesAllowed = !nightActive && timeValid && !previewActive && !maintenance;
         AutomationManager::update(currentMillis,rulesAllowed && theme.brightness && theme.frontBrightness && effects.enabled);
+        const bool weatherFront=rulesAllowed && !AutomationManager::hasTheme() && WeatherManager::valid() && WeatherManager::config().intensity && WeatherManager::config().zone!=0;
+        WeatherManager::apply(theme,rulesAllowed && !AutomationManager::hasTheme());
         AutomationManager::apply(theme,rulesAllowed);
+        const uint32_t weatherRevision=WeatherManager::revision();
         const uint32_t ruleRevision=AutomationManager::revision();
         const bool allowed = effects.enabled && !nightActive && timeValid && !previewActive &&
             theme.brightness && theme.frontBrightness && !maintenance;
@@ -248,7 +253,7 @@ namespace RenderManager
         if (!effects.enabled || maintenance) {
             frontAnimation.effect=rearAnimation.effect=AnimationManager::Effect::Solid;
             TransitionManager::cancel();
-        } else if (allowed && effects.spatial) {
+        } else if (allowed && !weatherFront && effects.spatial) {
             frontAnimation.effect=effects.spatial==1 ? AnimationManager::Effect::Rainbow : AnimationManager::Effect::Chase;
             frontAnimation.speed=effects.spatialSpeed;
         }
@@ -275,7 +280,7 @@ namespace RenderManager
 
         bool needsRender =
 
-            ruleRevision != lastRuleRevision || overlayActive || frontRevision != lastFrontRevision || allowed != lastFrontAllowed || maintenance != lastMaintenance ||
+            weatherRevision != lastWeatherRevision || ruleRevision != lastRuleRevision || overlayActive || frontRevision != lastFrontRevision || allowed != lastFrontAllowed || maintenance != lastMaintenance ||
             waiting ||
             waiting != lastWaiting ||
             previewChanged ||
@@ -304,7 +309,7 @@ namespace RenderManager
         // ==============================================
         // Front
         // ==============================================
-        const CRGB frontBase=allowed ? AnimationManager::hourlyPalette(theme.frontColor,now.hour) : theme.frontColor;
+        const CRGB frontBase=allowed && !weatherFront ? AnimationManager::hourlyPalette(theme.frontColor,now.hour) : theme.frontColor;
 
         if (timeValid)
         {
@@ -436,6 +441,7 @@ namespace RenderManager
         lastPreviewRevision = previewRevision;
         lastFrontRevision = frontRevision;
         lastRuleRevision = ruleRevision;
+        lastWeatherRevision = weatherRevision;
         lastFrontAllowed = allowed;
         lastMaintenance = maintenance;
 

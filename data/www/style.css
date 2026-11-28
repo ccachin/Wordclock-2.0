@@ -722,3 +722,17 @@ select{background:var(--control)}.community-card{border-radius:6px}.studio-nav b
 @keyframes tile-front{50%{opacity:.25}}
 @media(prefers-reduced-motion:reduce){#themeList .theme-preview,#themeList .theme-preview .lit{animation:none!important}}
 #rulesList{display:grid;gap:12px;margin:12px 0}.rule-card{border:1px solid var(--border);border-radius:8px;padding:14px}.rule-card p{margin:8px 0}.rule-buttons{display:flex;gap:8px;flex-wrap:wrap}.rule-buttons button{flex:1}#rulesAdd{width:100%}#rulesFields{border:1px solid var(--border);border-radius:8px;padding:14px;margin:18px 0;min-width:0;display:grid;gap:10px}#rulesFields label{display:block;font-size:.9rem}#rulesFields input:not([type=checkbox]),#rulesFields select{width:100%;box-sizing:border-box;background:var(--control);color:var(--text);border:1px solid var(--border);border-radius:6px;font:inherit;padding:10px;min-height:42px}#ruleEndRow,#ruleValueRow,#ruleCapRow,#ruleDateFields{display:grid;gap:8px}#ruleDays{display:flex;gap:8px;flex-wrap:wrap}#ruleDays label{display:flex;align-items:center;gap:4px;padding:7px;border:1px solid var(--border);border-radius:6px}
+
+.weather-preview{width:130px;aspect-ratio:1;margin:24px auto;background:#171717;border-radius:8px;display:grid;place-items:center;color:var(--weather-front,#ffe8ae);box-shadow:0 0 24px var(--weather-rear,#ed9b29);font-family:monospace;font-weight:bold;letter-spacing:.12em;text-align:center;transition:color .35s,box-shadow .35s}.weather-preview[data-motion="true"]{animation:weather-breathe 3s ease-in-out infinite}@keyframes weather-breathe{50%{box-shadow:0 0 9px var(--weather-rear)}}@media(prefers-reduced-motion:reduce){.weather-preview{animation:none!important;transition:none}}
+
+/* Weather uses the same controls and physical face as the other previews. */
+#weatherFields{border:1px solid var(--border);border-radius:8px;padding:14px;margin:12px 0;min-width:0;display:grid;gap:10px}
+#weatherFields input[type=checkbox]{accent-color:var(--accent)}
+#weatherFields input[type=range]{padding:0;min-height:32px;accent-color:var(--accent)}
+#weatherFields select{width:100%;box-sizing:border-box;min-height:44px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--control);color:var(--text);font:inherit}
+#weatherFields [hidden]{display:none!important}
+#weatherFields .weather-actions{display:flex;flex-wrap:wrap;gap:8px;padding-top:12px;border-top:1px solid var(--border)}
+#weatherFields .weather-actions button{flex:1 1 130px;margin:0}
+.weather-preview.matrix-preview{width:min(220px,85%);background:var(--face-color,#151515);border-radius:4px;display:block;letter-spacing:0}
+.weather-preview.matrix-preview svg text.lit{font-weight:700;filter:drop-shadow(0 0 1px var(--front))}
+#weatherStatus{line-height:1.5;overflow-wrap:anywhere}

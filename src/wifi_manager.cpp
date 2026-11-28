@@ -3,6 +3,8 @@
 #include "ota_manager.h"
 #include <ESP8266WiFi.h>
 #include <WiFiManager.h>
+#include <pgmspace.h>
+#include <stdlib.h>
 
 namespace WifiManager
 {
@@ -14,7 +16,7 @@ namespace WifiManager
     constexpr uint32_t PORTAL_RETRY = 15000;
 
     // Visual styling only. Keep native forms, scripts and routes intact.
-    static const char PORTAL_STYLE[] = R"WCSTYLE(<style>
+    static const char PORTAL_STYLE[] PROGMEM = R"WCSTYLE(<style>
 body{margin:0;background:#f5f4f1;color:#242424;font-family:system-ui,-apple-system,sans-serif}
 .wrap{display:block;width:100%;max-width:480px;min-width:0;margin:0 auto;padding:24px 20px}
 h1{font-size:2rem;letter-spacing:-.06em;margin:12px 0 20px}
@@ -26,7 +28,7 @@ a[data-ssid]{display:inline-block;max-width:75%;overflow-wrap:anywhere;padding:8
 </style>)WCSTYLE";
 
     // Render the waiting face without requesting another resource from the ESP.
-    static const char SAVE_WAIT_STYLE[] = R"WCWAIT(<style>
+    static const char SAVE_WAIT_STYLE[] PROGMEM = R"WCWAIT(<style>
 .msg:not(.wc-managed){text-align:center;font-size:0}
 .msg:not(.wc-managed) .wc-face{font-size:clamp(9px,3vw,14px)}
 .wc-face{display:grid;grid-template-columns:repeat(11,minmax(0,1fr));aspect-ratio:1;align-items:center;text-align:center;background:#191919;border-radius:9px;padding:12px;margin:0 auto 20px;max-width:310px;color:#555;font:500 clamp(9px,3vw,14px) monospace}
@@ -166,6 +168,43 @@ document.addEventListener('DOMContentLoaded',function(){
 })();
 )WCSCRIPT";
 
+    // WiFiManager retains a RAM pointer (not a copy); keep it valid until the
+    // portal closes. The large source strings live in flash, not DRAM.
+    static char* portalHead = nullptr;
+    static char* saveHead = nullptr;
+    static void restorePortalHead() {
+        manager.setCustomHeadElement(portalHead ? portalHead : "");
+        free(saveHead);
+        saveHead = nullptr;
+    }
+    static void releasePortalHeads() {
+        manager.setCustomHeadElement("");
+        free(saveHead); saveHead = nullptr;
+        free(portalHead); portalHead = nullptr;
+    }
+    static void preparePortalHead() {
+        releasePortalHeads();
+        portalHead = static_cast<char*>(malloc(sizeof(PORTAL_STYLE)));
+        if (portalHead) {
+            memcpy_P(portalHead, PORTAL_STYLE, sizeof(PORTAL_STYLE));
+            manager.setCustomHeadElement(portalHead);
+        } else {
+            Serial.println(F("Wi-Fi portal: native style (low memory)"));
+        }
+    }
+    static void prepareSaveHead() {
+        restorePortalHead();
+        constexpr size_t base = sizeof(PORTAL_STYLE)-1;
+        saveHead = static_cast<char*>(malloc(base+sizeof(SAVE_WAIT_STYLE)));
+        if (!saveHead) {
+            Serial.println(F("Wi-Fi portal: native save response (low memory)"));
+            return;
+        }
+        memcpy_P(saveHead, PORTAL_STYLE, base);
+        memcpy_P(saveHead+base, SAVE_WAIT_STYLE, sizeof(SAVE_WAIT_STYLE));
+        manager.setCustomHeadElement(saveHead);
+    }
+
     // Keep the captive portal available briefly after a verified save.
     static bool savePending = false;
     static bool saveSucceeded = false;
@@ -219,10 +258,12 @@ document.addEventListener('DOMContentLoaded',function(){
         WebServer::stop();
         stopOfflineAP();
         Serial.println("Starting Wi-Fi setup portal");
+        preparePortalHead();
         manager.startConfigPortal(AP_NAME, AP_PASSWORD);
         lastPortalAttempt = millis();
         if (!isPortalActive())
         {
+            releasePortalHeads();
             manualPortal = false;
             Serial.println("Wi-Fi setup portal closed or failed; retry delayed");
         }
@@ -236,7 +277,7 @@ document.addEventListener('DOMContentLoaded',function(){
         manager.setConfigPortalBlocking(false);
         manager.setConfigPortalTimeout(120);
         manager.setTitle("Wordclock");
-        manager.setCustomHeadElement(PORTAL_STYLE);
+        manager.setCustomHeadElement("");
         const char* menu[] = {"wifi"};
         manager.setMenu(menu, 1);
         manager.setShowPassword(false);
@@ -247,8 +288,7 @@ document.addEventListener('DOMContentLoaded',function(){
         manager.setConnectRetries(1);
         manager.setPreSaveConfigCallback([]() {
             // Only the native save response receives the status script.
-            static const String saveHead = String(PORTAL_STYLE) + SAVE_WAIT_STYLE;
-            manager.setCustomHeadElement(saveHead.c_str());
+            prepareSaveHead();
             savePending = true;
             saveSucceeded = false;
             saveFailed = false;
@@ -317,7 +357,7 @@ document.addEventListener('DOMContentLoaded',function(){
         manager.process();
         if (savePending) {
             // process() handles a submitted connection synchronously.
-            manager.setCustomHeadElement(PORTAL_STYLE);
+            restorePortalHead();
             saveFailed = !saveSucceeded;
             savePending = false;
         }
@@ -371,6 +411,7 @@ document.addEventListener('DOMContentLoaded',function(){
                 startOfflineAP();
             }
         }
+        if (!isPortalActive() && (portalHead || saveHead)) releasePortalHeads();
         wasConnected = connected;
     }
 }

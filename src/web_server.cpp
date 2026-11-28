@@ -1,4 +1,5 @@
 #include "automation_manager.h"
+#include "weather_manager.h"
 #include <BearSSLHelpers.h>
 #include <new>
 extern "C" {
@@ -17,6 +18,7 @@ extern "C" {
 #include "firmware_signing_key.h"
 #include <ctype.h>
 #include <stdlib.h>
+#include <strings.h>
 
 #include "web_server.h"
 #include "wifi_manager.h"
@@ -55,6 +57,19 @@ namespace WebServer
     static bool factoryResetScheduled = false;
 
     bool maintenancePending() { return restartPending || wifiAction || factoryResetScheduled; }
+    // Periodic samples, not a measurement of every transient allocation.
+    static uint32_t minHeap = UINT32_MAX, minBlock = UINT32_MAX;
+    static void recordMemory(uint32_t heap, uint32_t block) {
+        if (heap < minHeap) minHeap = heap;
+        if (block < minBlock) minBlock = block;
+    }
+    static void sampleMemory() {
+        static uint32_t previous = 0;
+        const uint32_t now = millis();
+        if (minHeap != UINT32_MAX && now-previous < 1000) return;
+        previous = now;
+        recordMemory(ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
+    }
 
     // ==================================================
     // JSON responses
@@ -73,6 +88,17 @@ namespace WebServer
             code,
             "application/json",
             json);
+    }
+
+    static void sendJsonDocument(int code, const JsonDocument& doc) {
+        if (doc.overflowed()) { sendJson(503, "{\"error\":\"Insufficient memory\"}"); return; }
+        String json;
+        const size_t bytes = measureJson(doc);
+        if (!json.reserve(bytes) || serializeJson(doc, json) != bytes || json.length() != bytes) {
+            sendJson(503, "{\"error\":\"Insufficient memory\"}");
+            return;
+        }
+        sendJson(code, json);
     }
 
     // ==================================================
@@ -130,15 +156,17 @@ namespace WebServer
             const String& encoding = server.header("Accept-Encoding");
             // Ordinary browsers advertise an explicit gzip token. A token with
             // q=0 or an unrecognised quality parameter falls back to plain.
-            int pos = 0;
             bool acceptsGzip = false;
-            while (pos < (int)encoding.length()) {
-                int end = encoding.indexOf(',', pos);
-                if (end < 0) end = encoding.length();
-                String token = encoding.substring(pos, end);
-                token.trim();
-                if (token.equalsIgnoreCase("gzip")) { acceptsGzip = true; break; }
-                pos = end + 1;
+            const char* pos = encoding.c_str();
+            while (*pos) {
+                const char* end = strchr(pos, ',');
+                if (!end) end = pos + strlen(pos);
+                const char* first = pos;
+                const char* last = end;
+                while (first < last && isspace(static_cast<unsigned char>(*first))) ++first;
+                while (last > first && isspace(static_cast<unsigned char>(last[-1]))) --last;
+                if (last-first == 4 && strncasecmp(first, "gzip", 4)==0) { acceptsGzip = true; break; }
+                pos = *end ? end+1 : end;
             }
             if (acceptsGzip) {
                 file = LittleFS.open(root + "/" + companion, "r");
@@ -426,6 +454,18 @@ namespace WebServer
         sendJson(200,"{\"ok\":true}");
     }
 
+    static void handleGetWeather(){
+        const auto& c=WeatherManager::config(); char json[320];
+        snprintf(json,sizeof(json),"{\"lat\":%ld,\"lon\":%ld,\"enabled\":%u,\"forecast\":%u,\"zone\":%u,\"intensity\":%u,\"valid\":%s,\"code\":%d,\"day\":%d,\"temperature\":%d,\"age\":%lu,\"status\":\"%s\"}",(long)c.lat,(long)c.lon,c.enabled,c.forecast,c.zone,c.intensity,WeatherManager::valid()?"true":"false",WeatherManager::code(),WeatherManager::day(),WeatherManager::temperature(),(unsigned long)WeatherManager::age(),WeatherManager::status());sendJson(200,json);
+    }
+    static bool weatherNumber(const char* key,long min,long max,long& v){const String a=server.arg(key);if(!a.length()||a.length()>12)return false;char* end=nullptr;v=strtol(a.c_str(),&end,10);return end&&*end==0&&v>=min&&v<=max;}
+    static void handleSetWeather(){
+        if(firmwareSessionActive()||WebUpdateManager::active()||maintenancePending()){sendJson(409,"{\"error\":\"Maintenance active\"}");return;}
+        if(server.header("X-Wordclock-Action")!="weather"){sendJson(403,"{\"error\":\"Missing action header\"}");return;}
+        if(server.arg("refresh")=="1"){WeatherManager::refresh();handleGetWeather();return;}
+        long lat,lon,en,fc,z,in;if(!weatherNumber("lat",-9000000,9000000,lat)||!weatherNumber("lon",-18000000,18000000,lon)||!weatherNumber("enabled",0,1,en)||!weatherNumber("forecast",0,1,fc)||!weatherNumber("zone",0,2,z)||!weatherNumber("intensity",0,100,in)){sendJson(400,"{\"error\":\"Invalid weather settings\"}");return;}
+        WeatherManager::Config c;c.lat=lat;c.lon=lon;c.enabled=en;c.forecast=fc;c.zone=z;c.intensity=in;if(!WeatherManager::save(c)){sendJson(503,"{\"error\":\"Storage failure\"}");return;}handleGetWeather();
+    }
     static void handleGetRules() {
         char hex[AutomationRules::HexLength+1]; AutomationManager::encode(hex);
         char json[AutomationRules::HexLength+40];
@@ -447,8 +487,7 @@ namespace WebServer
         doc["setupComplete"] = value.setupComplete;
         doc["savePending"] = SettingsManager::savePending();
         doc["saveFailed"] = SettingsManager::saveFailed();
-        String json; serializeJson(doc, json);
-        sendJson(200, json);
+        sendJsonDocument(200, doc);
     }
     static void handleSetDevice() {
         if (firmwareSessionActive()) { sendJson(409,"{\"error\":\"Firmware session active\"}"); return; }
@@ -658,9 +697,10 @@ namespace WebServer
     static void handleGetThemes()
     {
         const uint8_t version = responseThemeVersion();
+        const bool factoryOnly = server.arg("factoryOnly") == "1";
         String ids;
-        DynamicJsonDocument list(JSON_ARRAY_SIZE(CustomThemeStore::MAX_THEMES));
-        if (Storage::isReady()) {
+        DynamicJsonDocument list(factoryOnly ? 0 : JSON_ARRAY_SIZE(CustomThemeStore::MAX_THEMES));
+        if (!factoryOnly && Storage::isReady()) {
             if (!CustomThemeStore::listIds(ids) ||
                 deserializeJson(list, const_cast<char*>(ids.c_str()), ids.length()) || !list.is<JsonArray>()) {
                 sendJson(503, "{\"error\":\"Custom catalog unavailable\"}");
@@ -674,7 +714,9 @@ namespace WebServer
         bool comma = false;
         for (size_t i=0;i<ThemeLibrary::factoryCount();++i) {
             if (!server.client().connected()) return;
-            const char* entry = ThemeLibrary::factoryEntry(i);
+            char factoryJson[ThemeLibrary::FactoryEntryCapacity];
+            if (!ThemeLibrary::factoryEntry(i, factoryJson, sizeof(factoryJson))) { server.client().stop(); return; }
+            const char* entry = factoryJson;
             if (comma) server.sendContent(",");
             if (version==3) {
                 // All built-in entries start with this fixed v2 prefix.
@@ -893,9 +935,7 @@ namespace WebServer
         if (doc.overflowed()) {
             sendJson(503, "{\"ready\":false,\"error\":\"memory\"}"); return;
         }
-        String json;
-        serializeJson(doc, json);
-        sendJson(status, json);
+        sendJsonDocument(status, doc);
     }
 
     static void handleClockInfo() {
@@ -950,9 +990,7 @@ namespace WebServer
         doc["connected"] = WifiManager::isConnected();
         doc["ip"] = WifiManager::getIPAddress();
         doc["hostname"] = "wordclock.local";
-        String json;
-        serializeJson(doc, json);
-        sendJson(200, json);
+        sendJsonDocument(200, doc);
     }
 
     static void appendWebVersion(JsonDocument& doc)
@@ -991,16 +1029,24 @@ namespace WebServer
 
     static void handleSystemInfo()
     {
-        DynamicJsonDocument doc(1536);
+        DynamicJsonDocument doc(1152);
         doc["firmware"] = WORDCLOCK_FIRMWARE_VERSION;
         doc["buildId"] = __DATE__ " " __TIME__;
         doc["hostname"] = "wordclock.local";
         doc["ip"] = WifiManager::getIPAddress();
         doc["rssi"] = WiFi.RSSI();
         doc["uptime"] = millis() / 1000;
-        doc["freeHeap"] = ESP.getFreeHeap();
-        doc["maxFreeBlock"] = ESP.getMaxFreeBlockSize();
+        const uint32_t heap = ESP.getFreeHeap(), block = ESP.getMaxFreeBlockSize();
+        recordMemory(heap, block);
+        doc["freeHeap"] = heap;
+        doc["maxFreeBlock"] = block;
         doc["heapFragmentation"] = ESP.getHeapFragmentation();
+        doc["sampledMinHeap"] = minHeap;
+        doc["sampledMinBlock"] = minBlock;
+        // Indicative snapshot only: the authorization/transfer guards remain authoritative.
+        doc["updateMemoryMargin"] = heap >= 7500 && block >= 6500;
+        doc["weatherStatus"] = WeatherManager::status();
+        doc["weatherValid"] = WeatherManager::valid();
         doc["flashBytes"] = ESP.getFlashChipRealSize();
         doc["flashConfiguredBytes"] = ESP.getFlashChipSize();
         doc["resetReason"] = ESP.getResetReason();
@@ -1022,9 +1068,7 @@ namespace WebServer
         doc["releaseChannel"] = WORDCLOCK_RELEASE_CHANNEL;
         appendWebVersion(doc);
         if (doc.overflowed()) { sendJson(503, "{\"error\":\"Insufficient memory\"}"); return; }
-        String json;
-        serializeJson(doc, json);
-        sendJson(200, json);
+        sendJsonDocument(200, doc);
     }
 
     static void handleRestart()
@@ -1056,6 +1100,7 @@ namespace WebServer
         }
         TransitionManager::cancel();
         if (!AutomationManager::reset()) { sendJson(503,"{\"error\":\"Cannot reset automations\"}"); return; }
+        if (!WeatherManager::reset()) { sendJson(503,"{\"error\":\"Cannot reset weather\"}"); return; }
         ThemeManager::begin();
         NightManager::setSettings(NightManager::Settings());
         TransitionManager::setDuration(TransitionManager::DEFAULT_DURATION);
@@ -1206,9 +1251,7 @@ namespace WebServer
         doc["maxBytes"] = maxBytes;
         doc["freeSketchBytes"] = freeBytes;
         if (reason) doc["reason"] = reason;
-        String json;
-        serializeJson(doc, json);
-        sendJson(reason ? 409 : 200, json);
+        sendJsonDocument(reason ? 409 : 200, doc);
     }
 
     static constexpr uint32_t FLASH_TEST_RESERVE = 4096; // retain minimum image size
@@ -1421,7 +1464,7 @@ namespace WebServer
             doc["error"]=error; doc["offset"]=offset; doc["expectedOffset"]=fwSession.received;
             doc["length"]=n; doc["expectedLength"]=expected;
             doc["freeHeap"]=ESP.getFreeHeap(); doc["maxFreeBlock"]=ESP.getMaxFreeBlockSize();
-            String json; serializeJson(doc,json); sendJson(409,json); return;
+            sendJsonDocument(409, doc); return;
         }
         auto* bytes=reinterpret_cast<uint8_t*>(const_cast<char*>(data.c_str()));
         if (!offset && bytes[0]!=0xe9) { firmwareFail(400,"Invalid image magic"); return; }
@@ -1440,7 +1483,7 @@ namespace WebServer
         StaticJsonDocument<256> doc;
         doc["offset"]=fwSession.received; doc["size"]=fwSession.size; doc["verified"]=fwSession.verified;
         doc["freeHeap"]=ESP.getFreeHeap(); doc["maxFreeBlock"]=ESP.getMaxFreeBlockSize();
-        String json; serializeJson(doc,json); sendJson(200,json);
+        sendJsonDocument(200, doc);
     }
     static void handleFirmwareVerify() {
         if (!firmwareSessionAuth()) return;
@@ -1483,7 +1526,7 @@ namespace WebServer
         doc["complete"]=state.id && state.completed==state.fileCount && state.received==state.totalBytes;
         doc["verified"]=state.verified; doc["verifiedFiles"]=state.verifiedFiles;
         if(state.lastError) doc["error"]=state.lastError;
-        String json; serializeJson(doc,json); sendJson(200,json);
+        sendJsonDocument(200, doc);
     }
     static void handleReleaseChunk() {
         if (!releaseAuthorized()) return;
@@ -1798,6 +1841,8 @@ namespace WebServer
         server.on("/api/night", HTTP_POST, handleSetNight);
         server.on("/api/transitions", HTTP_GET, handleGetTransitions);
         server.on("/api/transitions", HTTP_POST, handleSetTransitions);
+        server.on("/api/weather", HTTP_GET, handleGetWeather);
+        server.on("/api/weather", HTTP_POST, handleSetWeather);
         server.on("/api/automations", HTTP_GET, handleGetRules);
         server.on("/api/automations", HTTP_POST, handleSetRules);
         server.on("/api/animations", HTTP_GET, handleGetAnimations);
@@ -1890,6 +1935,7 @@ namespace WebServer
 
     void update()
     {
+        sampleMemory();
         if (fwSession.active && (millis()-fwSession.touched >= FW_TIMEOUT || !WifiManager::isConnected() || WifiManager::isPortalActive())) clearFirmwareSession();
 
         if (restartPending) {

@@ -13,3 +13,11 @@ __pycache__/
 /firmware.elf
 /firmware.sig
 /logs/
+
+/include/weather_diag_ca.local.h
+
+# Local memory audit artifacts
+/firmware_layout.txt
+/firmware_sections.txt
+/firmware_symbols.txt
+/wordclock_memory_audit.zip

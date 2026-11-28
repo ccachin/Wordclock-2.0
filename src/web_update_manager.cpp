@@ -143,7 +143,7 @@ const char* verify(uint32_t id) {
     session.verified=false; session.verifiedFiles=0;
     if (session.target==WebSlotManager::activeSlot() || !WebSlotManager::isIncomplete(session.target)) return "slot";
     // Keep the buffer off the ESP8266's small stack.
-    static uint8_t buffer[1024];
+    static uint8_t buffer[256];
     for (size_t i=0;i<WebManifest::AssetCount;++i) {
         File f=LittleFS.open(pathFor(WebManifest::assetName(i)),"r");
         if (!f || f.size()!=sizes[i]) { session.lastError="file-size"; return session.lastError; }
@@ -152,7 +152,7 @@ const char* verify(uint32_t id) {
         size_t remaining=sizes[i];
         while (remaining) {
             size_t n=remaining>sizeof(buffer)?sizeof(buffer):remaining;
-            if (f.read(buffer,n)!=n) { session.lastError="file-read"; return session.lastError; }
+            if (f.read(buffer,n)!=static_cast<int>(n)) { session.lastError="file-read"; return session.lastError; }
             br_sha256_update(&ctx,buffer,n); remaining-=n; yield();
         }
         f.close();

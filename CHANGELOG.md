@@ -1,3 +1,34 @@
+## 3.6.1-dev
+- Validate bounded weather HTTP body framing before JSON decoding, distinguish incomplete bodies and decoding failures.
+- Release TCP resources before heap-backed filtered JSON parsing; restore read-only input and simplify serial diagnostics.
+- One accelerated retry on incomplete responses or timeout; preserve last valid data and update protections.
+
+## 3.6.0-dev
+- Move Wi-Fi portal styling and factory theme catalogue to flash; allocate portal HTML only during setup.
+- Resolve built-in themes directly, with unchanged IDs, colours, speeds and JSON catalogue; skip hidden personal themes when loading the embedded UI.
+- Reduce web verification buffer, reserve JSON response size and avoid temporary gzip header tokens.
+- Reuse weather request/header buffer and parse bounded JSON without copying strings.
+- Show sampled memory minima and indicative update memory margin in system information.
+- Restore opt-in USB weather diagnostics; preserve all signing, transfer and storage formats.
+- Add guarded legacy-header cleanup and a repeatable memory report.
+
+## 3.5.2-dev
+
+- Harmonisation des contrôles météo et aperçu de la véritable grille de lettres, avec couleur de façade et mélange de thème.
+- Diagnostic ArduinoJson détaillé, lecture filtrée en entrée constante et compatibilité WiFiClient ESP8266 3.1.2.
+- Distinction entre anciennes données valides et échec de la dernière actualisation.
+
+## 3.5.1-dev
+
+- Recherche de localité HTTPS depuis le navigateur, coordonnées automatiques et saisie manuelle de secours.
+- Client météo HTTP/1.0 borné, JSON filtré et diagnostics détaillés.
+
+## 3.5.0-dev
+
+- Experimental autonomous HTTP weather mode, disabled by default.
+- Current conditions or near-hour forecast, bounded response and stale fallback.
+- Local weather settings and indicative preview.
+
 ## 3.4.2-dev
 
 - Descriptions des menus, catalogue limité aux thèmes usine et aperçus animés indicatifs.

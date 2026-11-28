@@ -1,0 +1,7 @@
+# 3.6.1-dev — weather response reliability
+
+3.6.0 reported ArduinoJson IncompleteInput and repeated/truncated serial messages despite ample sampled heap. The exact underlying failure is not proven. This patch distinguishes transport/framing failures from JSON parser failures, drains queued bytes after connection state changes, enforces Content-Length if present, rejects unsupported encodings, and verifies root-object closure before parsing. The structural check is not a replacement for ArduinoJson syntax validation. HTTP remains unauthenticated, restricted to decorative weather data.
+
+TCP reception and parsing now have separate stack frames; the two temporary JSON documents use checked heap allocations after TCP teardown, with read-only input and release of the body after parsing. Static weather buffer allocation is unchanged (none). Serial output uses print/println. A single early retry at ten seconds is allowed for incomplete bodies, timeouts or IncompleteInput; the normal retry remains five minutes. Last valid data expiry and all update/signing safeguards are unchanged.
+
+Native tests exercise bounded body reading, every nonempty truncated prefix of a representative response, timeouts, known and unknown lengths, trailing data, escaped strings and limits. They do not simulate the ESP8266 network stack or ArduinoJson. `tools/validate.py --host http://192.168.1.87 --require-weather` adds a live weather assertion after HTTP tests. Actual hardware compilation, live network, memory, forecast and OTA tests remain required.

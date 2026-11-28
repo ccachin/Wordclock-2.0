@@ -30,7 +30,10 @@ def main():
     p.add_argument('--release',type=Path,default=ROOT/'dist'/versions()['RELEASE_VERSION'])
     p.add_argument('--host',help='Local HTTP origin, e.g. http://192.168.1.87')
     p.add_argument('--repeat',type=int,default=20,choices=range(1,51),metavar='1-50')
-    a=p.parse_args(); meta=verify(a.release)
+    p.add_argument('--require-weather',action='store_true',help='Require enabled, valid weather with status ok at the end of the live test')
+    a=p.parse_args()
+    if a.require_weather and not a.host: p.error('--require-weather requires --host')
+    meta=verify(a.release)
     with zipfile.ZipFile(a.release/'web.zip') as z: files={n:z.read(n) for n in z.namelist()}
     paths=links(files['index.html']); assert len(paths)==4,paths
     assert sum(urlsplit(x).path=='/app.js' for x in paths)==1
@@ -56,6 +59,25 @@ def main():
             subprocess.run([compiler,'-std=c++11','-Wall','-Wextra','-Werror','-I',str(ROOT/'include'),str(ROOT/'test/rules_native/test.cpp'),'-o',str(exe)],check=True)
             subprocess.run([str(exe)],check=True)
     else: print('SKIP native automation tests: host C++ compiler absent')
+    if compiler:
+        with tempfile.TemporaryDirectory() as tmp:
+            exe=Path(tmp)/'weather-test.exe'
+            subprocess.run([compiler,'-std=c++11','-Wall','-Wextra','-Werror','-I',str(ROOT/'include'),str(ROOT/'test/weather_native/test.cpp'),'-o',str(exe)],check=True)
+            subprocess.run([str(exe)],check=True)
+            print('PASS native weather palette and expiry tests')
+    else: print('SKIP native weather tests: host C++ compiler absent')
+    if compiler:
+        with tempfile.TemporaryDirectory() as tmp:
+            exe=Path(tmp)/'factory-test.exe'
+            subprocess.run([compiler,'-std=c++11','-Wall','-Wextra','-Werror','-I',str(ROOT/'include'),str(ROOT/'test/factory_native/test.cpp'),'-o',str(exe)],check=True)
+            subprocess.run([str(exe)],check=True)
+    else: print('SKIP native factory tests: host C++ compiler absent')
+    if compiler:
+        with tempfile.TemporaryDirectory() as tmp:
+            exe=Path(tmp)/'weather-http-test.exe'
+            subprocess.run([compiler,'-std=c++11','-Wall','-Wextra','-Werror','-I',str(ROOT/'include'),str(ROOT/'test/weather_http_native/test.cpp'),'-o',str(exe)],check=True)
+            subprocess.run([str(exe)],check=True)
+    else: print('SKIP native weather HTTP tests: host C++ compiler absent')
     if not a.host:return
     host=a.host.rstrip('/'); u=urlsplit(host)
     if u.scheme!='http' or not u.hostname or u.path or u.query or u.fragment or u.username: p.error('Use a local HTTP origin')
@@ -65,10 +87,19 @@ def main():
             data=r.read(); compressed=r.headers.get('Content-Encoding')=='gzip'
             return (gzip.decompress(data) if compressed else data),compressed
     def api(path):return json.loads(get(path)[0])
-    before=api('/api/system'); assert before['webVersion']==meta['webVersion'],before
-    if meta['firmwareVersion']: assert before['firmware']==meta['firmwareVersion'],before
+    before=api('/api/system')
+    if before['webVersion']!=meta['webVersion'] or (meta['firmwareVersion'] and before['firmware']!=meta['firmwareVersion']):
+        raise SystemExit(f"Install release first: device firmware={before['firmware']} web={before['webVersion']}; expected firmware={meta['firmwareVersion']} web={meta['webVersion']}")
     minheap=before['freeHeap']; minblock=before['maxFreeBlock']; prev=before['uptime']; failures=[]
-    endpoints=['/api/status','/api/theme','/api/themes?version=3','/api/device','/api/appearance','/api/night','/api/transitions','/api/clock','/api/wifi','/api/animations','/api/automations']
+    if meta['firmwareVersion'] in ('3.6.0-dev','3.6.1-dev') or 'sampledMinHeap' in before:
+        for k in ('sampledMinHeap','sampledMinBlock'):
+            assert type(before.get(k)) is int and 0 <= before[k] <= 81920,(k,before)
+        assert before['sampledMinHeap'] <= before['freeHeap'] and before['sampledMinBlock'] <= before['maxFreeBlock'],before
+        full=api('/api/themes?version=3')
+        factory=api('/api/themes?version=3&factoryOnly=1')
+        assert len(factory)==9 and factory==[t for t in full if not t['id'].startswith('custom-')],factory
+        print('PASS live factory catalogue and full API compatibility')
+    endpoints=['/api/status','/api/theme','/api/themes?version=3','/api/device','/api/appearance','/api/night','/api/transitions','/api/clock','/api/wifi','/api/animations','/api/automations','/api/weather']
     def asset(path):
         try: data,compressed=get(path)
         except Exception as e: raise RuntimeError(f'{path}: {e}') from e
@@ -100,6 +131,13 @@ def main():
         if name in ('app.js','style.css'):
             data,compressed=get(path,'identity'); assert not compressed and data==files[name],f'Plain fallback: {name}'
     print(f'HTTP: {a.repeat-len(failures)}/{a.repeat}; sampled minimum heap={minheap}, largest block={minblock}')
+    if a.require_weather:
+        weather=api('/api/weather')
+        print('Weather:',json.dumps(weather,ensure_ascii=False))
+        if weather.get('enabled')!=1 or weather.get('valid') is not True or weather.get('status')!='ok':
+            print('FAIL live weather: enabled, valid and status ok required')
+            failures.append(('weather',weather.get('status')))
+        else: print('PASS live weather')
     if failures: raise SystemExit(1)
 
 if __name__=='__main__': main()
